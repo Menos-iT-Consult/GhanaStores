@@ -13,8 +13,28 @@
  */
 import { query } from '../config/database.js';
 
-const platformDomain = () =>
-  (process.env.PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/+$/, '').split(':')[0];
+/** Final fallback apex so a missing env var can never declassify every host. */
+const DEFAULT_PLATFORM_DOMAIN = 'didwaghana.com';
+
+/**
+ * The apex this deployment serves. `PLATFORM_DOMAIN` wins, then `ROOT_DOMAIN`,
+ * then DEFAULT_PLATFORM_DOMAIN - never an empty string. An empty apex made
+ * `classifyHost` report the platform's own apex as an unresolved tenant, so the
+ * root domain rendered a storefront (and 404'd) instead of the marketing site.
+ *
+ * Accepts a protocol, a path or a port: `https://didwaghana.com/` and
+ * `localhost:5173` both normalise to a bare lowercase hostname.
+ */
+export const platformDomain = () => {
+  const raw = process.env.PLATFORM_DOMAIN || process.env.ROOT_DOMAIN || DEFAULT_PLATFORM_DOMAIN;
+  return String(raw)
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .split(':')[0]
+    .replace(/\.+$/, '');
+};
 
 /** Subdomain labels that always belong to the platform, never to a seller. */
 const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);

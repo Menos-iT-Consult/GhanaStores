@@ -52,7 +52,16 @@ export default function App() {
   const host = window.location.hostname.toLowerCase();
   const platform = String(import.meta.env.VITE_PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0];
   const platformHost = platform.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
-  const isPlatformHost = !platformHost || host === platformHost || host === `www.${platformHost}` || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.vercel.app');
+  /* Hosts that must be treated as platform traffic outside production DNS
+     (Vercel preview URLs, tunnels). Configured explicitly through
+     VITE_PREVIEW_HOSTS as a comma separated list of suffixes - nothing is
+     hardcoded, so a deployment URL is only exempt when it is opted in. */
+  const previewHosts = String(import.meta.env.VITE_PREVIEW_HOSTS || '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase().replace(/^\*?\.+/, ''))
+    .filter(Boolean);
+  const isPreviewHost = previewHosts.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  const isPlatformHost = !platformHost || host === platformHost || host === `www.${platformHost}` || host === 'localhost' || host.endsWith('.localhost') || isPreviewHost;
   // A host is tenanted only when it is a real subdomain of the platform apex.
   // Never treat "any host containing a dot" as a tenant: that misclassifies www
   // and other platform hosts, and the storefront then requests a bogus slug.

@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { promises as dns } from 'node:dns';
 import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
-import { resolveTenantStore } from '../middleware/domainMiddleware.js';
+import { resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 
 const router = Router();
 
@@ -20,7 +20,10 @@ const router = Router();
 // middleware/domainMiddleware.js (per the module spec).
 export const resolveStoreFromHost = resolveTenantStore;
 
-const PLATFORM_DOMAIN = (process.env.PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+// Shares the Host classifier's apex resolution (PLATFORM_DOMAIN -> ROOT_DOMAIN
+// -> platform default) so seller-facing DNS instructions never degrade to a
+// bare `cname.` when the environment variable is missing.
+const PLATFORM_DOMAIN = platformDomain();
 const ROOT_DOMAIN = (process.env.ROOT_DOMAIN || 'localhost:5173').split(':')[0];
 // Falls back to a subdomain OF THE PLATFORM DOMAIN so white-label deploys
 // only need to set PLATFORM_DOMAIN (override with an explicit CNAME_TARGET).

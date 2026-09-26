@@ -55,11 +55,12 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `ARKESEL_API_KEY` | Arkesel transactional SMS | Dry-run mode (logged, not sent) |
 | `RISK_THRESHOLD_GHS` | Payouts at/above this need admin review | `5000` |
 | `PORT` | API port | `4000` |
-| `PLATFORM_DOMAIN` | Platform apex domain for subdomains | `didwaghana.com` |
+| `PLATFORM_DOMAIN` | Platform apex domain for subdomains | `didwaghana.com` (falls back to `ROOT_DOMAIN`, then `didwaghana.com`) |
 | `PLATFORM_URL` | Public origin for PDF/QR verification links | `https://didwaghana.com` |
 | `ROOT_DOMAIN` | Apex used by the Host resolver (dev: `localhost:5173`) | `didwaghana.com` |
 | `CNAME_TARGET` | CNAME target shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
 | `VITE_PLATFORM_DOMAIN` | Browser-side apex domain for subdomains (seller PWA) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
+| `VITE_PREVIEW_HOSTS` | Host suffixes treated as platform traffic (preview URLs) | empty - nothing is exempt by default |
 | `ENABLE_CRON` | Start the billing scheduler | `false` |
 | `CLIENT_URL` | CORS origin for the PWA | `*` |
 
@@ -194,8 +195,9 @@ and the output directory (`dist`). No code changes required.
 | `MTN_MOMO_SUBSCRIPTION_KEY` / `MTN_MOMO_COLLECTION_USER_ID` / `MTN_MOMO_COLLECTION_API_KEY` | Live MTN MoMo keys (omit to keep MTN in dry-run) |
 | `MTN_MOMO_TARGET_ENVIRONMENT` | `sandbox` for testing, `mtn-ghana` for live traffic |
 | `ARKESEL_API_KEY` | Live SMS key (omit to stay in dry-run) |
-| `PLATFORM_DOMAIN` | Platform apex domain, `didwaghana.com` (no protocol) |
+| `PLATFORM_DOMAIN` | Platform apex domain, `didwaghana.com` (no protocol). Falls back to `ROOT_DOMAIN`, then to `didwaghana.com`, so a missing value never declassifies the apex |
 | `VITE_PLATFORM_DOMAIN` | Same value - baked into the browser bundle at build time, so redeploy after changing it |
+| `VITE_PREVIEW_HOSTS` | Optional comma separated host suffixes treated as platform traffic (e.g. `vercel.app` on Preview deployments); those hosts render the marketing site instead of a storefront |
 | `PLATFORM_URL` | `https://didwaghana.com` (used for PDF verification links) |
 | `ROOT_DOMAIN` | `didwaghana.com` (apex used by the Host-header resolver) |
 | `CNAME_TARGET` | The project-specific CNAME from your Vercel domain card (what sellers point their own domain at) |
