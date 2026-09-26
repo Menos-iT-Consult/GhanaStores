@@ -152,10 +152,11 @@ custom-domain attach plus Caddy ask 204/403, and strict tenant isolation.
 
 ## Production Notes
 
-- **Vercel + Cloudflare (current setup):** `didwaghana.com` and
-  `*.didwaghana.com` live in the Cloudflare zone; the wildcard is proxied so
-  storefront subdomains get HTTPS from Cloudflare Universal SSL. Set SSL/TLS to
-  Full (strict). See "Domain, DNS and customer domains" below for records.
+- **Vercel + Cloudflare (current setup):** `didwaghana.com`, `www` and
+  `*.didwaghana.com` are added to the Vercel project, while the zone stays on
+  Cloudflare with the wildcard proxied. The Vercel wildcard entry is mandatory:
+  without it every storefront subdomain fails with Cloudflare error 525.
+  See "Domain, DNS and customer domains" below for the record table.
 - **Self-hosted alternative:** serve the API behind Caddy with
   `on_demand_tls { ask ... }` pointed at `/api/domains/caddy-ask`; wildcard
   `*.didwaghana.com` plus per-store custom domains then receive certificates
@@ -239,13 +240,20 @@ Two ways to get SSL on the wildcard, and they are mutually exclusive:
 - **Cloudflare proxy (recommended here).** Keep the zone's nameservers at
   Cloudflare and leave the `*` record proxied. Cloudflare Universal SSL covers
   `didwaghana.com` and `*.didwaghana.com` (one level), so storefront subdomains
-  are served over HTTPS. Set SSL/TLS mode to **Full (strict)** - the default
-  "Flexible" mode causes redirect loops against Vercel - and remove any `AAAA`
-  records for the apex.
-- **Vercel nameservers.** Vercel only issues its own wildcard certificates when
+  are served over HTTPS. Remove any `AAAA` records for the apex and never use
+  the "Flexible" mode - it causes redirect loops against Vercel.
+- **Vercel nameservers.** Vercel issues its own wildcard certificates only when
   the zone is delegated to `ns1.vercel-dns.com` / `ns2.vercel-dns.com`, because
-  the DNS-01 challenge needs control of the zone. Choose this if you want Vercel
-  to manage every certificate; the domain then leaves Cloudflare DNS.
+  wildcard certificates need the DNS-01 challenge and Vercel cannot create that
+  record in a zone it does not control. Domains registered through Cloudflare
+  Registrar cannot change nameservers, so this needs a registrar transfer.
+
+Origin-leg TLS is the subtle part. With external DNS Vercel cannot present a
+certificate matching `slug.didwaghana.com`, so `Full (strict)` can fail with
+**526**, while `Full` accepts the origin without validating it. Start with
+`Full` (still encrypted), or give the wildcard a Cloudflare-for-SaaS custom
+hostname whose fallback origin is `didwaghana.vercel.app` - then Cloudflare
+validates a real origin certificate and `Full (strict)` works.
 
 Notes:
 
@@ -260,7 +268,6 @@ Notes:
 - The Cloudflare-for-SaaS flow in `services/domainService.js`
   (`CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN`) targets the real
   `didwaghana.com` zone, so keep the zone on Cloudflare if you want that
-  automated custom-hostname provisioning.
   automated custom-hostname provisioning.
 
 ### 5. Serverless caveats (already handled)
