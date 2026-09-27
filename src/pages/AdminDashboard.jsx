@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertCircle, CheckCircle2, Clock, CreditCard, ExternalLink, Globe, Loader2, LogOut, RefreshCw, Search, ShieldAlert, Store, TrendingUp, Users, XCircle } from 'lucide-react';
 import { adminApi, ghs } from '../api.js';
+import { getPlatformDomain } from '../config.js';
 
 const cx = (...values) => values.filter(Boolean).join(' ');
 const list = (value) => Array.isArray(value) ? value : [];
@@ -63,7 +64,7 @@ function PaymentsTab({ transactions, gateways }) {
 
 export default function AdminDashboard({ onLogout }) {
   const [data, setData] = useState(null); const [tab, setTab] = useState('tenants'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const platformDomain = String(import.meta.env.VITE_PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0];
+  const platformDomain = getPlatformDomain();
   async function load() { try { setError(''); setData(await adminApi.get('/api/admin/overview')); } catch (e) { setError(e.message); } finally { setLoading(false); } }
   useEffect(() => { load(); }, []);
   if (loading) return <div className="flex min-h-[60vh] items-center justify-center text-slate-500"><Loader2 className="mr-2 animate-spin" size={20} />Loading platform overview...</div>;

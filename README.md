@@ -59,7 +59,7 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `PLATFORM_URL` | Public origin for PDF/QR verification links | `https://didwaghana.com` |
 | `ROOT_DOMAIN` | Apex used by the Host resolver (dev: `localhost:5173`) | `didwaghana.com` |
 | `CNAME_TARGET` | CNAME target shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
-| `VITE_PLATFORM_DOMAIN` | Browser-side apex domain for subdomains (seller PWA) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
+| `VITE_PLATFORM_DOMAIN` | Browser-side apex for seller storefront URLs - **fallback only**, the API's own apex wins (see `src/config.js`) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
 | `VITE_PREVIEW_HOSTS` | Host suffixes treated as platform traffic (preview URLs) | empty - nothing is exempt by default |
 | `ENABLE_CRON` | Start the billing scheduler | `false` |
 | `CLIENT_URL` | CORS origin for the PWA | `*` |
@@ -141,7 +141,8 @@ construction (verified in the e2e suite).
 ## Testing
 
 ```bash
-node scripts/e2eTest.js    # 37 assertions across all 7 modules
+node scripts/e2eTest.js     # 37 assertions across all 7 modules
+node scripts/routeTest.js   # 44 route-table assertions (no server, no DB)
 ```
 
 The suite registers two fresh stores and asserts: trial trigger + welcome SMS,
@@ -163,6 +164,9 @@ custom-domain attach plus Caddy ask 204/403, and strict tenant isolation.
   automatically.
 - Set `ENABLE_CRON=true` on exactly one instance so billing jobs run once.
   On Vercel this is unnecessary - the platform Cron hits `/api/cron/billing`.
+- `CRON_SECRET` must be set in production. Without it Vercel sends no auth
+  header *and* the handler skips verification, so `/api/cron/billing` becomes a
+  public endpoint that can trigger the whole billing cycle on demand.
 - Swap the dry-run gateway modes for live keys in `.env` when ready
   (MTN MoMo for MTN numbers, Hubtel for Telecel/AT + fallback);
   no code changes are needed.
@@ -177,7 +181,7 @@ The repo ships with Vercel configuration in place - no scaffolding needed:
 | Backend (Express) | `api/index.js` wraps the whole modular app in one Node function |
 | API routing | `vercel.json` rewrites `/api/(.*)` and `/health` to that function |
 | SPA fallback | `/(.*)` rewrites to `/index.html`; static assets in `dist/` win first |
-| Billing cron | Vercel Cron calls `/api/cron/billing` daily (`0 0 * * *` per `vercel.json`; the in-process scheduler uses 08:00 Africa/Accra when `ENABLE_CRON=true`) |
+| Billing cron | Vercel Cron calls `/api/cron/billing` daily (`0 8 * * *` per `vercel.json` - Vercel Cron is always UTC and Ghana is GMT+0, so this fires at 08:00 Accra; `ENABLE_CRON=true` only matters when self-hosting) |
 | DB pool | `config/database.js` auto-tunes for Vercel (`PGPOOL_MAX=3`, smaller gateway timeouts) |
 
 ### 1. Push the repo to GitHub and import it in Vercel
@@ -197,7 +201,7 @@ and the output directory (`dist`). No code changes required.
 | `MTN_MOMO_TARGET_ENVIRONMENT` | `sandbox` for testing, `mtn-ghana` for live traffic |
 | `ARKESEL_API_KEY` | Live SMS key (omit to stay in dry-run) |
 | `PLATFORM_DOMAIN` | Platform apex domain, `didwaghana.com` (no protocol). Falls back to `ROOT_DOMAIN`, then to `didwaghana.com`, so a missing value never declassifies the apex |
-| `VITE_PLATFORM_DOMAIN` | Same value - baked into the browser bundle at build time, so redeploy after changing it |
+| `VITE_PLATFORM_DOMAIN` | Same value. Baked into the bundle at build time, so redeploy after changing it. It is only the fallback: the client adopts the apex reported by `GET /api/domains/resolve`, so a stale value here can no longer show a wrong storefront URL in the dashboard |
 | `VITE_PREVIEW_HOSTS` | Optional comma separated host suffixes treated as platform traffic (e.g. `vercel.app` on Preview deployments); those hosts render the marketing site instead of a storefront |
 | `PLATFORM_URL` | `https://didwaghana.com` (used for PDF verification links) |
 | `ROOT_DOMAIN` | `didwaghana.com` (apex used by the Host-header resolver) |

@@ -13,6 +13,7 @@
     "dev:web": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:routing": "node scripts/routeTest.js",
     "start": "NODE_ENV=production node server.js",
     "db:init": "node scripts/dbInit.js",
     "db:reset": "node scripts/dbReset.js",

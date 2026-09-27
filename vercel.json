@@ -29,7 +29,7 @@
   "crons": [
     {
       "path": "/api/cron/billing",
-      "schedule": "0 0 * * *"
+      "schedule": "0 8 * * *"
     }
   ],
   "headers": [

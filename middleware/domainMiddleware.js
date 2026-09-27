@@ -111,6 +111,10 @@ export async function resolveTenantStore(req, res, next, deps = {}) {
   req.tenantStore = null;
   req.storeFromHost = null;
   req.isPlatformRoot = false;
+  /* Tell the browser which apex this deployment serves. The client's
+     VITE_PLATFORM_DOMAIN is baked in at build time and can be stale, so
+     seller-facing URLs and the legal copy must prefer this value. */
+  req.platformDomain = platformDomain();
   req.tenantInfo = { mode: 'platform', host: String(req.headers.host || '') };
 
   try {

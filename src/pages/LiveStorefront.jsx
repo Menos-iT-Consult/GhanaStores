@@ -3,15 +3,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ghs } from '../api.js';
 import { normalizeCustomThemeConfig } from '../theme/config.js';
 import { IconCart, IconWhatsApp, IconAlert, IconCheck } from '../components/icons.jsx';
+import { getPlatformDomain } from '../config.js';
 
 const slugFromHost = () => {
   const host = window.location.hostname.toLowerCase();
-  const platform = String(import.meta.env.VITE_PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0];
+  const platform = getPlatformDomain();
   if (platform && host.endsWith(`.${platform}`)) return host.slice(0, -(platform.length + 1)).split('.')[0];
   return host;
 };
 
-export default function LiveStorefront({ onPlatformHost = null, resolvedHost = null }) {
+export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound = null, resolvedHost = null }) {
   const [tenant, setTenant] = useState(null);
   const [products, setProducts] = useState([]);
   const [theme, setTheme] = useState(null);
@@ -50,6 +51,9 @@ export default function LiveStorefront({ onPlatformHost = null, resolvedHost = n
       // also makes a stale or missing VITE_PLATFORM_DOMAIN harmless.
       if (!resolved?.tenant) {
         if (resolved?.isPlatformRoot) { if (onPlatformHost) onPlatformHost(); return; }
+        // No live store owns this host: hand off to the branded Store Not Found
+        // page when the app provides one, otherwise keep the inline message.
+        if (onStoreNotFound) { onStoreNotFound(); return; }
         fail('Storefront not found.');
         return;
       }

@@ -69,10 +69,11 @@ function domainUrl(domain) {
 router.get('/resolve', async (req, res, next) => {
   try {
     if (!req.tenantStore) {
-      return res.json({ tenant: null, ...req.tenantInfo });
+      return res.json({ tenant: null, platformDomain: req.platformDomain, ...req.tenantInfo });
     }
     const s = req.tenantStore;
     res.json({
+      platformDomain: req.platformDomain,
       tenant: {
         id: s.id,
         name: s.name,

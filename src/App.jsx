@@ -33,6 +33,10 @@ import DomainManager from './pages/DomainManager.jsx';
 import LiveStorefront from './pages/LiveStorefront.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 
+import NotFoundPage from './pages/NotFoundPage.jsx';
+import StoreNotFoundPage from './pages/StoreNotFoundPage.jsx';
+import { isKnownRoute } from './routes.js';
+import { setPlatformDomain } from './config.js';
 
 export default function App() {
   const [authed, setAuthed] = useState(Boolean(getToken()));
@@ -49,6 +53,9 @@ export default function App() {
      client-side guess is baked in at build time and can be stale, so the API
      owns the final word: platform root -> marketing site, tenant -> storefront. */
   const [hostState, setHostState] = useState({ status: 'pending', tenant: null, isPlatformRoot: false });
+  /* Host reported by the storefront as having no store; only set when that
+     differs from the server answer App already holds. */
+  const [storeMissing, setStoreMissing] = useState('');
   const host = window.location.hostname.toLowerCase();
   const platform = String(import.meta.env.VITE_PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0];
   const platformHost = platform.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
@@ -84,6 +91,10 @@ export default function App() {
     api.get('/api/domains/resolve')
       .then((resolved) => {
         if (!alive) return;
+        /* The API owns the apex: adopt it before anything renders a seller URL,
+           so a stale VITE_PLATFORM_DOMAIN baked into an old bundle cannot leak
+           into the dashboard, the Domains page or the legal copy. */
+        setPlatformDomain(resolved?.platformDomain);
         setHostState({
           status: resolved?.tenant ? 'tenant' : (resolved?.isPlatformRoot ? 'platform' : 'unresolved'),
           tenant: resolved?.tenant || null,
@@ -151,9 +162,9 @@ export default function App() {
       case '/dashboard/themes': return <SellerThemeMarketplace />;
       case '/dashboard/themes/customizer': return <ThemeCustomizer chromeless />;
       case '/domains': return <DomainManager subdomain={store?.subdomain_slug} storeId={store?.id} />;
-      default: return <SellerAnalytics />;
+      default: return <NotFoundPage authed={authed} embedded />;
     }
-  }, [route]);
+  }, [route, authed]);
 
   /* Public web pages - open to everyone, no dashboard chrome. The index
      (#/) plus About / Contact / Terms / Privacy stay reachable whether or
@@ -169,7 +180,24 @@ export default function App() {
     if (hostState.status === 'pending') {
       return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading store...</div>;
     }
-    return <LiveStorefront resolvedHost={hostState} onPlatformHost={() => setHostIsPlatform(true)} />;
+    /* No live store owns this host - mistyped, closed or suspended address.
+       Render the branded Store Not Found page, not a bare error string. */
+    if (hostState.status === 'unresolved' || storeMissing) {
+      return <StoreNotFoundPage host={storeMissing || host} />;
+    }
+    return (
+      <LiveStorefront
+        resolvedHost={hostState}
+        onPlatformHost={() => setHostIsPlatform(true)}
+        onStoreNotFound={() => setStoreMissing(host)}
+      />
+    );
+  }
+
+  /* Unknown path: answer with a 404 and no dashboard chrome. A mistyped URL
+     must never look like a login wall or silently show a dashboard page. */
+  if (!isKnownRoute(route)) {
+    return <NotFoundPage authed={authed} path={route} />;
   }
 
   const welcomeProps = {

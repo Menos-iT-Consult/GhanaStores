@@ -14,16 +14,17 @@ import {
   Phone, Scale, Send, ShieldCheck, Zap,
 } from 'lucide-react';
 import { LogoLockup } from '../components/icons.jsx';
-import { PLATFORM_DOMAIN } from '../config.js';
+import { getPlatformDomain } from '../config.js';
 import { navigate } from '../router.js';
 
 const UPDATED = 'August 2026';
-const CONTACT_EMAIL = `hello@${PLATFORM_DOMAIN}`;
+/** Contact address, built at render time so the API's apex always wins. */
+const contactEmail = () => `hello@${getPlatformDomain()}`;
 const CONTACT_PHONE_RAW = String(import.meta.env.VITE_PLATFORM_PHONE || '+233 20 123 4567').trim();
 const CONTACT_PHONE_E164 = CONTACT_PHONE_RAW.replace(/\s+/g, '');
 
 /* ------------------------------ Shared shell ------------------------------- */
-function Shell({ authed, children }) {
+export function PublicShell({ authed, children }) {
   return (
     <div className="flex min-h-screen flex-col bg-white text-charcoal">
       <header className="sticky top-0 z-40 border-b border-slate-900/5 bg-white/85 backdrop-blur">
@@ -103,7 +104,7 @@ export function AboutPage({ authed = false }) {
     { Icon: Scale, title: 'Honest by default', body: 'Clear pricing, plain-language policies and payouts that land when we say they will.' },
   ];
   return (
-    <Shell authed={authed}>
+    <PublicShell authed={authed}>
       <PageHero
         eyebrow="Our story"
         title="Commerce tools made for Ghana."
@@ -140,7 +141,7 @@ export function AboutPage({ authed = false }) {
           </button>
         </div>
       </section>
-    </Shell>
+    </PublicShell>
   );
 }
 
@@ -148,14 +149,14 @@ export function AboutPage({ authed = false }) {
 export function ContactPage({ authed = false }) {
   const [sent, setSent] = useState(false);
   const cards = [
-    { Icon: Mail, label: 'Email us', value: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` },
+    { Icon: Mail, label: 'Email us', value: contactEmail(), href: `mailto:${contactEmail()}` },
         { Icon: Phone, label: 'Call support', value: CONTACT_PHONE_RAW, href: `tel:${CONTACT_PHONE_E164}` },
     { Icon: MessageCircle, label: 'WhatsApp', value: 'Chat with the team', href: `https://wa.me/${CONTACT_PHONE_E164}` },
   ];
   const inputCls = 'w-full rounded-xl border border-slate-200 bg-mist/60 px-3.5 py-2.5 text-sm transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100';
 
   return (
-    <Shell authed={authed}>
+    <PublicShell authed={authed}>
       <PageHero
         eyebrow="Contact us"
         title="Talk to a human."
@@ -218,37 +219,43 @@ export function ContactPage({ authed = false }) {
           )}
         </div>
       </section>
-    </Shell>
+    </PublicShell>
   );
 }
+
+/* Legal copy is authored with {platform} / {contact} placeholders and filled in
+   at render time, because the apex is only known once the API has answered. */
+const withPlatform = (text) => String(text)
+  .replace(/\{platform\}/g, getPlatformDomain())
+  .replace(/\{contact\}/g, contactEmail());
 
 /* ------------------------------ Legal renderer ----------------------------- */
 function LegalDoc({ authed, title, intro, sections }) {
   return (
-    <Shell authed={authed}>
+    <PublicShell authed={authed}>
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         <a href="/" className="text-xs font-bold text-blue-600 hover:underline">Back to home</a>
         <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
         <p className="mt-2 text-xs font-bold uppercase tracking-wide text-slate-400">Last updated: {UPDATED}</p>
 
-        <p className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">{intro}</p>
+        <p className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">{withPlatform(intro)}</p>
 
         <div className="mt-10 space-y-9">
           {sections.map((s, i) => (
             <section key={s.h}>
               <h2 className="flex items-baseline gap-2.5 text-base font-extrabold">
                 <span className="text-blue-600">{String(i + 1).padStart(2, '0')}</span>
-                {s.h}
+                {withPlatform(s.h)}
               </h2>
               {(s.ps || []).map((p, j) => (
-                <p key={j} className="mt-2.5 text-sm leading-relaxed text-slate-600">{p}</p>
+                <p key={j} className="mt-2.5 text-sm leading-relaxed text-slate-600">{withPlatform(p)}</p>
               ))}
               {s.list ? (
                 <ul className="mt-3 space-y-2">
                   {s.list.map((x) => (
                     <li key={x} className="flex gap-2.5 text-sm leading-relaxed text-slate-600">
                       <Check size={14} className="mt-1 shrink-0 text-emerald-brand" aria-hidden="true" />
-                      <span>{x}</span>
+                      <span>{withPlatform(x)}</span>
                     </li>
                   ))}
                 </ul>
@@ -260,12 +267,12 @@ function LegalDoc({ authed, title, intro, sections }) {
         <div className="mt-12 rounded-2xl border border-slate-100 bg-mist/60 p-6">
           <h2 className="text-sm font-extrabold">Questions about this document?</h2>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-            <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex items-center gap-1.5 font-semibold text-blue-600 hover:text-blue-700"><Mail size={13} aria-hidden="true" />{CONTACT_EMAIL}</a>
+            <a href={`mailto:${contactEmail()}`} className="inline-flex items-center gap-1.5 font-semibold text-blue-600 hover:text-blue-700"><Mail size={13} aria-hidden="true" />{contactEmail()}</a>
             <a href="/contact" className="inline-flex items-center gap-1.5 font-semibold text-blue-600 hover:text-blue-700"><Send size={13} aria-hidden="true" />Contact page</a>
           </p>
         </div>
       </div>
-    </Shell>
+    </PublicShell>
   );
 }
 
@@ -290,7 +297,7 @@ const TERMS_SECTIONS = [
   {
     h: 'Your storefront address',
     ps: [
-      `Each store receives a subdomain on ${PLATFORM_DOMAIN} (for example yourstore.${PLATFORM_DOMAIN}). Subdomains are provisioned on a first-come basis, must not infringe third-party rights and may be reclaimed if left unused.`,
+      `Each store receives a subdomain on {platform} (for example yourstore.{platform}). Subdomains are provisioned on a first-come basis, must not infringe third-party rights and may be reclaimed if left unused.`,
       'You may attach a custom domain; DNS propagation and SSL certificate issuance depend on your registrar and typically complete within 24-72 hours.',
     ],
   },
@@ -342,7 +349,7 @@ export function TermsPage({ authed = false }) {
     <LegalDoc
       authed={authed}
       title="Terms of Service"
-      intro={`These terms form the agreement between you and DiDwa ("we", "us") governing use of the seller platform, POS tools and storefronts hosted on ${PLATFORM_DOMAIN}. Please read them before creating an account.`}
+      intro={`These terms form the agreement between you and DiDwa ("we", "us") governing use of the seller platform, POS tools and storefronts hosted on ${getPlatformDomain()}. Please read them before creating an account.`}
       sections={TERMS_SECTIONS}
     />
   );
@@ -353,8 +360,8 @@ const PRIVACY_SECTIONS = [
   {
     h: 'Who we are',
     ps: [
-      `DiDwa is a multi-tenant commerce platform operated from Accra, Ghana, with seller storefronts served from ${PLATFORM_DOMAIN} and merchant-owned custom domains. This policy explains what personal data we collect, why, and the choices you have.`,
-      'For any privacy question or request, write to ' + CONTACT_EMAIL + '.',
+      `DiDwa is a multi-tenant commerce platform operated from Accra, Ghana, with seller storefronts served from {platform} and merchant-owned custom domains. This policy explains what personal data we collect, why, and the choices you have.`,
+      'For any privacy question or request, write to {contact}.',
     ],
   },
   {
