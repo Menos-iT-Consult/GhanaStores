@@ -1,8 +1,12 @@
 /** Live tenant storefront. Uses database inventory, never demo products. */
 import { useEffect, useMemo, useState } from 'react';
-import { api, ghs } from '../api.js';
-import { normalizeCustomThemeConfig } from '../theme/config.js';
-import { IconCart, IconWhatsApp, IconAlert, IconCheck } from '../components/icons.jsx';
+import { api } from '../api.js';
+import {
+  mergeThemeConfig,
+  normalizeCustomThemeConfig,
+  templateToCustomizerTokens,
+} from '../theme/config.js';
+import StorefrontRouter, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
 import { getPlatformDomain } from '../config.js';
 
 const slugFromHost = () => {
@@ -12,6 +16,52 @@ const slugFromHost = () => {
   return host;
 };
 
+/**
+ * Resolve the config a live storefront paints with.
+ *
+ * The API hands back the active template and the seller's saved overrides as
+ * SEPARATE layers, because the template speaks in presets (palette, hero, seo)
+ * while the storefront speaks in tokens (colors, branding, layout). Flattening
+ * the two into one object loses that boundary: every template key then looks
+ * unset, so the storefront silently falls back to the schema defaults and a
+ * seller who activated "Midnight Noir" still sees the default green. Layer
+ * order: template tokens -> seller overrides -> store identity (always last,
+ * so a real store's name and WhatsApp number beat the template's placeholders).
+ */
+export function resolveStorefrontTheme(resolved, tenantMeta) {
+  const template = resolved?.templateConfig || resolved?.theme?.config || {};
+  /* A store with no active theme must keep the schema defaults. Mapping an EMPTY
+     template instead would produce empty-string tokens, and those empty values
+     would be injected as CSS custom properties (an invalid declaration), so the
+     storefront would lose its colours rather than fall back to a safe palette. */
+  const hasTemplate = Boolean(template && Object.keys(template).length);
+  const tokens = hasTemplate
+    ? templateToCustomizerTokens({ config: template, name: resolved?.theme?.name })
+    : normalizeCustomThemeConfig({});
+  /* The seller's overrides are merged RAW. Normalising them first would expand
+     them into a full config, and those schema defaults would then overwrite
+     every token the template just set - which is how a chosen theme ended up
+     painted in the default green. */
+  const merged = normalizeCustomThemeConfig(mergeThemeConfig(tokens, resolved?.overrides || {}));
+
+  // A title the SELLER typed wins; otherwise the real store name does, so the
+  // template's demo title never labels a live storefront.
+  const typed = resolved?.overrides?.branding?.site_title;
+  const siteTitle = (typeof typed === 'string' && typed.trim())
+    || tenantMeta?.name
+    || merged.branding?.site_title
+    || 'My DiDwa Store';
+
+  return {
+    ...merged,
+    branding: { ...merged.branding, site_title: siteTitle },
+    features: {
+      ...merged.features,
+      ...(tenantMeta?.whatsappNumber ? { whatsapp_number: tenantMeta.whatsappNumber } : {}),
+    },
+  };
+}
+
 export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound = null, resolvedHost = null }) {
   const [tenant, setTenant] = useState(null);
   const [products, setProducts] = useState([]);
@@ -20,6 +70,9 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  /* Which themed page is on screen, and which product the detail page shows. */
+  const [page, setPage] = useState('home');
+  const [productId, setProductId] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -67,21 +120,47 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       ]);
       if (!live) return;
       setProducts(catalog?.products || []);
-      if (themed?.theme?.config) setTheme(normalizeCustomThemeConfig(themed.theme.config));
+      if (themed?.theme?.config || themed?.templateConfig) {
+        setTheme(resolveStorefrontTheme(themed, resolved.tenant));
+      }
     })();
     return () => { live = false; };
   }, []);
 
-  const total = useMemo(() => cart.reduce((sum, line) => sum + Number(line.price) * line.quantity, 0), [cart]);
-  const config = theme || normalizeCustomThemeConfig({ branding: { site_title: tenant?.name || 'DiDwa Store' } });
-  const primary = config.colors.primary;
+  const displayProducts = useMemo(() => (products || []).map(toDisplayProduct), [products]);
 
-  function add(product, variant) {
+  /* Identity (store name, WhatsApp number) is already layered on by
+     resolveStorefrontTheme, so this only supplies a default when no theme
+     resolved at all. */
+  const config = useMemo(() => theme || normalizeCustomThemeConfig({}), [theme]);
+
+  function addToCart(product, variant, qty = 1) {
+    const variants = product.variants || [];
+    const target = variant || variants.find((v) => v.inStock) || variants[0] || null;
+    const id = target ? target.id : `p-${product.id}`;
+    const price = target ? Number(target.price) : Number(product.price || 0);
+    const stock = target ? Number(target.stock) : Number(product.stock || 0);
+    const amount = Math.max(1, Number(qty) || 1);
     setCart((current) => {
-      const found = current.find((line) => line.variantId === variant.id);
-      if (found) return current.map((line) => line.variantId === variant.id ? { ...line, quantity: Math.min(line.quantity + 1, variant.stockQuantity) } : line);
-      return [...current, { variantId: variant.id, name: product.name, label: variant.optionValue, price: variant.price, quantity: 1 }];
+      const found = current.find((line) => line.id === id);
+      if (found) {
+        return current.map((line) => (line.id === id
+          ? { ...line, quantity: Math.min(line.quantity + amount, line.stock || 99) }
+          : line));
+      }
+      return [...current, { id, name: product.name, label: target?.label || '', price, img: product.img, stock, quantity: amount }];
     });
+    setPage('cart');
+  }
+
+  function setLineQty(line, next) {
+    setCart((current) => current.map((l) => (l.id === line.id
+      ? { ...l, quantity: Math.max(1, Math.min(Number(next) || 1, l.stock || 99)) }
+      : l)));
+  }
+
+  function removeLine(line) {
+    setCart((current) => current.filter((l) => l.id !== line.id));
   }
 
   async function checkout(event) {
@@ -92,7 +171,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       const result = await api.post('/api/public/orders', {
         slug: tenant?.subdomainSlug, customer_name: customer.name,
         customer_phone: customer.phone, customer_address: customer.address,
-        payment_method: 'COD', items: cart.map((line) => ({ variantId: line.variantId, quantity: line.quantity })),
+        payment_method: 'COD', items: cart.map((line) => ({ variantId: line.id, quantity: line.quantity })),
       });
       setMessage(`Order ${result.order.orderNumber} placed successfully. We will contact you to confirm delivery.`);
       setCart([]);
@@ -103,15 +182,20 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   if (!tenant && !message) return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading store...</div>;
   if (!tenant) return <div className="flex min-h-screen items-center justify-center text-red-600">{message}</div>;
 
-  return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <header className="border-b bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4"><div><h1 className="text-xl font-extrabold" style={{ color: primary }}>{tenant.name}</h1><p className="text-xs text-slate-500">Live storefront</p></div><span className="text-sm text-slate-600"><IconCart className="mr-1 inline" />{cart.length} items</span></div></header>
-    <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 lg:grid-cols-[1fr_360px]">
-      <section><h2 className="mb-4 text-lg font-bold">Shop</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {products.map((product) => <article key={product.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">{product.image_url && <img src={product.image_url} alt={product.name} className="h-40 w-full object-cover" />}<div className="p-4"><h3 className="font-bold">{product.name}</h3><p className="mt-1 text-xs text-slate-500">{product.description}</p><div className="mt-3 space-y-2">{(product.variants || []).map((variant) => <button key={variant.id} type="button" disabled={!variant.inStock} onClick={() => add(product, variant)} className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm hover:border-blue-400 disabled:opacity-40"><span>{variant.optionValue}</span><span className="font-bold">{ghs(variant.price)}</span></button>)}</div></div></article>)}
-        {!products.length && <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">This store has no products available yet.</p>}
-      </div></section>
-      <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="flex items-center gap-2 text-lg font-bold"><IconCart /> Your order</h2><div className="mt-4 space-y-3">{cart.map((line) => <div key={line.variantId} className="flex justify-between gap-3 text-sm"><span>{line.quantity} × {line.name} <small className="text-slate-400">{line.label}</small></span><span className="font-semibold">{ghs(line.price * line.quantity)}</span></div>)}{!cart.length && <p className="text-sm text-slate-500">Your cart is empty.</p>}</div><div className="mt-4 flex justify-between border-t pt-4 font-extrabold"><span>Total</span><span style={{ color: primary }}>{ghs(total)}</span></div>
-        <form onSubmit={checkout} className="mt-5 space-y-3"><input required value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} placeholder="Your name" className="w-full rounded-lg border px-3 py-2 text-sm" /><input required value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} placeholder="Phone number" className="w-full rounded-lg border px-3 py-2 text-sm" /><textarea required value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} placeholder="Delivery address" className="w-full rounded-lg border px-3 py-2 text-sm" /><button disabled={!cart.length || busy} className="flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white disabled:opacity-40" style={{ background: primary }}>{busy ? 'Placing order...' : 'Place COD order'} {!busy && <IconCheck size={16} />}</button></form>{message && <p className="mt-4 flex gap-2 text-sm text-slate-600"><IconAlert size={16} />{message}</p>}{tenant.whatsappNumber && <a href={`https://wa.me/${String(tenant.whatsappNumber).replace(/\D/g, '')}`} className="mt-4 flex items-center justify-center gap-2 text-sm text-emerald-700"><IconWhatsApp size={16} /> Chat with the store</a>}</aside>
-    </main>
-  </div>;
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <StorefrontRouter
+        config={config}
+        page={page}
+        onNavigate={(next, id) => { setPage(next); if (id != null) setProductId(id); }}
+        products={displayProducts}
+        cart={cart}
+        productId={productId}
+        onAddToCart={addToCart}
+        onSetQty={setLineQty}
+        onRemove={removeLine}
+        checkout={{ customer, setCustomer, onSubmit: checkout, busy, message }}
+      />
+    </div>
+  );
 }

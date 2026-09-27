@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { seedThemeCatalog } from './migrate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
@@ -144,11 +145,13 @@ function checksum(text) {
  * function times out. The transaction-scoped `pg_advisory_xact_lock()` below
  * is released automatically on COMMIT/ROLLBACK, so it cannot leak.
  *
- * @param {{ query: (sql: string) => Promise<any> }} client - a dedicated pg client
+ * @param {{ query: (sql: string, params?: any[]) => Promise<any> }} client - a dedicated pg client
  * @param {{ quiet?: boolean }} [options]
  */
 export async function applySchemaIfMissing(client, { quiet = true } = {}) {
-  const exec = (sql) => client.query(sql);
+  // Params MUST be forwarded: the catalog seeder runs parameterised upserts
+  // through this runner, and dropping them would insert nothing.
+  const exec = (sql, params) => client.query(sql, params);
   const sql = fs.readFileSync(SCHEMA_PATH, 'utf8');
   const sum = checksum(sql);
 
@@ -177,15 +180,36 @@ export async function applySchemaIfMissing(client, { quiet = true } = {}) {
       existing = null; // marker table is empty
     }
 
+    /* The theme catalog is seeded on every apply - including the no-op path -
+       because a database can carry a current schema and still hold zero
+       templates, which is exactly what an unseeded fresh database looks like. */
+    const seedCatalog = async () => {
+      try {
+        const result = await seedThemeCatalog(exec);
+        if (result.seeded) {
+          console.log(`[db] theme catalog seeded (${result.seeded} templates).`);
+        }
+        return result.seeded;
+      } catch (err) {
+        // Never fail the schema apply over the catalog: the app still runs, and
+        // `npm run db:migrate` can seed it later.
+        console.warn('[db] theme catalog not seeded:', err.message);
+        return 0;
+      }
+    };
+
     if (existing === sum) {
+      const themesSeeded = await seedCatalog();
       await exec('COMMIT');
-      return { applied: false, statements: 0, checksum: sum, reason: 'already-current' };
+      return { applied: false, statements: 0, checksum: sum, themesSeeded, reason: 'already-current' };
     }
 
     const statements = splitSql(sql);
     for (const statement of statements) {
       await exec(statement);
     }
+    // The DDL above guarantees the table exists, so the catalog can be filled.
+    const themesSeeded = await seedCatalog();
     await exec(
       'INSERT INTO schema_state (id, checksum, applied_at) VALUES (1, '
       + quoteLiteral(sum) + ', NOW()) ON CONFLICT (id) DO UPDATE SET '
@@ -196,7 +220,7 @@ export async function applySchemaIfMissing(client, { quiet = true } = {}) {
     if (!quiet) {
       console.log(`[db] schema applied automatically (${statements.length} statements).`);
     }
-    return { applied: true, statements: statements.length, checksum: sum };
+    return { applied: true, statements: statements.length, checksum: sum, themesSeeded };
   } catch (err) {
     try { await exec('ROLLBACK'); } catch { /* noop */ }
     throw err;

@@ -10,6 +10,7 @@ import { api } from '../api.js';
 import { navigate } from '../router.js';
 import { IconCheck, IconAlert } from '../components/icons.jsx';
 import { templateToCustomizerTokens } from '../theme/config.js';
+import { themeGridState } from '../theme/catalogState.js';
 import {
   BadgeCheck, Eye, Filter, LayoutGrid, Palette, Search, Star, X,
 } from 'lucide-react';
@@ -163,16 +164,23 @@ export default function SellerThemeMarketplace() {
   const [activeId, setActiveId] = useState(null);
   const [applyingId, setApplyingId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [catalogError, setCatalogError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.get('/api/themes'), api.get('/api/store/theme')])
-      .then(([catalog, mine]) => {
-        setThemes(catalog.themes || []);
-        setActiveId(mine.activeThemeId || null);
-      })
-      .catch((e) => setFeedback({ ok: false, msg: e.message }))
-      .finally(() => setLoading(false));
+    let alive = true;
+    /* The catalog is public; the seller's own active theme is not. Fetch them
+       separately so a 401 on one (an expired session) can never blank the
+       other - that coupling is what made an empty market impossible to tell
+       apart from a failed one. */
+    api.get('/api/themes')
+      .then((catalog) => { if (alive) setThemes(catalog.themes || []); })
+      .catch((e) => { if (alive) setCatalogError(e.message); })
+      .finally(() => { if (alive) setLoading(false); });
+    api.get('/api/store/theme')
+      .then((mine) => { if (alive) setActiveId(mine.activeThemeId || null); })
+      .catch((e) => { if (alive) setFeedback({ ok: false, msg: `Could not read your active theme: ${e.message}` }); });
+    return () => { alive = false; };
   }, []);
 
   const visible = useMemo(() => {
@@ -200,6 +208,13 @@ export default function SellerThemeMarketplace() {
     const rest = list.filter((t) => t.id !== activeId);
     return [...pinned, ...rest];
   }, [themes, search, pill, activeId]);
+
+  const gridState = themeGridState({
+    loading,
+    error: catalogError,
+    catalogSize: themes.length,
+    visibleCount: visible.length,
+  });
 
   async function applyTheme(theme) {
     if (applyingId) return;
@@ -311,7 +326,9 @@ export default function SellerThemeMarketplace() {
       {/* Results meta */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium text-slate-500" aria-live="polite">
-          Showing {visible.length} of {themes.length} templates
+          {gridState === 'no-catalog'
+            ? 'No templates published'
+            : `Showing ${visible.length} of ${themes.length} templates`}
           {pill !== 'popular' ? ` - ${FILTER_PILLS.find((p) => p.key === pill)?.label}` : ''}
         </p>
         {activeTheme && (
@@ -322,12 +339,28 @@ export default function SellerThemeMarketplace() {
       </div>
 
       {/* Template grid - active theme first */}
-      {loading ? (
+      {gridState === 'loading' ? (
         <div className="flex h-64 items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400">
           <LayoutGrid size={22} className="animate-pulse" />
           <span className="text-sm font-medium">Loading the catalog...</span>
         </div>
-      ) : visible.length === 0 ? (
+      ) : gridState === 'error' ? (
+        <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50 p-12 text-center">
+          <IconAlert size={28} className="mx-auto text-rose-300" />
+          <p className="mt-3 text-sm font-semibold text-rose-700">The theme catalog could not be loaded.</p>
+          <p className="mx-auto mt-2 max-w-md text-xs text-rose-600">{catalogError}</p>
+        </div>
+      ) : gridState === 'no-catalog' ? (
+        <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 p-12 text-center">
+          <LayoutGrid size={28} className="mx-auto text-amber-300" />
+          <p className="mt-3 text-sm font-semibold text-amber-800">No themes have been published yet.</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-amber-700">
+            Templates live in the <code className="font-mono">theme_templates</code> table, which is seeded by
+            {' '}<code className="font-mono">npm run db:migrate</code>. Run it once against the production
+            database, then reload this page.
+          </p>
+        </div>
+      ) : gridState === 'no-matches' ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
           <LayoutGrid size={28} className="mx-auto text-slate-300" />
           <p className="mt-3 text-sm font-semibold text-slate-500">No templates match your filters.</p>

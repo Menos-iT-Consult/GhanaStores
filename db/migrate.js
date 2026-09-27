@@ -250,6 +250,33 @@ const UPSERT_SQL = `
 `;
 
 /**
+ * Seed the theme catalog through an injected SQL runner, so the migration
+ * script and the app's own cold-start apply (db/applySchema.js) share ONE
+ * definition of the catalog - buildPresets(), DDL and UPSERT_SQL above.
+ *
+ * Idempotent twice over: it returns immediately when any template already
+ * exists, and every row upserts on conflict. Callers own error handling; this
+ * throws only if the table is missing or the writes fail.
+ *
+ * @param {(sql: string, params?: any[]) => Promise<any>} exec
+ * @returns {Promise<{seeded: number, total: number, reason: string}>}
+ */
+export async function seedThemeCatalog(exec) {
+  const { rows } = await exec('SELECT COUNT(*)::int AS n FROM theme_templates');
+  const existing = Number(rows?.[0]?.n ?? 0);
+  if (existing > 0) return { seeded: 0, total: existing, reason: 'already-populated' };
+
+  const presets = buildPresets();
+  for (const stmt of DDL) await exec(stmt);
+  let seeded = 0;
+  for (const p of presets) {
+    await exec(UPSERT_SQL, [p.id, p.name, p.category, p.config]);
+    seeded += 1;
+  }
+  return { seeded, total: presets.length, reason: 'seeded' };
+}
+
+/**
  * Apply the theme architecture migration and seed the 100 preset themes.
  * Idempotent: safe to re-run on every deploy.
  */

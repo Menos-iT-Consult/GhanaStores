@@ -85,16 +85,22 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
   },
 };
 
+/**
+ * Deep-merge two theme configs: nested objects merge, scalars (and nulls) from
+ * `override` win. Shared by normalizeCustomThemeConfig and the storefront, so a
+ * seller override and a stored config always layer the same way.
+ */
+export function mergeThemeConfig(base, override) {
+  if (base == null || typeof base !== 'object') return override;
+  if (override == null || typeof override !== 'object') return override;
+  const out = Array.isArray(base) ? [...base] : { ...base };
+  for (const k of Object.keys(override || {})) out[k] = mergeThemeConfig(base[k], override[k]);
+  return out;
+}
+
 /** Merge stored config onto safe defaults (deep merge, scalars win). */
 export function normalizeCustomThemeConfig(raw) {
-  const merge = (base, override) => {
-    if (base == null || typeof base !== 'object') return override;
-    if (override == null || typeof override !== 'object') return override;
-    const out = Array.isArray(base) ? [...base] : { ...base };
-    for (const k of Object.keys(override || {})) out[k] = merge(base[k], override[k]);
-    return out;
-  };
-  return merge(DEFAULT_CUSTOM_THEME_CONFIG, raw || {});
+  return mergeThemeConfig(DEFAULT_CUSTOM_THEME_CONFIG, raw || {});
 }
 
 /** Extract customizer tokens from the currently published theme config. */

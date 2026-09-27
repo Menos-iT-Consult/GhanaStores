@@ -19,7 +19,7 @@ import {
 } from '../icons.jsx';
 import {
   ArrowRight, Check, ChevronRight, CreditCard, Facebook, Instagram,
-  Mail, MapPin, MessageCircle, Music2, Search, Send, Star,
+  Mail, MapPin, MessageCircle, Music2, Search, Send, Star, Trash2,
 } from 'lucide-react';
 import { FONT_OPTIONS, scopeCss } from '../../theme/config.js';
 
@@ -32,6 +32,53 @@ export const DEMO_PRODUCTS = [
   { id: 5, name: 'Solar Power Bank', price: 280, img: 'https://picsum.photos/seed/solar/400/300', stock: 9 },
   { id: 6, name: 'Adinkra Wall Art', price: 210, img: 'https://picsum.photos/seed/adinkra/400/300', stock: 5 },
 ];
+
+/* ------------------------------ Real catalog -------------------------------- */
+/**
+ * Shape a public-catalog row into what this renderer paints.
+ *
+ * The storefront API returns a product with nested variants; the cards want one
+ * price, one image and a total stock figure, and the detail page wants the
+ * variants. Demo products (price/img/stock, no variants) pass through the same
+ * function so the customizer preview and the live shop share one code path.
+ */
+export function toDisplayProduct(row) {
+  const variants = (row.variants || []).map((v) => ({
+    id: v.id,
+    label: [v.optionName, v.optionValue].filter(Boolean).join(' ') || 'Option',
+    price: Number(v.price ?? 0),
+    stock: Number(v.stockQuantity ?? 0),
+    inStock: v.inStock !== false && Number(v.stockQuantity ?? 0) > 0,
+  }));
+
+  if (!variants.length) {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description || '',
+      category: row.category || '',
+      img: row.img || row.image_url || '',
+      price: Number(row.price ?? 0),
+      stock: Number(row.stock ?? 0),
+      variants: [],
+    };
+  }
+
+  const priced = variants.filter((v) => v.price > 0);
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || '',
+    category: row.category || '',
+    img: row.image_url || '',
+    price: priced.length ? Math.min(...priced.map((v) => v.price)) : 0,
+    stock: variants.reduce((sum, v) => sum + v.stock, 0),
+    variants,
+  };
+}
+
+/** The demo catalogue, run through the same mapper the live shop uses. */
+const DEMO_CATALOG = DEMO_PRODUCTS.map(toDisplayProduct);
 
 /* Derived preview context shared by every page body. */
 export function useTokens(config, viewportWidth) {
@@ -51,14 +98,15 @@ export function useTokens(config, viewportWidth) {
   };
 }
 
-function ProductCard({ p, t, onNavigate }) {
+function ProductCard({ p, t, onNavigate, ctx }) {
   const { c, waDigits, btn } = t;
+  const open = () => onNavigate('product', p.id);
   return (
     <article
       className="group overflow-hidden border border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
       style={{ borderRadius: 'var(--radius)', background: 'var(--surface)' }}
     >
-      <button type="button" onClick={() => onNavigate('product')} className="relative block aspect-[4/3] w-full overflow-hidden">
+      <button type="button" onClick={open} className="relative block aspect-[4/3] w-full overflow-hidden">
         <img src={p.img} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         {c.features.enable_stock_counter && p.stock <= 5 && (
           <span className="absolute left-2 top-2 rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide shadow-sm" style={{ background: 'var(--accent)', color: '#0F172A' }}>
@@ -77,6 +125,7 @@ function ProductCard({ p, t, onNavigate }) {
         <div className="flex flex-wrap gap-1.5 pt-0.5">
           <button
             type="button"
+            onClick={() => (ctx?.onAddToCart ? ctx.onAddToCart(p) : open())}
             className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-white transition-transform duration-200 hover:-translate-y-0.5 ${btn()}`}
             style={{ background: 'var(--primary)', borderRadius: 'calc(var(--radius) - 4px)' }}
           >
@@ -107,7 +156,7 @@ const NAV_LINKS = [
   { key: 'contact', label: 'Contact' },
 ];
 
-function PreviewHeader({ t, active, onNavigate }) {
+function PreviewHeader({ t, active, onNavigate, ctx }) {
   const { c, compact, centered } = t;
   const h = c.header || {};
   return (
@@ -139,7 +188,9 @@ function PreviewHeader({ t, active, onNavigate }) {
             style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}
           >
             <IconCart size={14} className="inline" /> Cart
-            <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-extrabold" style={{ background: 'var(--accent)', color: '#0F172A' }}>2</span>
+            {ctx.cartCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-extrabold" style={{ background: 'var(--accent)', color: '#0F172A' }}>{ctx.cartCount}</span>
+            ) : null}
           </button>
         </div>
       </header>
@@ -236,7 +287,7 @@ function TrustStrip({ t }) {
   );
 }
 
-function HomeBody({ t, onNavigate }) {
+function HomeBody({ t, onNavigate, ctx }) {
   const { c, compact, gridColumns } = t;
   return (
     <>
@@ -264,7 +315,9 @@ function HomeBody({ t, onNavigate }) {
           <button type="button" onClick={() => onNavigate('shop')} className="text-[11px] font-bold underline opacity-70 hover:opacity-100">View all</button>
         </div>
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0,1fr))` }}>
-          {DEMO_PRODUCTS.map((p) => <ProductCard key={p.id} p={p} t={t} onNavigate={onNavigate} />)}
+          {ctx.products.slice(0, gridColumns * 2).map((p) => (
+            <ProductCard key={p.id} p={p} t={t} onNavigate={onNavigate} ctx={ctx} />
+          ))}
         </div>
       </section>
       <TrustStrip t={t} />
@@ -272,35 +325,44 @@ function HomeBody({ t, onNavigate }) {
   );
 }
 
-function ShopBody({ t }) {
+function ShopBody({ t, onNavigate, ctx }) {
   const { gridColumns } = t;
-  const cats = ['All', 'Textiles', 'Beauty', 'Craft', 'Gadgets'];
+  const [cat, setCat] = useState('All');
+  const cats = ['All', ...Array.from(new Set(ctx.products.map((p) => p.category).filter(Boolean)))];
+  const list = cat === 'All' ? ctx.products : ctx.products.filter((p) => p.category === cat);
   return (
     <section className="p-5" aria-label="Shop catalog">
       <nav className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide opacity-60" aria-label="Breadcrumb">
         <span>Home</span> <ChevronRight size={10} aria-hidden="true" /> <span>Shop</span>
       </nav>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-extrabold">All Products <span className="text-xs font-bold opacity-50">({DEMO_PRODUCTS.length})</span></h1>
+        <h1 className="text-lg font-extrabold">{cat === 'All' ? 'All Products' : cat} <span className="text-xs font-bold opacity-50">({list.length})</span></h1>
         <select aria-label="Sort products" className="rounded-md border px-2 py-1 text-[11px] font-semibold" style={{ borderColor: 'rgba(148,163,184,.4)', background: 'var(--surface)', color: 'var(--text)' }}>
           <option>Sort: Featured</option><option>Price: Low to High</option><option>Newest</option>
         </select>
       </div>
       <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Categories">
-        {cats.map((x, i) => (
-          <span
+        {cats.map((x) => (
+          <button
             key={x}
+            type="button"
             role="tab"
-            aria-selected={i === 0}
-            className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold transition-colors ${i === 0 ? 'text-white' : ''}`}
-            style={i === 0 ? { background: 'var(--primary)' } : { background: 'var(--surface)', color: 'var(--text)' }}
+            aria-selected={cat === x}
+            onClick={() => setCat(x)}
+            className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold transition-colors ${cat === x ? 'text-white' : ''}`}
+            style={cat === x ? { background: 'var(--primary)' } : { background: 'var(--surface)', color: 'var(--text)' }}
           >
             {x}
-          </span>
+          </button>
         ))}
       </div>
+      {!list.length ? (
+        <p className="rounded-lg border border-dashed p-8 text-center text-xs font-semibold opacity-70" style={{ borderColor: 'rgba(148,163,184,.4)' }}>
+          This store has no products available yet.
+        </p>
+      ) : null}
       <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(gridColumns, 4)}, minmax(0,1fr))` }}>
-        {DEMO_PRODUCTS.map((p) => <ProductCard key={p.id} p={p} t={t} onNavigate={() => {}} />)}
+        {list.map((p) => <ProductCard key={p.id} p={p} t={t} onNavigate={onNavigate} ctx={ctx} />)}
       </div>
       <div className="mt-5 flex justify-center gap-1.5" aria-label="Pagination">
         {[1, 2, 3].map((n) => (
@@ -319,14 +381,19 @@ function Stars({ label = 'Rated 4.8 out of 5' }) {
   );
 }
 
-function ProductBody({ t, onNavigate }) {
+function ProductBody({ t, onNavigate, ctx }) {
   const { c, compact, narrow, waDigits, btn } = t;
   const [qty, setQty] = useState(1);
   const [thumb, setThumb] = useState(0);
+  const [variantId, setVariantId] = useState(null);
   const pp = c.product_page || {};
-  const p = DEMO_PRODUCTS[0];
+  const p = ctx.product || ctx.products[0] || DEMO_CATALOG[0];
   const stack = compact || narrow;
   const thumbs = ['kente', 'kente-b', 'kente-c'];
+  /* Real products carry purchasable variants; demo products do not. */
+  const chosen = p.variants.find((v) => v.id === variantId)
+    || p.variants.find((v) => v.inStock)
+    || null;
 
   return (
     <section className="p-5" aria-label="Product detail">
@@ -340,8 +407,8 @@ function ProductBody({ t, onNavigate }) {
 
       <div className={`gap-5 ${stack ? 'grid grid-cols-1' : 'flex'}`}>
         <div className={stack ? '' : 'w-[46%] shrink-0'}>
-          <img src={`https://picsum.photos/seed/${thumbs[thumb]}/640/480`} alt={p.name} className="w-full rounded-lg object-cover shadow-sm" style={{ borderRadius: 'var(--radius)' }} />
-          <div className="mt-2 flex gap-2">
+          <img src={p.img || `https://picsum.photos/seed/${thumbs[thumb]}/640/480`} alt={p.name} className="w-full rounded-lg object-cover shadow-sm" style={{ borderRadius: 'var(--radius)' }} />
+          <div className={`mt-2 flex gap-2 ${ctx.isLive ? 'hidden' : ''}`}>
             {thumbs.map((seed, i) => (
               <button
                 key={seed}
@@ -362,13 +429,33 @@ function ProductBody({ t, onNavigate }) {
           {pp.reviews && <Stars />}
           <h1 className={`${compact ? 'text-base' : 'text-xl'} font-extrabold leading-tight`}>{p.name}</h1>
           <p className="text-lg font-extrabold" style={{ color: 'var(--primary)' }}>{ghs(p.price)}</p>
-          <p className="text-xs leading-relaxed opacity-75">Handcrafted in Ghana with premium local materials. Ships within 24 hours nationwide with tracked delivery.</p>
+          <p className="text-xs leading-relaxed opacity-75">{p.description || 'Handcrafted in Ghana with premium local materials. Ships within 24 hours nationwide with tracked delivery.'}</p>
 
           <ul className="space-y-1 text-xs opacity-75">
             {['Hand-woven authentic weave', 'Colourfast natural dyes'].map((x) => (
               <li key={x} className="flex items-center gap-1.5"><Check size={12} style={{ color: 'var(--primary)' }} aria-hidden="true" /> {x}</li>
             ))}
           </ul>
+
+          {p.variants.length > 1 ? (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Choose a variant">
+              {p.variants.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  disabled={!v.inStock}
+                  onClick={() => setVariantId(v.id)}
+                  aria-pressed={chosen?.id === v.id}
+                  className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition disabled:opacity-40 ${chosen?.id === v.id ? 'text-white' : ''}`}
+                  style={chosen?.id === v.id
+                    ? { background: 'var(--primary)', borderColor: 'var(--primary)' }
+                    : { borderColor: 'rgba(148,163,184,.5)' }}
+                >
+                  {v.label} · {ghs(v.price)}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {pp.quantity_stepper && (
@@ -378,7 +465,7 @@ function ProductBody({ t, onNavigate }) {
                 <button type="button" aria-label="Increase quantity" onClick={() => setQty((q) => Math.min(99, q + 1))} className="px-2 py-1.5"><StepperIcon d="M18 15l-6-6-6 6" /></button>
               </span>
             )}
-            <button type="button" className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold text-white transition-transform duration-200 hover:-translate-y-0.5 ${btn()}`} style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
+            <button type="button" onClick={() => ctx.onAddToCart?.(p, chosen, qty)} className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold text-white transition-transform duration-200 hover:-translate-y-0.5 ${btn()}`} style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
               Add to Cart
             </button>
             {c.features.enable_whatsapp_buy && (
@@ -401,7 +488,9 @@ function ProductBody({ t, onNavigate }) {
         <>
           <h2 className="mb-3 mt-6 text-sm font-extrabold uppercase tracking-wide">You may also like</h2>
           <div className={`grid gap-4 ${compact ? 'grid-cols-2' : 'grid-cols-4'}`}>
-            {DEMO_PRODUCTS.slice(1, compact ? 3 : 5).map((x) => <ProductCard key={x.id} p={x} t={t} onNavigate={() => {}} />)}
+            {ctx.products.filter((x) => x.id !== p.id).slice(0, compact ? 2 : 4).map((x) => (
+              <ProductCard key={x.id} p={x} t={t} onNavigate={onNavigate} ctx={ctx} />
+            ))}
           </div>
         </>
       )}
@@ -415,32 +504,52 @@ function StepperIcon({ d }) {
   return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 }
 
-const CART_ITEMS = DEMO_PRODUCTS.slice(0, 2);
+/** Demo cart lines, shaped exactly like the live ones the storefront passes in. */
+const CART_ITEMS = DEMO_CATALOG.slice(0, 2).map((p) => ({
+  id: p.id, name: p.name, label: '', price: p.price, quantity: 1, img: p.img, stock: p.stock,
+}));
 
-function CartBody({ t, onNavigate }) {
+function CartBody({ t, onNavigate, ctx }) {
   const { compact } = t;
-  const [qtys, setQtys] = useState(CART_ITEMS.map((i) => i.stock));
   const [promo, setPromo] = useState('');
-  const subtotal = CART_ITEMS.reduce((s, i, idx) => s + i.price * qtys[idx], 0);
+  /* Live shop: the lines and every mutation live in the storefront page. The
+     customizer preview keeps its own self-contained quantities. */
+  const [demoQtys, setDemoQtys] = useState(CART_ITEMS.map(() => 1));
+  const items = ctx.isLive
+    ? ctx.cart
+    : CART_ITEMS.map((i, idx) => ({ ...i, quantity: demoQtys[idx] }));
+  const subtotal = items.reduce((s, i) => s + Number(i.price) * Number(i.quantity || 0), 0);
+  const setQty = (line, next) => (ctx.isLive
+    ? ctx.onSetQty?.(line, next)
+    : setDemoQtys((q) => q.map((v, i) => (i === items.indexOf(line) ? Math.max(1, next) : v))));
 
   return (
     <section className="p-5" aria-label="Shopping cart">
       <h1 className="mb-4 text-lg font-extrabold">Your Cart</h1>
+      {ctx.isLive && !items.length ? (
+        <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: 'rgba(148,163,184,.4)' }}>
+          <p className="text-xs font-semibold opacity-75">Your cart is empty.</p>
+          <button type="button" onClick={() => onNavigate('shop')} className="mt-3 rounded-lg px-4 py-2 text-xs font-bold text-white" style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
+            Browse the collection
+          </button>
+        </div>
+      ) : (
       <div className={`gap-5 ${compact ? 'grid grid-cols-1' : 'flex'}`}>
         <ul className="min-w-0 flex-1 space-y-3">
-          {CART_ITEMS.map((item, idx) => (
+          {items.map((item) => (
             <li key={item.id} className="flex items-center gap-3 border-b pb-3" style={{ borderColor: 'rgba(148,163,184,.25)' }}>
               <img src={item.img} alt="" className="h-14 w-14 shrink-0 rounded-md object-cover" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-bold">{item.name}</span>
+                {item.label ? <span className="block text-[10px] font-semibold opacity-60">{item.label}</span> : null}
                 <span className="block text-[11px] font-semibold" style={{ color: 'var(--primary)' }}>{ghs(item.price)}</span>
               </span>
               <span className="flex items-center rounded-md border" style={{ borderColor: 'rgba(148,163,184,.5)' }}>
-                <button type="button" aria-label={`Decrease ${item.name}`} onClick={() => setQtys((q) => q.map((v, i2) => (i2 === idx ? Math.max(1, v - 1) : v)))} className="px-1.5 py-1"><StepperIcon d="M6 9l6 6 6-6" /></button>
-                <span className="min-w-5 text-center text-[11px] font-extrabold">{qtys[idx]}</span>
-                <button type="button" aria-label={`Increase ${item.name}`} onClick={() => setQtys((q) => q.map((v, i2) => (i2 === idx ? v + 1 : v)))} className="px-1.5 py-1"><StepperIcon d="M18 15l-6-6-6 6" /></button>
+                <button type="button" aria-label={`Decrease ${item.name}`} onClick={() => setQty(item, Number(item.quantity) - 1)} className="px-1.5 py-1"><StepperIcon d="M6 9l6 6 6-6" /></button>
+                <span className="min-w-5 text-center text-[11px] font-extrabold">{item.quantity}</span>
+                <button type="button" aria-label={`Increase ${item.name}`} onClick={() => setQty(item, Number(item.quantity) + 1)} className="px-1.5 py-1"><StepperIcon d="M18 15l-6-6-6 6" /></button>
               </span>
-              <button type="button" aria-label={`Remove ${item.name}`} className="opacity-50 transition hover:opacity-100"><Trash2 size={14} /></button>
+              <button type="button" aria-label={`Remove ${item.name}`} onClick={() => ctx.onRemove?.(item)} className="opacity-50 transition hover:opacity-100"><Trash2 size={14} /></button>
             </li>
           ))}
         </ul>
@@ -452,16 +561,36 @@ function CartBody({ t, onNavigate }) {
             <div className="flex justify-between"><dt>Delivery</dt><dd className="font-bold text-emerald-600">Free</dd></div>
             <div className="flex justify-between border-t pt-1 text-sm font-extrabold" style={{ borderColor: 'rgba(148,163,184,.35)' }}><dt>Total</dt><dd>{ghs(subtotal)}</dd></div>
           </dl>
-          <div className="mt-3 flex overflow-hidden rounded-lg ring-1 ring-black/10">
-            <input type="text" value={promo} onChange={(e) => setPromo(e.target.value)} placeholder="Promo code" aria-label="Promo code" className="w-full bg-white px-2 py-1.5 text-[11px] outline-none" />
-            <span className="grid shrink-0 place-items-center px-2.5 text-[10px] font-extrabold uppercase tracking-wide text-white" style={{ background: 'var(--primary)' }}>Apply</span>
-          </div>
-          <button type="button" className={`mt-2.5 w-full rounded-lg px-3 py-2 text-xs font-bold text-white transition-transform duration-200 hover:-translate-y-0.5 ${t.btn()}`} style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
-            Checkout with MoMo
-          </button>
+          {ctx.checkout ? (
+            /* Cash on delivery: the real order the storefront posts to the API. */
+            <form className="mt-3 space-y-1.5" onSubmit={ctx.checkout.onSubmit}>
+              <input required value={ctx.checkout.customer.name} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, name: e.target.value })} placeholder="Full name" aria-label="Full name" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
+              <input required value={ctx.checkout.customer.phone} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, phone: e.target.value })} placeholder="Phone number" aria-label="Phone number" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
+              <textarea required value={ctx.checkout.customer.address} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, address: e.target.value })} placeholder="Delivery address" aria-label="Delivery address" rows={2} className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
+              <button type="submit" disabled={ctx.checkout.busy || !items.length} className={`w-full rounded-lg px-3 py-2 text-xs font-bold text-white transition disabled:opacity-40 ${t.btn()}`} style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
+                {ctx.checkout.busy ? 'Placing order...' : 'Place COD order'}
+              </button>
+              {ctx.checkout.message ? (
+                <p className="text-[10px] font-semibold leading-snug" style={{ color: ctx.checkout.error ? '#B91C1C' : 'var(--primary)' }}>
+                  {ctx.checkout.message}
+                </p>
+              ) : null}
+            </form>
+          ) : (
+            <>
+              <div className="mt-3 flex overflow-hidden rounded-lg ring-1 ring-black/10">
+                <input type="text" value={promo} onChange={(e) => setPromo(e.target.value)} placeholder="Promo code" aria-label="Promo code" className="w-full bg-white px-2 py-1.5 text-[11px] outline-none" />
+                <span className="grid shrink-0 place-items-center px-2.5 text-[10px] font-extrabold uppercase tracking-wide text-white" style={{ background: 'var(--primary)' }}>Apply</span>
+              </div>
+              <button type="button" className={`mt-2.5 w-full rounded-lg px-3 py-2 text-xs font-bold text-white transition-transform duration-200 hover:-translate-y-0.5 ${t.btn()}`} style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
+                Checkout with MoMo
+              </button>
+            </>
+          )}
           <button type="button" onClick={() => onNavigate('shop')} className="mt-2 block w-full text-center text-[10px] font-bold underline opacity-70 hover:opacity-100">Continue shopping</button>
         </aside>
       </div>
+      )}
     </section>
   );
 }
@@ -574,15 +703,47 @@ const PAGE_BODIES = {
 };
 
 /**
- * StorefrontRouter - renders any storefront page inside the token-styled
- * preview root. Backward compatible: page defaults to 'home'; onNavigate
- * is optional so in-frame links become no-ops.
+ * StorefrontRouter - renders any storefront page inside the token-styled root,
+ * for BOTH the customizer preview and the live shop.
+ *
+ * Backward compatible: `page` defaults to 'home' and `onNavigate` is optional,
+ * so in-frame links become no-ops. Every data prop is optional too - with no
+ * `products` the router paints the demo catalogue, which is exactly what
+ * ThemeCustomizer passes.
  */
-export default function StorefrontRouter({ config, viewportWidth = null, page = 'home', onNavigate }) {
+export default function StorefrontRouter({
+  config,
+  viewportWidth = null,
+  page = 'home',
+  onNavigate,
+  products = null,
+  cart = [],
+  productId = null,
+  onAddToCart = null,
+  onSetQty = null,
+  onRemove = null,
+  checkout = null,
+}) {
   const t = useTokens(config, viewportWidth);
   const Body = PAGE_BODIES[page] || HomeBody;
   const nav = onNavigate || (() => {});
   const scoped = scopeCss(config.advanced?.custom_css);
+
+  /* isLive separates a real shop from the demo frame: the demo keeps its own
+     cart quantities, hides the COD form and keeps the promo/MoMo affordances. */
+  const isLive = Boolean(products);
+  const lines = isLive ? cart : CART_ITEMS;
+  const ctx = {
+    isLive,
+    products: isLive ? products : DEMO_CATALOG,
+    cart: lines,
+    cartCount: lines.length,
+    product: (isLive ? products : DEMO_CATALOG).find((p) => p.id === productId) || null,
+    onAddToCart,
+    onSetQty,
+    onRemove,
+    checkout,
+  };
 
   return (
     <div
@@ -602,9 +763,9 @@ export default function StorefrontRouter({ config, viewportWidth = null, page = 
       aria-label={`Live storefront preview - ${page} page`}
     >
       {scoped ? <style>{scoped}</style> : null}
-      <PreviewHeader t={t} active={page} onNavigate={nav} />
+      <PreviewHeader t={t} active={page} onNavigate={nav} ctx={ctx} />
       <main style={{ minHeight: '60%' }}>
-        <Body t={t} onNavigate={nav} />
+        <Body t={t} onNavigate={nav} ctx={ctx} />
       </main>
       <PreviewFooter t={t} />
     </div>

@@ -87,6 +87,14 @@ router.get('/store/theme/public/:slug', async (req, res, next) => {
         category: store.theme_category,
         config: merged,
       },
+      /* The two layers are also returned UNMERGED. `theme.config` above is a
+         union of the template's shape (palette/hero/seo) and the seller's
+         customizer tokens (colors/branding), which is ambiguous to read: the
+         storefront would fall back to schema defaults for every template key.
+         Exposed separately so a client can map them explicitly - template
+         tokens first, seller overrides on top, store identity last. */
+      templateConfig: store.base_config || {},
+      overrides: store.custom_theme_config || {},
     });
   } catch (err) {
     next(err);
