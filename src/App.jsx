@@ -31,7 +31,7 @@ import ThemeDemoViewer from './pages/ThemeDemoViewer.jsx';
 import ThemeCustomizer from './pages/ThemeCustomizer.jsx';
 import DomainManager from './pages/DomainManager.jsx';
 import LiveStorefront from './pages/LiveStorefront.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
+import AdminGate from './pages/admin/AdminGate.jsx';
 
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import StoreNotFoundPage from './pages/StoreNotFoundPage.jsx';
@@ -150,8 +150,15 @@ export default function App() {
       const templateId = decodeURIComponent(route.slice('/dashboard/themes/demo/'.length));
       return templateId ? <ThemeDemoViewer templateId={templateId} /> : <SellerThemeMarketplace />;
     }
+    /* The whole admin hub renders through one gate, which owns the sign-in, the
+       session re-validation, the layout chrome, and the mapping of /admin/*
+       (including the dynamic /admin/merchants/:id) onto a page. Matching the
+       prefix here is what keeps a new admin page from needing an entry in this
+       switch - it only has to exist in the route table. */
+    if (route === '/admin' || route.startsWith('/admin/')) {
+      return <AdminGate />;
+    }
     switch (route) {
-      case '/admin': return <AdminDashboard />;
       case '/dashboard': return <SellerAnalytics />;
       case '/login': return null; // redirected by the effect above
       case '/pos': return <SellerPOS />;

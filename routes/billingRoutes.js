@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import { pool, query, withTransaction } from '../config/database.js';
 import { issueStoreToken, requireSeller, requireAdmin } from '../middleware/authMiddleware.js';
 import { sendWelcomeSms } from '../services/smsService.js';
+import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { routeCollection } from '../services/paymentRouter.js';
 import { billingCronHandler } from './billingCronRoute.js';
@@ -294,6 +295,14 @@ router.post('/activate', requireAdmin, async (req, res, next) => {
     if (!rows[0]) {
       return res.status(400).json({ error: 'Store not found or suspended.' });
     }
+    // Manual activation moves money-adjacent state, so it is in the audit
+    // ledger like every other admin write.
+    await recordAdminAction(req, {
+      action: 'billing.activate',
+      targetType: 'store',
+      targetId: rows[0].id,
+      detail: { name: rows[0].name, plan: rows[0].plan, status: rows[0].status, reason: req.body?.reason || null },
+    });
     res.json({ message: `${plan.name} plan activated for ${rows[0].name}.`, store: rows[0] });
   } catch (err) {
     next(err);

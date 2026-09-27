@@ -281,6 +281,37 @@ CREATE TABLE IF NOT EXISTS platform_admins (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Super admin has full operational control, so every mutation it performs is
+-- recorded here. last_login_* let the Team page show who is actually active.
+ALTER TABLE platform_admins
+  ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS last_login_ip  TEXT;
+
+-- Append-only ledger of every platform-admin write (suspend a merchant, settle
+-- a payout, adjust stock, change a plan). BEFORE/AFTER values live in `detail`
+-- as JSONB. Never updated or deleted, so it stays a usable audit trail.
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id     UUID,
+  admin_email  TEXT,
+  admin_name   TEXT,
+  action       TEXT NOT NULL,
+  target_type  TEXT,
+  target_id    TEXT,
+  detail       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ip           TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx
+  ON admin_audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS admin_audit_log_action_idx
+  ON admin_audit_log (action, created_at DESC);
+CREATE INDEX IF NOT EXISTS admin_audit_log_target_idx
+  ON admin_audit_log (target_type, target_id);
+CREATE INDEX IF NOT EXISTS admin_audit_log_admin_idx
+  ON admin_audit_log (admin_id, created_at DESC);
+
+
 -- ------------------------------------------------------------ subscription payments (Module 1)
 -- Every POST /api/billing/subscribe attempt is recorded here BEFORE the
 -- provider is charged: a crash after collection leaves a PENDING row (never a

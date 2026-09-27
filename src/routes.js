@@ -11,7 +11,20 @@ export const PUBLIC_ROUTES = ['/', '/about', '/contact', '/terms', '/privacy'];
 
 /** Seller PWA + platform admin pages (auth-gated in App.jsx). */
 export const PWA_ROUTES = [
+  // Super admin hub: one entry point, then a page per platform area.
   '/admin',
+  '/admin/merchants',
+  '/admin/orders',
+  '/admin/catalog',
+  '/admin/customers',
+  '/admin/payments',
+  '/admin/payouts',
+  '/admin/logistics',
+  '/admin/domains',
+  '/admin/themes',
+  '/admin/team',
+  '/admin/system',
+  '/admin/audit',
   '/login',
   '/dashboard',
   '/pos',
@@ -25,7 +38,11 @@ export const PWA_ROUTES = [
 ];
 
 /** Routes that carry a dynamic segment; the segment must not be empty. */
-export const DYNAMIC_ROUTE_PREFIXES = ['/dashboard/themes/demo/'];
+export const DYNAMIC_ROUTE_PREFIXES = [
+  '/dashboard/themes/demo/',
+  // A merchant's 360-degree view: /admin/merchants/<uuid>
+  '/admin/merchants/',
+];
 
 const PUBLIC = new Set(PUBLIC_ROUTES);
 const PWA = new Set(PWA_ROUTES);

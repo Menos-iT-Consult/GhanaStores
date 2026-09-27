@@ -12,6 +12,7 @@ import { pool, query } from '../config/database.js';
 import { requireSeller, requireAdmin, requireActiveSeller } from '../middleware/authMiddleware.js';
 import { routeDisbursement } from '../services/paymentRouter.js';
 import { sendPayoutSms } from '../services/smsService.js';
+import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, money } from '../utils/helpers.js';
 
 const router = Router();
@@ -281,6 +282,12 @@ router.post('/:payoutId/settle', requireAdmin, async (req, res, next) => {
       );
       await client.query('COMMIT');
       client.release();
+      await recordAdminAction(req, {
+        action: 'payout.settle',
+        targetType: 'payout',
+        targetId: payout.id,
+        detail: { decision: 'rejected', store: payout.store_name, amount: payout.amount },
+      });
       return res.json({ message: 'Payout rejected. Funds returned to available balance.' });
     }
 
@@ -336,6 +343,20 @@ router.post('/:payoutId/settle', requireAdmin, async (req, res, next) => {
         { phone: payout.store_phone },
         { status: 'APPROVED', reference: result.reference },
       ).catch(() => {});
+      await recordAdminAction(req, {
+        action: 'payout.settle',
+        targetType: 'payout',
+        targetId: payout.id,
+        detail: {
+          decision: 'approved',
+          store: payout.store_name,
+          amount: payout.amount,
+          destination: payout.destination,
+          provider,
+          fallbackUsed: Boolean(result.fallback),
+          reference: result.reference,
+        },
+      });
       return res.json({
         message: `Payout approved and disbursed via ${provider}${result.fallback ? ' (MTN unavailable, Hubtel fallback)' : ''}.`,
         success: true,
@@ -354,6 +375,18 @@ router.post('/:payoutId/settle', requireAdmin, async (req, res, next) => {
           WHERE id=$1`,
         [payout.id, provider, Boolean(result.fallback), result.mtnStatus || null],
       );
+      await recordAdminAction(req, {
+        action: 'payout.settle',
+        targetType: 'payout',
+        targetId: payout.id,
+        detail: {
+          decision: 'ambiguous',
+          store: payout.store_name,
+          amount: payout.amount,
+          provider,
+          note: 'Gateway result unconfirmed; funds stay parked for review.',
+        },
+      });
       return res.status(202).json({
         message: 'The provider did not confirm in time. The payout stays parked for review - no second attempt was made.',
         success: false,

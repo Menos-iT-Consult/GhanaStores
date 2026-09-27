@@ -101,6 +101,9 @@ export const adminApi = {
   get: (p) => request(p, { token: getAdminToken() }),
   post: (p, body) => request(p, { method: 'POST', body, token: getAdminToken() }),
   patch: (p, body) => request(p, { method: 'PATCH', body, token: getAdminToken() }),
+  // Revoking an administrator is a DELETE on the admin API; the seller client
+  // has no equivalent because a merchant never deletes platform-level records.
+  del: (p) => request(p, { method: 'DELETE', token: getAdminToken() }),
 };
 
 export const api = {

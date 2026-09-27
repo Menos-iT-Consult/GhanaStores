@@ -35,6 +35,27 @@ for (const path of [...PUBLIC_LINKS, ...SIDEBAR_LINKS, '/admin', '/login',
   log(`routable ${path}`, isKnownRoute(path) === true);
 }
 
+/* ---------- The super admin hub: every area must have a real route ---------- */
+/* These are the pages in src/pages/admin/. Each one has to be listed, or its
+   sidebar entry would navigate into a 404 that looks like a broken platform. */
+const ADMIN_ROUTES = [
+  '/admin', '/admin/merchants', '/admin/orders', '/admin/catalog', '/admin/customers',
+  '/admin/payments', '/admin/payouts', '/admin/logistics', '/admin/domains',
+  '/admin/themes', '/admin/team', '/admin/system', '/admin/audit',
+];
+for (const path of ADMIN_ROUTES) {
+  log(`admin routable ${path}`, isKnownRoute(path) === true);
+  log(`admin pwa-gated ${path}`, isPwaRoute(path) === true);
+}
+
+/* A merchant's 360-degree view is dynamic, so the id must be non-empty. */
+log('admin merchant detail is routable',
+  isKnownRoute('/admin/merchants/2f0b1c3a-1111-2222-3333-444455556666') === true);
+log('admin merchant detail without an id is a 404',
+  isKnownRoute('/admin/merchants/') === false);
+log('an unknown admin area is a 404', isKnownRoute('/admin/nonsense') === false);
+log('an admin sub-area is not a public route', isPwaRoute('/admin') !== false);
+
 /* ---------- Everything else is a 404, never a login wall ---------- */
 for (const path of ['/nonsense', '/dashboards', '/POS', '/product/42', '/login/extra',
   '/dashboard/nope', '/dashboard/themes/demo', '/dashboard/themes/demo/',
