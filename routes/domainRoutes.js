@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { promises as dns } from 'node:dns';
 import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
-import { resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
+import { adminDomain, resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
 import { priceDomainForPurchase } from '../services/domainPricing.js';
 
@@ -80,7 +80,14 @@ function domainUrl(domain) {
 router.get('/resolve', async (req, res, next) => {
   try {
     if (!req.tenantStore) {
-      return res.json({ tenant: null, platformDomain: req.platformDomain, ...req.tenantInfo });
+      return res.json({
+        tenant: null,
+        platformDomain: req.platformDomain,
+        // The admin host is platform traffic, not a tenant, so it answers here.
+        isAdminHost: Boolean(req.isAdminHost),
+        adminDomain: adminDomain(),
+        ...req.tenantInfo,
+      });
     }
     const s = req.tenantStore;
     res.json({
@@ -98,6 +105,10 @@ router.get('/resolve', async (req, res, next) => {
         logoUrl: buildDeliveryUrl(s.logo_url, RENDITIONS.logo),
         faviconUrl: buildDeliveryUrl(s.logo_url, RENDITIONS.favicon),
       },
+      // A tenant host is never the admin host, but the client still needs the
+      // canonical admin URL to redirect /admin to.
+      isAdminHost: Boolean(req.isAdminHost),
+      adminDomain: adminDomain(),
       ...req.tenantInfo,
     });
   } catch (err) {

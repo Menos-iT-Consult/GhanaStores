@@ -54,7 +54,9 @@ export default function App() {
   /* Server-authoritative Host classification. The env var behind the
      client-side guess is baked in at build time and can be stale, so the API
      owns the final word: platform root -> marketing site, tenant -> storefront. */
-  const [hostState, setHostState] = useState({ status: 'pending', tenant: null, isPlatformRoot: false });
+  const [hostState, setHostState] = useState({
+    status: 'pending', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '',
+  });
   /* Host reported by the storefront as having no store; only set when that
      differs from the server answer App already holds. */
   const [storeMissing, setStoreMissing] = useState('');
@@ -101,9 +103,17 @@ export default function App() {
           status: resolved?.tenant ? 'tenant' : (resolved?.isPlatformRoot ? 'platform' : 'unresolved'),
           tenant: resolved?.tenant || null,
           isPlatformRoot: Boolean(resolved?.isPlatformRoot),
+          isAdminHost: Boolean(resolved?.isAdminHost),
+          adminDomain: String(resolved?.adminDomain || ''),
         });
       })
-      .catch(() => { if (alive) setHostState({ status: 'error', tenant: null, isPlatformRoot: false }); });
+      .catch(() => {
+        if (alive) {
+          setHostState({
+            status: 'error', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '',
+          });
+        }
+      });
     return () => { alive = false; };
   }, []);
 
@@ -146,10 +156,31 @@ export default function App() {
     }
   }
 
+  /* ------------------ The super admin lives on its own subdomain ----------
+   * admin.didwaghana.com mounts the admin app for EVERY path, so an operator
+   * can land on the bare host and be taken to the dashboard. Everywhere else,
+   * /admin is not an entrance at all: it redirects to the canonical admin host.
+   * That is deliberate - before this, /admin rendered the admin sign-in on a
+   * seller's own storefront subdomain and on the marketing site, which put a
+   * fully-privileged login form in front of every visitor. */
+  const isAdminRoute = route === '/admin' || route.startsWith('/admin/');
+  const onAdminHost = Boolean(hostState.isAdminHost);
+  const isLocalDev = host === 'localhost' || host.endsWith('.localhost');
+  const adminDomain = hostState.adminDomain || `admin.${platformHost}`;
+  /* On the admin host every path is the admin app; '/' means the overview. */
+  const effectiveRoute = onAdminHost ? (route === '/' ? '/admin' : route) : route;
+
+  useEffect(() => {
+    // Localhost has no admin subdomain, so /admin keeps working while building.
+    if (onAdminHost || isLocalDev || !isAdminRoute) return;
+    if (hostState.status === 'pending' || hostState.status === 'error') return;
+    window.location.replace(`https://${adminDomain}/admin`);
+  }, [isAdminRoute, onAdminHost, isLocalDev, hostState.status, adminDomain]);
+
   const page = useMemo(() => {
     // Live demo viewer with a dynamic :templateId segment.
-    if (route.startsWith('/dashboard/themes/demo/')) {
-      const templateId = decodeURIComponent(route.slice('/dashboard/themes/demo/'.length));
+    if (effectiveRoute.startsWith('/dashboard/themes/demo/')) {
+      const templateId = decodeURIComponent(effectiveRoute.slice('/dashboard/themes/demo/'.length));
       return templateId ? <ThemeDemoViewer templateId={templateId} /> : <SellerThemeMarketplace />;
     }
     /* The whole admin hub renders through one gate, which owns the sign-in, the
@@ -157,10 +188,10 @@ export default function App() {
        (including the dynamic /admin/merchants/:id) onto a page. Matching the
        prefix here is what keeps a new admin page from needing an entry in this
        switch - it only has to exist in the route table. */
-    if (route === '/admin' || route.startsWith('/admin/')) {
+    if (effectiveRoute === '/admin' || effectiveRoute.startsWith('/admin/')) {
       return <AdminGate />;
     }
-    switch (route) {
+    switch (effectiveRoute) {
       case '/dashboard': return <SellerAnalytics />;
       case '/login': return null; // redirected by the effect above
       case '/pos': return <SellerPOS />;
@@ -174,7 +205,18 @@ export default function App() {
       case '/store-profile': return <StoreProfile />;
       default: return <NotFoundPage authed={authed} embedded />;
     }
-  }, [route, authed]);
+  }, [effectiveRoute, authed]);
+
+  /* The admin host renders the admin app and nothing else - not the marketing
+     site, and never a storefront. This sits ABOVE the tenant branch because the
+     client-side guess still reads "admin" as a platform subdomain: it is a
+     reserved label the API resolves to the platform, not a store. */
+  if (onAdminHost) {
+    if (hostState.status === 'pending') {
+      return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">Loading DiDwa Super Admin...</div>;
+    }
+    return page;
+  }
 
   /* Public web pages - open to everyone, no dashboard chrome. The index
      (#/) plus About / Contact / Terms / Privacy stay reachable whether or

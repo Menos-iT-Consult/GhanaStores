@@ -40,6 +40,59 @@ export const platformDomain = () => {
 const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
 
 /**
+ * The host the super admin is served on: `admin.didwaghana.com`.
+ *
+ * Derived from the apex rather than configured separately, so the admin host can
+ * never drift from the platform it administers. ADMIN_DOMAIN overrides it only
+ * for deployments that genuinely host the admin elsewhere.
+ */
+export const adminDomain = () => {
+  const override = String(process.env.ADMIN_DOMAIN || '').trim().toLowerCase();
+  if (override) return normalizeHost(override);
+  return `admin.${platformDomain()}`;
+};
+
+/**
+ * Classifies a host with no database access.
+ * @returns {{host, isPlatformRoot, isIp, isLocal, slug, isPlatformSubdomain,
+ *            isAdminHost}}
+ */
+export function classifyHost(rawHost) {
+  const host = normalizeHost(rawHost);
+  const plat = platformDomain();
+  const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+  const isLocal = host === 'localhost' || host.endsWith('.localhost');
+  /* Local development has no admin subdomain, so /admin must keep working on
+     localhost - otherwise the whole admin becomes unreachable while building. */
+  const isAdminHost = host === adminDomain();
+
+  if (!host) {
+    return { host: '', isPlatformRoot: true, isIp, isLocal, slug: null, isPlatformSubdomain: false, isAdminHost: false };
+  }
+  if (plat && host === plat) {
+    return { host, isPlatformRoot: true, isIp, isLocal, slug: null, isPlatformSubdomain: false, isAdminHost: false };
+  }
+  if (plat && host.endsWith(`.${plat}`)) {
+    const label = host.slice(0, -(plat.length + 1));
+    // Reserved labels, and deeper nesting (a.b.didwaghana.com), are platform.
+    const reserved = RESERVED_SUBDOMAINS.has(label) || label.includes('.');
+    return {
+      host,
+      isPlatformRoot: reserved,
+      isIp,
+      isLocal,
+      slug: reserved ? null : label,
+      isPlatformSubdomain: !reserved,
+      isAdminHost,
+    };
+  }
+  if (isLocal || isIp) {
+    return { host, isPlatformRoot: true, isIp, isLocal, slug: null, isPlatformSubdomain: false, isAdminHost: false };
+  }
+  return { host, isPlatformRoot: false, isIp, isLocal, slug: null, isPlatformSubdomain: false, isAdminHost: false };
+}
+
+/**
  * Columns consumed by the storefront + WhatsApp order flows.
  * logo_url is the R2 KEY (not a URL) so each caller can request the rendition
  * it needs - the header wants 512px, the browser tab wants 64px - from a single
@@ -58,41 +111,6 @@ export function normalizeHost(rawHost) {
     .split('?')[0]
     .split(':')[0]
     .replace(/\.+$/, '');
-}
-
-/**
- * Classifies a host with no database access.
- * @returns {{host, isPlatformRoot, isIp, isLocal, slug, isPlatformSubdomain}}
- */
-export function classifyHost(rawHost) {
-  const host = normalizeHost(rawHost);
-  const plat = platformDomain();
-  const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-  const isLocal = host === 'localhost' || host.endsWith('.localhost');
-
-  if (!host) {
-    return { host: '', isPlatformRoot: true, isIp, isLocal, slug: null, isPlatformSubdomain: false };
-  }
-  if (plat && host === plat) {
-    return { host, isPlatformRoot: true, isIp, isLocal, slug: null, isPlatformSubdomain: false };
-  }
-  if (plat && host.endsWith(`.${plat}`)) {
-    const label = host.slice(0, -(plat.length + 1));
-    // Reserved labels, and deeper nesting (a.b.didwaghana.com), are platform.
-    const reserved = RESERVED_SUBDOMAINS.has(label) || label.includes('.');
-    return {
-      host,
-      isPlatformRoot: reserved,
-      isIp,
-      isLocal,
-      slug: reserved ? null : label,
-      isPlatformSubdomain: !reserved,
-    };
-  }
-  if (isLocal || isIp) {
-    return { host, isPlatformRoot: true, isIp, isLocal, slug: null, isPlatformSubdomain: false };
-  }
-  return { host, isPlatformRoot: false, isIp, isLocal, slug: null, isPlatformSubdomain: false };
 }
 
 /** Only public storefront traffic may 404; API and health must pass through. */
@@ -116,6 +134,10 @@ export async function resolveTenantStore(req, res, next, deps = {}) {
   req.tenantStore = null;
   req.storeFromHost = null;
   req.isPlatformRoot = false;
+  /* Whether this request arrived on the super admin's own subdomain
+     (admin.didwaghana.com). The client mounts the admin app from it, and
+     refuses to serve admin UI on a seller storefront or the marketing site. */
+  req.isAdminHost = classifyHost(req.headers.host).isAdminHost;
   /* Tell the browser which apex this deployment serves. The client's
      VITE_PLATFORM_DOMAIN is baked in at build time and can be stale, so
      seller-facing URLs and the legal copy must prefer this value. */
