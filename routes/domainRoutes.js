@@ -14,6 +14,16 @@ import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
+import { priceDomainForPurchase } from '../services/domainPricing.js';
+
+/** Lowercase, strip scheme/path/whitespace - the canonical form of a domain. */
+function cleanDomainName(value) {
+  return String(value || '')
+    .toLowerCase().trim()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .replace(/\.$/, '');
+}
 
 const router = Router();
 
@@ -425,14 +435,25 @@ router.get('/search', requireSeller, async (req, res, next) => {
 
 router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
   try {
-    const { amountGhs, domainName, customerPhone, customerEmail } = req.body || {};
-    if (!domainName || !amountGhs || !customerPhone) {
-      return res.status(400).json({ error: 'domainName, amountGhs, and customerPhone are required.' });
+    const { domainName, customerPhone, customerEmail } = req.body || {};
+    if (!domainName || !customerPhone) {
+      return res.status(400).json({ error: 'domainName and customerPhone are required.' });
     }
+    /* The price is resolved HERE, from the platform's own catalogue - never from
+       the request body. Taking amountGhs from the client let any seller POST 1 and
+       buy a .com for a single cedi. A value sent by the browser is ignored. */
+    const clean = cleanDomainName(domainName);
+    let priced;
+    try {
+      priced = await priceDomainForPurchase(clean);
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message });
+    }
+    const amountGhs = priced.priceGhs;
 
     const result = await domainService.initializeHubtelCheckout({
-      amountGhs: Number(amountGhs),
-      domainName,
+      amountGhs,
+      domainName: clean,
       customerPhone,
       customerEmail: customerEmail || req.store?.email || '',
       storeId: req.auth.sub,
@@ -443,7 +464,7 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
       `INSERT INTO store_domains (store_id, domain_name, provider, status, purchase_reference)
        VALUES ($1, $2, 'PURCHASED', 'PENDING_DNS', $3)
        ON CONFLICT (LOWER(domain_name)) DO NOTHING`,
-      [req.auth.sub, domainName, result.reference],
+      [req.auth.sub, clean, result.reference],
     );
 
     return res.json({
@@ -451,6 +472,10 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
       checkoutUrl: result.checkoutUrl,
       checkoutId: result.checkoutId,
       reference: result.reference,
+      // The price actually charged, resolved server-side. Echoed so the seller
+      // can see what they were billed even if their search result was stale.
+      amountGhs,
+      tld: priced.tld,
       dryRun: result.dryRun || false,
     });
   } catch (err) {

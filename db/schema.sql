@@ -10,7 +10,6 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS stores (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name                  TEXT NOT NULL,
-  owner_name            TEXT,
   email                 TEXT NOT NULL,
   phone                 TEXT NOT NULL,                -- normalized 233XXXXXXXXX
   password_hash         TEXT NOT NULL,
@@ -45,10 +44,20 @@ BEGIN
   END IF;
 CREATE INDEX IF NOT EXISTS stores_status_trial_idx ON stores (status, trial_ends_at);
 
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_stores_auto_trial ON stores;
+CREATE TRIGGER trg_stores_auto_trial
+  BEFORE INSERT ON stores
+  FOR EACH ROW EXECUTE FUNCTION set_store_trial_period();
+
 -- MODULE 8: seller-uploaded media in Cloudflare R2.
--- logo_url is the store's brand mark: it is a STORE attribute, not a theme
--- token, so switching themes must never blank a merchant's logo. It is mirrored
--- into custom_theme_config.branding.logo_url for the storefront renderer.
+-- logo_url is the store's brand mark: a STORE attribute, not a theme token, so
+-- switching themes must never blank a merchant's logo. It holds the R2 OBJECT
+-- KEY (not a URL) and is mirrored into custom_theme_config.branding.logo_url as
+-- an absolute URL, because the storefront renderer consumes that as an <img>.
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS logo_url TEXT;
 -- image_key is the R2 object key; image_url stays the absolute public URL so
@@ -58,15 +67,40 @@ ALTER TABLE stores
 ALTER TABLE products
   ADD COLUMN IF NOT EXISTS image_key TEXT;
 
+-- ------------------------------------------------------------ domain pricing
+-- Which TLDs sellers may search and buy, and what they pay. One row per TLD.
+-- The platform curates the catalogue and the markup from the admin dashboard,
+-- and the price checkout charges is resolved from HERE, never from the browser.
+-- wholesale_ghs is a cached provider cost; retail_ghs, when set, wins over it
+-- (a flat advertised price). is_curated marks the TLDs offered by default - the
+-- admin can widen a search to every enabled TLD with one toggle.
+CREATE TABLE IF NOT EXISTS domain_pricing (
+  tld             VARCHAR(32) PRIMARY KEY,          -- 'com', 'co.za' (no leading dot)
+  label           TEXT,
+  wholesale_ghs   NUMERIC(10,2),                   -- cached cost; NULL = ask the provider
+  markup_pct      NUMERIC(5,2)  NOT NULL DEFAULT 25,
+  retail_ghs      NUMERIC(10,2),                   -- flat price; NULL = wholesale + markup
+  is_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+  is_curated      BOOLEAN NOT NULL DEFAULT TRUE,   -- in the default search set
+  sort_order      INTEGER NOT NULL DEFAULT 100,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT domain_pricing_markup_check CHECK (markup_pct >= 0 AND markup_pct <= 1000),
+  CONSTRAINT domain_pricing_wholesale_check CHECK (wholesale_ghs IS NULL OR wholesale_ghs >= 0),
+  CONSTRAINT domain_pricing_retail_check CHECK (retail_ghs IS NULL OR retail_ghs >= 0)
+);
+CREATE INDEX IF NOT EXISTS domain_pricing_offered_idx
+  ON domain_pricing (is_enabled, is_curated, sort_order);
 
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_stores_auto_trial ON stores;
-CREATE TRIGGER trg_stores_auto_trial
-  BEFORE INSERT ON stores
-  FOR EACH ROW EXECUTE FUNCTION set_store_trial_period();
+-- Single-row table for the domain catalogue's global switches.
+CREATE TABLE IF NOT EXISTS domain_settings (
+  id                  INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  include_all_tlds    BOOLEAN NOT NULL DEFAULT FALSE,  -- widen search to every enabled TLD
+  default_markup_pct  NUMERIC(5,2) NOT NULL DEFAULT 25,
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT domain_settings_markup_check CHECK (default_markup_pct >= 0 AND default_markup_pct <= 1000)
+);
+INSERT INTO domain_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------ catalog
 CREATE TABLE IF NOT EXISTS products (

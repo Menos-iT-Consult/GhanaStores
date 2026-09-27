@@ -39,7 +39,7 @@ for (const path of [...PUBLIC_LINKS, ...SIDEBAR_LINKS, '/admin', '/login',
    sidebar entry would navigate into a 404 that looks like a broken platform. */
 const ADMIN_ROUTES = [
   '/admin', '/admin/merchants', '/admin/orders', '/admin/catalog', '/admin/customers',
-  '/admin/payments', '/admin/payouts', '/admin/logistics', '/admin/domains',
+  '/admin/payments', '/admin/payouts', '/admin/logistics', '/admin/domains', '/admin/pricing',
   '/admin/themes', '/admin/team', '/admin/system', '/admin/audit',
 ];
 for (const path of ADMIN_ROUTES) {

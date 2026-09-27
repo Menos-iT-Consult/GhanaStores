@@ -16,6 +16,7 @@
     "test:routing": "node scripts/routeTest.js",
     "test:admin": "node scripts/adminApiTest.js",
     "test:uploads": "node scripts/uploadTest.js",
+    "test:domain-pricing": "node scripts/domainPricingTest.js",
     "test:catalog": "node scripts/catalogSeedTest.js",
     "test:storefront-theme": "node scripts/storefrontThemeTest.js",
     "start": "NODE_ENV=production node server.js",

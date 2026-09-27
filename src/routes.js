@@ -21,6 +21,7 @@ export const PWA_ROUTES = [
   '/admin/payouts',
   '/admin/logistics',
   '/admin/domains',
+  '/admin/pricing',
   '/admin/themes',
   '/admin/team',
   '/admin/system',

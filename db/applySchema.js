@@ -21,6 +21,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { seedThemeCatalog } from './migrate.js';
+import { seedDomainPricing } from './domainCatalog.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
@@ -180,22 +181,33 @@ export async function applySchemaIfMissing(client, { quiet = true } = {}) {
       existing = null; // marker table is empty
     }
 
-    /* The theme catalog is seeded on every apply - including the no-op path -
-       because a database can carry a current schema and still hold zero
-       templates, which is exactly what an unseeded fresh database looks like. */
+    /* The theme catalog and the domain catalogue are seeded on every apply -
+       including the no-op path - because a database can carry a current schema
+       and still hold zero templates or zero priced TLDs, which is exactly what
+       an unseeded fresh database looks like. */
     const seedCatalog = async () => {
+      let count = 0;
       try {
         const result = await seedThemeCatalog(exec);
         if (result.seeded) {
           console.log(`[db] theme catalog seeded (${result.seeded} templates).`);
         }
-        return result.seeded;
+        count += result.seeded;
       } catch (err) {
-        // Never fail the schema apply over the catalog: the app still runs, and
+        // Never fail the schema apply over a catalog: the app still runs, and
         // `npm run db:migrate` can seed it later.
         console.warn('[db] theme catalog not seeded:', err.message);
-        return 0;
       }
+      try {
+        const pricing = await seedDomainPricing(exec);
+        if (pricing.seeded) {
+          console.log(`[db] domain catalogue seeded (${pricing.seeded} TLDs).`);
+        }
+        count += pricing.seeded;
+      } catch (err) {
+        console.warn('[db] domain catalogue not seeded:', err.message);
+      }
+      return count;
     };
 
     if (existing === sum) {

@@ -8,6 +8,7 @@
  * remains demoable without live keys.
  */
 import axios from 'axios';
+import { loadPricingCatalog, resolveDomainPrice } from './domainPricing.js';
 
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 const CLOUDFLARE_ZONE_ID = process.env.CLOUDFLARE_ZONE_ID || '';
@@ -23,7 +24,11 @@ const HUBTEL_BASE_URL = process.env.HUBTEL_CHECKOUT_BASE_URL || 'https://api.hub
 const HUBTEL_CALLBACK_URL = process.env.HUBTEL_CALLBACK_URL || '';
 const PLATFORM_DOMAIN = (process.env.PLATFORM_DOMAIN || 'didwaghana.com').replace(/^https?:\/\//, '');
 const CNAME_TARGET = process.env.CNAME_TARGET || `cname.${PLATFORM_DOMAIN}`;
-const DOMAIN_MARGIN = Number(process.env.DOMAIN_MARGIN || 1.25);
+/* Pricing now lives in the domain_pricing table and is resolved by
+ * services/domainPricing.js. DOMAIN_MARGIN is read only as a LAST RESORT, for
+ * the case where the catalogue has not been seeded - once the table exists it is
+ * the authority, and an admin can change a price without a deploy. */
+const LEGACY_DOMAIN_MARGIN = Number(process.env.DOMAIN_MARGIN || 1.25);
 
 export const domainDryRun = !(
   CLOUDFLARE_API_TOKEN && CLOUDFLARE_ZONE_ID &&
@@ -66,10 +71,6 @@ op.interceptors.request.use(async (config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
-
-function roundTo5Ghs(amount) {
-  return Math.round(amount / 5) * 5;
-}
 
 function cleanDomain(domainName) {
   return String(domainName || '')
@@ -177,18 +178,28 @@ export async function searchDomains(query) {
     throw new Error('Enter at least 2 characters to search.');
   }
 
-  const extensions = ['com', 'shop', 'africa', 'online'];
+  /* The TLD list is the platform's, not a hardcoded constant: it comes from
+     domain_pricing, honouring each TLD's enabled/curated flags and the admin's
+     "include all TLDs" switch. */
+  const catalog = await loadPricingCatalog();
+  const legacyFallback = [{ tld: 'com', is_enabled: true, is_curated: true }];
+  const offered = catalog.catalogued ? catalog.tlds : legacyFallback;
+  const extensions = offered.map((entry) => entry.tld);
+  const markupPct = catalog.defaultMarkupPct ?? ((LEGACY_DOMAIN_MARGIN - 1) * 100);
 
   if (domainDryRun) {
-    console.log(`[domain:DRY_RUN] Search domains for "${cleanQuery}"`);
-    return extensions.map((ext, i) => ({
-      extension: ext,
-      domain: `${cleanQuery}.${ext}`,
-      available: i % 2 === 0,
-      priceGhs: roundTo5Ghs(120 * (i + 1) * DOMAIN_MARGIN),
-      priceOriginal: 120 * (i + 1),
-      dryRun: true,
-    }));
+    console.log(`[domain:DRY_RUN] Search domains for "${cleanQuery}" across ${extensions.length} TLDs`);
+    return extensions.map((ext, i) => {
+      const wholesale = 120 * (i + 1);
+      return {
+        extension: ext,
+        domain: `${cleanQuery}.${ext}`,
+        available: i % 2 === 0,
+        priceGhs: resolveDomainPrice(catalog.byTld.get(ext) || { wholesale_ghs: wholesale }, wholesale, markupPct),
+        priceOriginal: wholesale,
+        dryRun: true,
+      };
+    });
   }
 
   try {
@@ -198,12 +209,14 @@ export async function searchDomains(query) {
     if (!data?.data?.results) throw new Error('Invalid response from Openprovider.');
 
     return data.data.results.map((r) => {
-      const wholesale = Number(r.price?.product?.price || 120);
+      const wholesale = Number(r.price?.product?.price || 0);
+      const extension = r.domain?.split('.').pop() || '';
+      const row = catalog.byTld.get(extension);
       return {
-        extension: r.domain?.split('.').pop() || '',
-        domain: r.domain || `${cleanQuery}.com`,
+        extension,
+        domain: r.domain || `${cleanQuery}.${extension || 'com'}`,
         available: r.status === 'active' || r.status === 'free',
-        priceGhs: roundTo5Ghs(wholesale * DOMAIN_MARGIN),
+        priceGhs: resolveDomainPrice(row, wholesale || undefined, markupPct),
         priceOriginal: wholesale,
       };
     });

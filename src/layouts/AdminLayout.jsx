@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import {
   Activity, Boxes, CreditCard, Globe, LayoutDashboard, LogOut,
-  Menu, Palette, Receipt, ScrollText, Server, ShieldAlert, Store, Truck, Users,
+  Menu, Palette, Receipt, ScrollText, Server, ShieldAlert, Store, Tag, Truck, Users,
 } from 'lucide-react';
 import { navigate, usePathname } from '../router.js';
 import { cx } from '../components/admin/ui.jsx';
@@ -41,6 +41,7 @@ export const ADMIN_NAV = [
     group: 'Configuration',
     items: [
       { path: '/admin/domains', label: 'Domains', icon: Globe },
+  { path: '/admin/pricing', label: 'Domain pricing', icon: Tag },
       { path: '/admin/themes', label: 'Themes', icon: Palette },
       { path: '/admin/team', label: 'Team', icon: Users },
       { path: '/admin/system', label: 'System', icon: Server },
