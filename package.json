@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "test:routing": "node scripts/routeTest.js",
     "test:admin": "node scripts/adminApiTest.js",
+    "test:uploads": "node scripts/uploadTest.js",
     "test:catalog": "node scripts/catalogSeedTest.js",
     "test:storefront-theme": "node scripts/storefrontThemeTest.js",
     "start": "NODE_ENV=production node server.js",
@@ -26,6 +27,8 @@
     "token": "node scripts/mintToken.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "@vercel/postgres": "^0.10.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",

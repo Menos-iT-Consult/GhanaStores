@@ -35,6 +35,7 @@ export const PWA_ROUTES = [
   '/dashboard/themes',
   '/dashboard/themes/customizer',
   '/domains',
+  '/store-profile',
 ];
 
 /** Routes that carry a dynamic segment; the segment must not be empty. */

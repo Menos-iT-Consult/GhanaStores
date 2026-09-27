@@ -25,7 +25,7 @@ const PUBLIC_LINKS = ['/', '/about', '/contact', '/terms', '/privacy'];
 
 /* Links in the seller sidebar (DashboardLayout) - all auth-gated. */
 const SIDEBAR_LINKS = ['/dashboard', '/pos', '/payouts', '/inventory', '/orders',
-  '/dashboard/themes', '/domains'];
+  '/dashboard/themes', '/domains', '/store-profile'];
 
 console.log('\nDiDwa route table -> src/routes.js\n');
 
@@ -34,7 +34,6 @@ for (const path of [...PUBLIC_LINKS, ...SIDEBAR_LINKS, '/admin', '/login',
   '/dashboard/themes/customizer', '/dashboard/themes/demo/clean-slate']) {
   log(`routable ${path}`, isKnownRoute(path) === true);
 }
-
 /* ---------- The super admin hub: every area must have a real route ---------- */
 /* These are the pages in src/pages/admin/. Each one has to be listed, or its
    sidebar entry would navigate into a 404 that looks like a broken platform. */

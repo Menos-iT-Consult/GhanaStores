@@ -38,6 +38,7 @@ import { webhookRouter } from './routes/domainRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import billingCronRoute from './routes/billingCronRoute.js';
 import themeRoutes from './routes/themeRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import { startBillingCron } from './jobs/billingCron.js';
 
@@ -133,6 +134,7 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/orders', whatsappInvoiceRoutes);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/uploads', uploadRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/cron', billingCronRoute);

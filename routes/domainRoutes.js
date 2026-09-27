@@ -13,6 +13,7 @@ import { promises as dns } from 'node:dns';
 import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
+import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
 
 const router = Router();
 
@@ -82,6 +83,10 @@ router.get('/resolve', async (req, res, next) => {
         whatsappNumber: s.whatsapp_number,
         phone: s.phone,
         currency: s.currency,
+        // Pre-resized URLs, so the client can set the browser tab icon before
+        // the theme (and therefore the storefront render) has finished loading.
+        logoUrl: buildDeliveryUrl(s.logo_url, RENDITIONS.logo),
+        faviconUrl: buildDeliveryUrl(s.logo_url, RENDITIONS.favicon),
       },
       ...req.tenantInfo,
     });
@@ -105,7 +110,7 @@ router.get('/storefront/:slug/products', async (req, res, next) => {
       return res.status(404).json({ error: 'Storefront not found.' });
     }
     const products = await query(
-      `SELECT p.id, p.name, p.description, p.category, p.image_url,
+      `SELECT p.id, p.name, p.description, p.category, p.image_url, p.image_key,
               COALESCE(json_agg(json_build_object(
                 'id', v.id, 'optionName', v.option_name, 'optionValue', v.option_value,
                 'price', COALESCE(v.price_override, p.price),
@@ -126,6 +131,10 @@ router.get('/storefront/:slug/products', async (req, res, next) => {
       },
       products: products.rows.map((p) => ({
         ...p,
+        // The storefront renders `img` in preference to image_url (see
+        // toDisplayProduct), so a resized-on-read URL wins here while image_url
+        // stays the absolute original for anything needing the full size.
+        img: productImageUrl({ imageKey: p.image_key, imageUrl: p.image_url }),
         variants: p.variants.map((v) => ({ ...v, inStock: Number(v.stockQuantity) > 0 })),
       })),
     });

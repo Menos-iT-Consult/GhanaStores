@@ -43,6 +43,7 @@ const DASHBOARD_NAV = [
   { path: '/orders',          label: 'Orders',        icon: IconReceipt },
   { path: '/dashboard/themes',label: 'Theme Market',  icon: Palette },
   { path: '/domains',         label: 'Domains',       icon: Globe },
+  { path: '/store-profile',   label: 'Store profile', icon: IconStore },
 ];
 
 /** Route that flips the shell into sidebar-replacing customizer mode. */

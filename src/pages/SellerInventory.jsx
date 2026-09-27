@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api, ghs } from '../api.js';
+import ImageUploader from '../components/ImageUploader.jsx';
 import {
   IconPlus, IconSpinner, IconAlert, IconCheck, IconBox,
   IconSearch, IconTrash, IconCoins,
@@ -20,6 +21,9 @@ export default function SellerInventory() {
   const [feedback, setFeedback] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', category: 'General', price: '' });
+  /* The image is uploaded BEFORE the product exists: /confirm returns a staged
+     key, and it rides along with the create call. */
+  const [pendingImage, setPendingImage] = useState(null);
   const [variants, setVariants] = useState([{ ...EMPTY_VARIANT }]);
 
   async function load() {
@@ -54,6 +58,8 @@ export default function SellerInventory() {
     try {
       await api.post('/api/inventory/products', {
         ...form,
+        imageKey: pendingImage?.key || undefined,
+        imageUrl: pendingImage?.rawUrl || undefined,
         price: Number(form.price),
         variants: variants
           .filter((v) => v.optionValue.trim() !== '')
@@ -69,6 +75,7 @@ export default function SellerInventory() {
       setFeedback({ ok: true, msg: `${form.name} added to your catalog.` });
       setShowForm(false);
       setForm({ name: '', description: '', category: 'General', price: '' });
+      setPendingImage(null);
       setVariants([{ ...EMPTY_VARIANT }]);
       await load();
     } catch (err) {
@@ -145,6 +152,17 @@ export default function SellerInventory() {
               placeholder="Base price (GHS)" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
             <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Short description" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
+          </div>
+
+          <div className="mt-4">
+            <ImageUploader
+              kind="product"
+              value={pendingImage?.url}
+              label="Add a photo"
+              hint="Optional. Square photos look best in the storefront grid."
+              onUploaded={(saved) => setPendingImage(saved)}
+              onRemoved={() => setPendingImage(null)}
+            />
           </div>
 
           <p className="mt-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">

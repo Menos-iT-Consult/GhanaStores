@@ -111,7 +111,64 @@ export const api = {
   post: (p, body) => request(p, { method: 'POST', body }),
   put: (p, body) => request(p, { method: 'PUT', body }),
   patch: (p, body) => request(p, { method: 'PATCH', body }),
+  // Removing a store logo is the one delete a seller may perform.
+  del: (p) => request(p, { method: 'DELETE' }),
 };
+
+/* ------------------------------ Media uploads ------------------------------
+ * Seller images go straight to Cloudflare R2: the API only signs the PUT and
+ * confirms what landed, so image bytes never pass through the app server. The
+ * Content-Type is signed into the URL, so it MUST be sent verbatim or R2
+ * rejects the PUT with a signature mismatch. */
+export const uploadApi = {
+  /** Ask for a signed PUT URL and the key the bytes must be sent to. */
+  presign: (kind, file) => api.post('/api/uploads/presign', {
+    kind,
+    contentType: file.type,
+    size: file.size,
+  }),
+
+  /** Verify the upload and attach it to a product (or, with no id, the store). */
+  confirm: (kind, key, productId = null) => api.post('/api/uploads/confirm', { kind, key, productId }),
+
+  logo: () => api.get('/api/uploads/logo'),
+  removeLogo: () => api.del('/api/uploads/logo'),
+};
+
+/**
+ * PUT the file to the signed URL. XMLHttpRequest rather than fetch, because
+ * upload progress is the whole point of uploading a 2MB photo on a Ghanaian
+ * mobile connection.
+ * @returns {Promise<void>} resolves on 2xx, rejects with a readable Error.
+ */
+export function putToSignedUrl(uploadUrl, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl, true);
+    // Must match the signed Content-Type exactly.
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve();
+        return;
+      }
+      // R2 answers 403 for a signature/Content-Type mismatch, which is the
+      // most likely failure here and is not the seller's fault.
+      reject(new Error(xhr.status === 403
+        ? 'The upload could not be authorised. Please try again.'
+        : `Upload failed (${xhr.status}).`));
+    };
+    xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+    xhr.ontimeout = () => reject(new Error('The upload timed out. Please try again.'));
+    xhr.send(file);
+  });
+}
 
 /** GHS currency formatter used across all dashboards. */
 export function ghs(value) {

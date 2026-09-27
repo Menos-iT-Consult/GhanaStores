@@ -45,7 +45,7 @@ router.get('/products', requireSeller, async (req, res, next) => {
       where += ` AND (p.name ILIKE $${params.length} OR p.category ILIKE $${params.length})`;
     }
     const { rows } = await query(
-      `SELECT p.id, p.name, p.description, p.category, p.image_url, p.is_active,
+      `SELECT p.id, p.name, p.description, p.category, p.image_url, p.image_key, p.is_active,
               p.created_at,
               COALESCE(json_agg(
                 json_build_object(
@@ -91,10 +91,10 @@ router.post('/products', requireSeller, async (req, res, next) => {
     const alertCandidates = [];
     const result = await withTransaction(async (t) => {
       const prod = await t.query(
-        `INSERT INTO products (store_id, name, description, category, image_url, price)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name`,
+        `INSERT INTO products (store_id, name, description, category, image_url, image_key, price)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name`,
         [req.auth.sub, String(b.name).trim(), b.description || '', b.category || 'General',
-          b.imageUrl || null, price],
+          b.imageUrl || null, b.imageKey || null, price],
       );
       const productId = prod.rows[0].id;
       for (const v of variants) {
@@ -159,16 +159,18 @@ router.put('/products/:id', requireSeller, async (req, res, next) => {
               description = COALESCE($4, description),
               category = COALESCE($5, category),
               image_url = COALESCE($6, image_url),
-              price = COALESCE($7, price),
-              is_active = COALESCE($8, is_active),
+              image_key = COALESCE($7, image_key),
+              price = COALESCE($8, price),
+              is_active = COALESCE($9, is_active),
               updated_at = NOW()
         WHERE id = $1 AND store_id = $2
-        RETURNING id, name, price, is_active`,
+        RETURNING id, name, price, is_active, image_key, image_url`,
       [req.params.id, req.auth.sub,
         b.name ? String(b.name).trim() : null,
         b.description ?? null,
         b.category ?? null,
         b.imageUrl ?? null,
+        b.imageKey ?? null,
         price,
         typeof b.isActive === 'boolean' ? b.isActive : null],
     );

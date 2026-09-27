@@ -39,9 +39,14 @@ export const platformDomain = () => {
 /** Subdomain labels that always belong to the platform, never to a seller. */
 const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
 
-/** Columns consumed by the storefront + WhatsApp order flows. */
+/**
+ * Columns consumed by the storefront + WhatsApp order flows.
+ * logo_url is the R2 KEY (not a URL) so each caller can request the rendition
+ * it needs - the header wants 512px, the browser tab wants 64px - from a single
+ * stored value. See services/storage.js.
+ */
 const TENANT_COLUMNS = `id, name, subdomain_slug, custom_domain, whatsapp_number,
-  phone, momo_number, status, currency, loyalty_points_per_ghs, loyalty_point_value`;
+  phone, momo_number, status, currency, loyalty_points_per_ghs, loyalty_point_value, logo_url`;
 
 /** Normalises a Host header into a bare lowercase hostname (port stripped). */
 export function normalizeHost(rawHost) {

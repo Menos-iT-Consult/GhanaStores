@@ -30,7 +30,9 @@ import SellerThemeMarketplace from './pages/SellerThemeMarketplace.jsx';
 import ThemeDemoViewer from './pages/ThemeDemoViewer.jsx';
 import ThemeCustomizer from './pages/ThemeCustomizer.jsx';
 import DomainManager from './pages/DomainManager.jsx';
+import StoreProfile from './pages/StoreProfile.jsx';
 import LiveStorefront from './pages/LiveStorefront.jsx';
+import StorefrontFavicon from './components/StorefrontFavicon.jsx';
 import AdminGate from './pages/admin/AdminGate.jsx';
 
 import NotFoundPage from './pages/NotFoundPage.jsx';
@@ -169,6 +171,7 @@ export default function App() {
       case '/dashboard/themes': return <SellerThemeMarketplace />;
       case '/dashboard/themes/customizer': return <ThemeCustomizer chromeless />;
       case '/domains': return <DomainManager subdomain={store?.subdomain_slug} storeId={store?.id} />;
+      case '/store-profile': return <StoreProfile />;
       default: return <NotFoundPage authed={authed} embedded />;
     }
   }, [route, authed]);
@@ -193,11 +196,17 @@ export default function App() {
       return <StoreNotFoundPage host={storeMissing || host} />;
     }
     return (
-      <LiveStorefront
-        resolvedHost={hostState}
-        onPlatformHost={() => setHostIsPlatform(true)}
-        onStoreNotFound={() => setStoreMissing(host)}
-      />
+      <>
+        {/* The tenant's own tab icon, from the resolve payload. Mounted here
+            because this is the point where the store is known to exist, and
+            it renders nothing, so it cannot affect layout. */}
+        <StorefrontFavicon faviconUrl={hostState.tenant?.faviconUrl} />
+        <LiveStorefront
+          resolvedHost={hostState}
+          onPlatformHost={() => setHostIsPlatform(true)}
+          onStoreNotFound={() => setStoreMissing(host)}
+        />
+      </>
     );
   }
 

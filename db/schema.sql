@@ -43,6 +43,22 @@ BEGIN
   IF NEW.grace_ends_at IS NULL THEN
     NEW.grace_ends_at := NEW.trial_ends_at + INTERVAL '3 days';
   END IF;
+CREATE INDEX IF NOT EXISTS stores_status_trial_idx ON stores (status, trial_ends_at);
+
+-- MODULE 8: seller-uploaded media in Cloudflare R2.
+-- logo_url is the store's brand mark: it is a STORE attribute, not a theme
+-- token, so switching themes must never blank a merchant's logo. It is mirrored
+-- into custom_theme_config.branding.logo_url for the storefront renderer.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS logo_url TEXT;
+-- image_key is the R2 object key; image_url stays the absolute public URL so
+-- rows that predate uploads (or hold an externally hosted image) keep working.
+-- The key is what lets a delivery URL be resized on read without storing one
+-- URL per size.
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS image_key TEXT;
+
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
