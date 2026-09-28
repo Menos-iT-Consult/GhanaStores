@@ -15,6 +15,7 @@ import {
   Loader2, RefreshCw, Search, X, XCircle,
 } from 'lucide-react';
 import { ghs } from '../../api.js';
+import ErrorNotice from '../ErrorNotice.jsx';
 
 export const cx = (...values) => values.filter(Boolean).join(' ');
 export const list = (value) => (Array.isArray(value) ? value : []);
@@ -159,14 +160,15 @@ export function LoadingBlock({ label = 'Loading...' }) {
   );
 }
 
+/**
+ * Admin-facing error banner.
+ *
+ * Kept as a named export because ~10 admin pages already import it. It now
+ * delegates to the shared ErrorNotice so an operator sees the same wording,
+ * the same "Try again" and the same reference code as every merchant screen.
+ */
 export function ErrorBanner({ error, onRetry }) {
-  if (!error) return null;
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-      <span className="flex items-center gap-2"><AlertCircle size={16} />{error}</span>
-      {onRetry ? <Button tone="ghost" icon={RefreshCw} onClick={onRetry}>Retry</Button> : null}
-    </div>
-  );
+  return <ErrorNotice error={error} onRetry={onRetry} intent="load" />;
 }
 
 export function EmptyState({ title, hint, action }) {

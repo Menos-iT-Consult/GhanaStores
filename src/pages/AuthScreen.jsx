@@ -11,6 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 import { api, setSession } from '../api.js';
+import ErrorNotice from '../components/ErrorNotice.jsx';
 import {
   AlertCircle, ArrowRight, Eye, EyeOff, Lock,
   LogIn, Mail, Phone, ShieldCheck, Store, UserPlus, Zap,
@@ -204,9 +205,8 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
             </p>
 
             {error && (
-              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">
-                <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>{error}</span>
+              <div className="mt-4">
+                <ErrorNotice error={error} intent="action" compact />
               </div>
             )}
 

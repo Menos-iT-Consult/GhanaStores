@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, getCachedStore, ghs } from '../api.js';
 import { storefrontUrl } from '../config.js';
+import ErrorNotice from '../components/ErrorNotice.jsx';
 import {
   CheckCircle2, ChevronRight, Copy, CreditCard, ExternalLink,
   Globe, Link2, Loader2, RefreshCw, Search, ShoppingCart,
@@ -203,9 +204,7 @@ function ConnectExistingTab({ storeId = null }) {
           </div>
         </div>
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-            <XCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{error}</span>
-          </div>
+          <ErrorNotice error={error} intent="action" compact />
         )}
         <button type="submit" disabled={busy || !domainInput.trim()}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:from-blue-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50">
@@ -356,7 +355,7 @@ function HubtelCheckoutDrawer({ domain, priceGhs, storeId = null, onClose }) {
               </div>
             </div>
           </div>
-          {error && <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"><XCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{error}</span></div>}
+          {error && <ErrorNotice error={error} intent="action" compact />}
         </div>
         <div className="border-t border-slate-100 px-5 py-4">
           <button type="button" onClick={handleProceed} disabled={busy}
@@ -408,7 +407,7 @@ function BuyNewDomainTab({ storeId = null }) {
           {searching ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : 'Search'}
         </button>
       </form>
-      {searchError && <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"><XCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{searchError}</span></div>}
+      {searchError && <ErrorNotice error={searchError} intent="action" compact />}
       {searched && results.length > 0 && (
         <Card className="overflow-hidden">
           <div className="border-b border-slate-100 px-5 py-3">

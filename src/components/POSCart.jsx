@@ -5,6 +5,7 @@
  */
 import { useMemo, useState } from 'react';
 import { api, ghs } from '../api.js';
+import ErrorNotice from './ErrorNotice.jsx';
 import LoyaltyCheckout from './LoyaltyCheckout.jsx';
 import {
   IconPlus, IconMinus, IconTrash, IconCash, IconPhone,
@@ -198,9 +199,7 @@ export default function POSCart({ cart, setCart, onSold }) {
       )}
 
       {error && (
-        <p className="flex items-start gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-          <IconAlert size={14} className="mt-0.5 shrink-0" /> {error}
-        </p>
+        <ErrorNotice error={error} intent="action" compact />
       )}
 
       {/* Totals + charge */}

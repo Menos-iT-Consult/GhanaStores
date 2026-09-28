@@ -93,6 +93,15 @@ export default function AdminGate() {
     return () => { live = false; };
   }, [signOut]);
 
+  // The API client fires this when an admin request comes back 401, so a token
+  // that expires mid-session lands on the sign-in screen straight away instead
+  // of leaving every panel on screen failing one request at a time.
+  useEffect(() => {
+    const onExpired = () => signOut('Your session has expired. Please sign in again.');
+    window.addEventListener('gs:admin-logout', onExpired);
+    return () => window.removeEventListener('gs:admin-logout', onExpired);
+  }, [signOut]);
+
   if (checking) {
     return <div className="flex min-h-screen items-center justify-center bg-mist"><LoadingBlock label="Verifying administrator session..." /></div>;
   }

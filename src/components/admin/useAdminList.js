@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { adminApi } from '../../api.js';
+import { readableError } from '../../lib/errors.js';
 
 /** Build `?a=1&b=2`, dropping empty values so filters stay out of the URL. */
 export function buildQuery(params = {}) {
@@ -60,7 +61,9 @@ export function useAdminList(path, { params = {}, limit = 25 } = {}) {
         if (!live.current) return;
         setData({ ...result, rows: Array.isArray(result?.[rowsKey]) ? result[rowsKey] : [] });
       } catch (err) {
-        if (live.current) setError(err.message);
+        // readableError, not err.message: the API client already normalises, and
+        // this is the second line of defence for anything thrown below fetch.
+        if (live.current) setError(readableError(err, 'We could not load this list.'));
       } finally {
         if (live.current) setLoading(false);
       }

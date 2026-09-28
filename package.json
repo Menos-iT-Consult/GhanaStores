@@ -20,6 +20,7 @@
     "test:domain-pricing": "node scripts/domainPricingTest.js",
     "test:catalog": "node scripts/catalogSeedTest.js",
     "test:domain-dns": "node scripts/domainDnsTest.js",
+    "test:errors": "node scripts/errorHandlingTest.js",
     "test:storefront-theme": "node scripts/storefrontThemeTest.js",
     "start": "NODE_ENV=production node server.js",
     "db:init": "node scripts/dbInit.js",

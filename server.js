@@ -27,6 +27,7 @@ import dotenv from 'dotenv';
 
 import { pingDb, ensureSchema, getSchemaState, isMissingSchemaError } from './config/database.js';
 import { resolveTenantStore } from './middleware/domainMiddleware.js';
+import { errorHandler, requestContext, apiNotFound, installProcessGuards } from './middleware/errorMiddleware.js';
 import billingRoutes from './routes/billingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import posRoutes from './routes/posRoutes.js';
@@ -51,6 +52,9 @@ const ON_VERCEL = Boolean(process.env.VERCEL);
 
 /* --------------------------------- Core middleware -------------------------- */
 app.disable('x-powered-by');
+// First in the chain: every request gets an id that ties the log line, the
+// response body and anything the user quotes back to support together.
+app.use(requestContext);
 // Conservative baseline headers without adding another runtime dependency.
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -146,7 +150,7 @@ app.use('/api', themeRoutes);
 // Order management: public checkout + seller fulfillment console.
 app.use('/api', orderRoutes);
 
-app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
+app.use('/api', apiNotFound);
 
 /* ------------------------- Production SPA serving ---------------------------- */
 // Self-hosted mode only. On Vercel, static files are served by the edge from
@@ -158,24 +162,12 @@ if (process.env.NODE_ENV === 'production' && !ON_VERCEL) {
 }
 
 /* --------------------------------- Errors ------------------------------------ */
-// eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  // A missing schema is a deployment misconfiguration, not a server fault.
-  // Surface it as 503 with the fix, instead of a 500 quoting raw Postgres text.
-  if (isMissingSchemaError(err)) {
-    console.error('[server] schema missing:', err.message);
-    if (!res.headersSent) {
-      res.status(503).json({
-        error: 'Database schema is not applied. Run `npm run db:init` against this DATABASE_URL.',
-        schema: 'missing',
-      });
-    }
-    return;
-  }
-  console.error('[server] unhandled error:', err.message);
-  if (res.headersSent) return;
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error.' });
-});
+// The inline handler this replaces did `res.status(err.status || 500).json({
+// error: err.message })`, which returned raw Postgres and provider text on any
+// unhandled fault. All error formatting now lives in one module: this one logs
+// the full detail and returns only a safe sentence plus a reference id.
+app.use(errorHandler);
+installProcessGuards();
 
 /* --------------------------------- Boot -------------------------------------- */
 // Only bind a port + start the scheduler when executed directly. Under Vercel

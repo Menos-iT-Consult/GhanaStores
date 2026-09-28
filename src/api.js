@@ -1,11 +1,20 @@
 /**
  * DiDwa API client.
  * Attaches the seller JWT and normalizes errors. No emojis, ever.
+ *
+ * Errors are normalized here and nowhere else: `request` throws an ApiError (see
+ * lib/errors.js) whose `message` is always safe to render, so pages can show
+ * `err.message` directly instead of each inventing its own wording.
  */
+import { ErrorKind, isOffline, toApiError } from './lib/errors.js';
+
 const TOKEN_KEY = 'gs_token';
 const STORE_KEY = 'gs_store';
 const ADMIN_TOKEN_KEY = 'gs_admin_token';
 export const OFFLINE_POS_KEY = 'didwa_pos_pending';
+
+/** How long a request may take before the browser is told to give up. */
+export const REQUEST_TIMEOUT_MS = 20000;
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || '';
@@ -72,27 +81,59 @@ export async function flushOfflineSales() {
 async function request(path, { method = 'GET', body, isForm, token: explicitToken } = {}) {
   const headers = {};
   const token = explicitToken !== undefined ? explicitToken : getToken();
+  const isAdmin = explicitToken === getAdminToken() && explicitToken !== undefined;
   if (token) headers.Authorization = `Bearer ${token}`;
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body !== undefined ? (isForm ? body : JSON.stringify(body)) : undefined,
-  });
+  // Without a timeout a dead connection leaves a spinner on screen forever with
+  // no message at all, which is the least helpful failure there is. 20s is far
+  // beyond a healthy response on a Ghanaian mobile connection.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      headers,
+      body: body !== undefined ? (isForm ? body : JSON.stringify(body)) : undefined,
+      signal: controller.signal,
+    });
+  } catch (cause) {
+    // fetch only rejects when the request never completed: no DNS, no route,
+    // CORS, or our own abort. All of those are "we could not reach the server".
+    throw toApiError(cause, {
+      kind: isOffline() ? ErrorKind.OFFLINE : ErrorKind.NETWORK,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   let data = null;
-  try { data = await res.json(); } catch { /* non-JSON */ }
+  try { data = await res.json(); } catch { /* non-JSON: a proxy or gateway page */ }
 
   if (!res.ok) {
-    const err = new Error(data?.error || `Request failed (${res.status})`);
-    err.status = res.status;
-    if (res.status === 401 && !explicitToken && !path.startsWith('/api/billing/login')) {
-      // Session expired - hard reset so the login screen appears.
-      clearSession();
-      window.dispatchEvent(new Event('gs:logout'));
+    const requestId = res.headers.get?.('X-Request-Id') || '';
+    if (res.status === 401 && !path.startsWith('/api/billing/login')) {
+      // Session expired - hard reset so the sign-in screen appears. Admin and
+      // seller sessions are stored separately, so only the matching one dies;
+      // doing the wrong one would sign a merchant out of the super admin.
+      if (isAdmin) {
+        clearAdminSession();
+        window.dispatchEvent(new Event('gs:admin-logout'));
+      } else if (!explicitToken) {
+        clearSession();
+        window.dispatchEvent(new Event('gs:logout'));
+      }
     }
-    throw err;
+    // `error` is the field every route in this API already uses. toApiError
+    // keeps that text when it was written for humans and replaces anything
+    // technical, so pages can render `err.message` without inspecting it.
+    throw toApiError(data?.error || `Request failed (${res.status})`, {
+      status: res.status,
+      kind: ErrorKind.HTTP,
+      requestId,
+    });
   }
   return data;
 }

@@ -4,6 +4,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api, ghs, shortDate } from '../api.js';
+import { readableError } from '../lib/errors.js';
+import ErrorNotice from '../components/ErrorNotice.jsx';
 import {
   IconSearch, IconCheck, IconAlert, IconSpinner, IconWhatsApp,
   IconTruck, IconX, IconClock, IconCash, IconReceipt, IconBox,
@@ -279,7 +281,7 @@ export default function SellerOrders() {
       setOrders(res.orders || []);
       setCounts(res.counts || {});
     } catch (e) {
-      setError(e.message);
+      setError(readableError(e, 'We could not load your orders.'));
     } finally {
       setLoading(false);
     }
@@ -361,9 +363,7 @@ export default function SellerOrders() {
 
       {/* Feedback */}
       {error && (
-        <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">
-          <IconAlert size={16} /> {error}
-        </div>
+        <ErrorNotice error={error} onRetry={() => load(tab)} intent="load" />
       )}
       {toast && (
         <div
