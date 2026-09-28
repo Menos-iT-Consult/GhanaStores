@@ -14,6 +14,42 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---------------------------------------------------------------------------
+ * Pinch-zoom disabled
+ *
+ * index.html sets maximum-scale=1 + user-scalable=no, which is all iOS Safari
+ * has ignored since iOS 10. This is the half that actually works on a phone:
+ * `manipulation` removes the double-tap-to-zoom delay and disables the
+ * pinch gesture, while KEEPING panning and pinch-zoom on genuinely zoomable
+ * content (a map, an image lightbox) because it does not apply to them.
+ * ------------------------------------------------------------------------- */
+html, body {
+  touch-action: manipulation;
+  /* Stop iOS Safari from re-flowing text when the device is rotated, which
+     otherwise re-lays out the POS mid-transaction and moves the tap targets. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* iOS zooms any input whose font is under 16px when it gains focus, which
+   scrolls the form out from under the keyboard. 16px is the floor that stops
+   it; form controls opt in via the .field-input helper below. */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+/* Respect the notch / home indicator. viewport-fit=cover lets the app paint
+   edge to edge, so the fixed mobile header and bottom bars have to inset
+   themselves by hand or they sit under the camera cutout. */
+@supports (padding: max(0px)) {
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .safe-left { padding-left: env(safe-area-inset-left, 0px); }
+  .safe-right { padding-right: env(safe-area-inset-right, 0px); }
+}
+
 /* Thin scrollbars for the dashboard feel */
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 8px; }

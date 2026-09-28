@@ -22,6 +22,7 @@
     "test:domain-dns": "node scripts/domainDnsTest.js",
     "test:domain-provisioning": "node scripts/domainProvisioningTest.js",
     "test:errors": "node scripts/errorHandlingTest.js",
+    "test:responsive": "node scripts/responsiveTest.js",
     "test:storefront-theme": "node scripts/storefrontThemeTest.js",
     "start": "NODE_ENV=production node server.js",
     "db:init": "node scripts/dbInit.js",

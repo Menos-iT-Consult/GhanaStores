@@ -64,6 +64,34 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `VERCEL_TEAM_ID` | Only for team-owned Vercel projects (sent as `?teamId=`) | empty |
 | `VERCEL_API_VERSION` | Vercel REST API version. `v10` is retired and answers 404 | `13` |
 | `CNAME_TARGET` | Self-hosted / Caddy target only - no longer the record shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
+
+### Responsive behaviour
+
+Three tiers, one definition, shared by the app shell and the storefront
+(`src/lib/responsive.js`):
+
+| Tier | Width | Storefront grid | Footer |
+| --- | --- | --- | --- |
+| Mobile | `< 480px` | 2 columns | 1 column |
+| Tablet | `480 - 768px` (inclusive) | 3 columns | 2 columns |
+| Desktop | `> 768px` | 4 columns | 4 columns |
+
+Two different mechanisms drive them, and the distinction matters:
+
+- **The shell** (dashboard, admin, marketing) uses Tailwind `sm:` / `md:` /
+  `lg:`. Those measure the browser window, which is correct for chrome that
+  always fills it.
+- **The storefront** measures its own container with a `ResizeObserver`
+  (`useContainerTier`). It renders both full-bleed on a phone *and* inside the
+  fixed 375/768/1024px device frames in the theme customizer, so a media query
+  there would report the host window and preview the wrong layout.
+
+Pinch-to-zoom is disabled. This needs **both** halves: the viewport meta tag
+(`maximum-scale=1, user-scalable=no`), which iOS Safari ignores, and
+`touch-action: manipulation` in `src/index.css`, which is what actually works
+on a phone. Removing only the meta tag silently re-enables zoom on iOS.
+Mobile form fields are floored at 16px to stop iOS zooming a form when an input
+is focused, and `safe-area-inset-*` keeps fixed bars clear of the notch.
 | `VITE_PLATFORM_DOMAIN` | Browser-side apex for seller storefront URLs - **fallback only**, the API's own apex wins (see `src/config.js`) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
 | `VITE_PREVIEW_HOSTS` | Host suffixes treated as platform traffic (preview URLs) | empty - nothing is exempt by default |
 | `ENABLE_CRON` | Start the billing scheduler | `false` |

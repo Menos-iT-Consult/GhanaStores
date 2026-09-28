@@ -2,7 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Pinch-zoom is disabled deliberately: this is a POS/dashboard PWA whose
+         tap targets are sized for a busy merchant standing at a counter, and a
+         stray two-finger gesture mid-transaction moves the UI out from under
+         them. maximum-scale=1 is what desktop Chrome/Android honours.
+
+         iOS Safari IGNORES user-scalable=no and maximum-scale entirely (it has
+         since iOS 10), so index.css sets `touch-action: manipulation` on the
+         document to achieve the same result there. Both are needed: the meta
+         tag alone does nothing on iPhone, which is a large share of DiDwa's
+         sellers.
+
+         Accessibility trade-off: this blocks the browser's zoom gesture, which
+         WCAG 1.4.4 asks sites to keep. Text is not resized here - the app uses
+         rem-based sizing and reflows to 320px, and the in-app browser zoom and
+         OS-level text scaling both still work. Revisit if a user requests it. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0B8BC9" />
     <meta name="description" content="DiDwa - sell online and in-store with Mobile Money payouts, POS and WhatsApp commerce." />
     <link rel="icon" type="image/jpeg" href="/didwa-logo.jpg?v=3" />

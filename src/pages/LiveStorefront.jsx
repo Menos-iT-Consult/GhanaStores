@@ -7,6 +7,7 @@ import {
   templateToCustomizerTokens,
 } from '../theme/config.js';
 import StorefrontRouter, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
+import { useContainerTier } from '../lib/responsive.js';
 import { getPlatformDomain } from '../config.js';
 
 const slugFromHost = () => {
@@ -73,6 +74,9 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   /* Which themed page is on screen, and which product the detail page shows. */
   const [page, setPage] = useState('home');
   const [productId, setProductId] = useState(null);
+  // The live shop's own width, so it picks the same mobile/tablet/desktop layout
+  // the customizer previews. Measured, not a media query - see the prop below.
+  const container = useContainerTier();
 
   useEffect(() => {
     let live = true;
@@ -183,9 +187,15 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   if (!tenant) return <div className="flex min-h-screen items-center justify-center text-red-600">{message}</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div ref={container.ref} className="min-h-screen bg-slate-50">
       <StorefrontRouter
         config={config}
+        // The storefront lays itself out from its OWN width, not the window: it
+        // also renders inside the fixed 375/768/1024 device frames in the theme
+        // customizer, where a media query would report the host window instead.
+        // Without this the live shop always took the desktop branch and showed
+        // a 4-column grid on a phone.
+        viewportWidth={container.width || null}
         page={page}
         onNavigate={(next, id) => { setPage(next); if (id != null) setProductId(id); }}
         products={displayProducts}

@@ -23,6 +23,7 @@ import {
   Mail, MapPin, MessageCircle, Music2, Search, Send, Star, Trash2,
 } from 'lucide-react';
 import { FONT_OPTIONS, scopeCss } from '../../theme/config.js';
+import { tierForWidth } from '../../lib/responsive.js';
 
 /* ------------------------------ Demo catalogue ------------------------------ */
 export const DEMO_PRODUCTS = [
@@ -83,8 +84,13 @@ const DEMO_CATALOG = DEMO_PRODUCTS.map(toDisplayProduct);
 
 /* Derived preview context shared by every page body. */
 export function useTokens(config, viewportWidth) {
-  const compact = viewportWidth != null && viewportWidth > 0 && viewportWidth < 480;
-  const narrow = viewportWidth != null && viewportWidth >= 480 && viewportWidth < 768;
+  // tierForWidth is the single definition of the three tiers, shared with the
+  // app shell via lib/responsive.js. It used to be re-derived here with its own
+  // literals, so the storefront and the dashboard could disagree about what
+  // "tablet" means.
+  const tier = tierForWidth(viewportWidth);
+  const compact = tier === 'mobile';
+  const narrow = tier === 'tablet';
   const centered = config.layout.header_style === 'centered' || narrow || compact;
   return {
     c: config,
@@ -615,7 +621,9 @@ function AboutBody({ t, onNavigate }) {
       </section>
       <section className="p-5">
         <p className="mx-auto max-w-lg text-center text-xs leading-relaxed opacity-80">{pc.about_body}</p>
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        {/* Three stats sit side by side on a phone too, which squeezes the
+            numbers to ~10 characters each at 320px. Stacked on mobile. */}
+        <div className={`mt-5 grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-3'}`}>
           {stats.map((s) => (
             <div key={s.k} className="p-3 text-center rounded-lg" style={{ background: 'var(--surface)', borderRadius: 'var(--radius)' }}>
               <p className="text-base font-extrabold" style={{ color: 'var(--primary)' }}>{s.v}</p>
