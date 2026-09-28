@@ -397,7 +397,14 @@ router.get('/verify-status', requireSeller, async (req, res, next) => {
         ],
       );
       if (result.status === 'ACTIVE') {
-        await query('UPDATE stores SET custom_domain =  WHERE id = ', [req.auth.sub, result.domainName]);
+        // Never steal a domain already attached to a different tenant.
+        const taken = await query(
+          'SELECT 1 FROM stores WHERE custom_domain = $1 AND id <> $2 LIMIT 1',
+          [result.domainName, req.auth.sub],
+        );
+        if (taken.rows.length === 0) {
+          await query('UPDATE stores SET custom_domain = LOWER($1) WHERE id = $2', [result.domainName, req.auth.sub]);
+        }
       }
     }
 
