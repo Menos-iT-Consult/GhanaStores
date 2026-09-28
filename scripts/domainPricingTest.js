@@ -110,6 +110,17 @@ console.log('\nDiDwa domain pricing -> services/domainPricing.js\n');
   log('the seed only ever inserts', /ON CONFLICT \(tld\) DO NOTHING/.test(source));
   log('the seed never updates or deletes a price',
     !/ON CONFLICT \(tld\) DO UPDATE/i.test(source) && !/DELETE FROM domain_pricing/i.test(source));
+
+  /* THE 65-SECOND COLD START: one statement for the whole catalogue. Looping a
+     statement per TLD meant 346 round trips to Neon on every server boot. */
+  const roundTrips = (source.match(/await exec\(/g) || []).length;
+  log('the seed takes two round trips at most, not one per TLD', roundTrips <= 2,
+    `${roundTrips} await exec(...) calls`);
+  const buildLoop = source.slice(source.indexOf('rows.forEach'), source.indexOf('const batchSql'));
+  log('the per-TLD loop never touches the database',
+    buildLoop.length > 0 && !/await/.test(buildLoop));
+  log('every TLD travels as one parameterised tuple per row',
+    /\$\{placeholders\.join\(', '\)\}/.test(source));
 }
 
 /* ---------- THE REGRESSION: checkout must not trust the client ---------- */

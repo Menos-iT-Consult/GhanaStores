@@ -73,26 +73,43 @@ export function buildDomainPricingRows() {
   return rows;
 }
 
-const PRICING_UPSERT_SQL = `
-  INSERT INTO domain_pricing (tld, label, is_curated, sort_order)
-  VALUES ($1, $2, $3, $4)
-  ON CONFLICT (tld) DO NOTHING
-`;
-
 /**
  * Insert any TLD that is missing. Existing rows are NEVER updated, so an
  * administrator's price, markup and enable/disable choices survive every
  * deploy - only newly listed TLDs are added.
+ *
+ * Every TLD travels in ONE multi-row statement. Looping a statement per TLD
+ * meant 346 round trips to a remote (Neon) database and took ~65s on every
+ * cold start; the batch is a single round trip of ~1,400 bind parameters, which
+ * is far below Postgres' 65,535 limit.
+ *
+ * `seeded` is the number of rows PostgreSQL actually inserted, NOT the size of
+ * the catalogue: `ON CONFLICT (tld) DO NOTHING` reports 0 on a warm database,
+ * so the report distinguishes "added 12 newly listed TLDs" from "nothing to do".
  *
  * @param {(sql: string, params?: any[]) => Promise<any>} exec
  * @returns {Promise<{seeded: number, total: number}>}
  */
 export async function seedDomainPricing(exec) {
   const rows = buildDomainPricingRows();
-  for (const row of rows) {
-    await exec(PRICING_UPSERT_SQL, [row.tld, row.label, row.isCurated, row.sortOrder]);
+  let seeded = 0;
+  if (rows.length > 0) {
+    const placeholders = [];
+    const params = [];
+    rows.forEach((row, idx) => {
+      const base = idx * 4;
+      placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
+      params.push(row.tld, row.label, row.isCurated, row.sortOrder);
+    });
+    const batchSql = `
+      INSERT INTO domain_pricing (tld, label, is_curated, sort_order)
+      VALUES ${placeholders.join(', ')}
+      ON CONFLICT (tld) DO NOTHING
+    `;
+    const result = await exec(batchSql, params);
+    seeded = Number(result?.rowCount ?? 0);
   }
   // The settings row must exist even if a deployment predates this table.
   await exec('INSERT INTO domain_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING');
-  return { seeded: rows.length, total: rows.length };
+  return { seeded, total: rows.length };
 }

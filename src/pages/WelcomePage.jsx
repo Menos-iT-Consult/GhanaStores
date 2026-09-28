@@ -120,9 +120,6 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-2 lg:pt-24">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-              <Sparkles size={12} aria-hidden="true" /> Built for Ghanaian commerce
-            </span>
             <h1 className="mt-5 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">
               Sell in-store &amp; online.
               <span className="mt-1 block bg-gradient-to-r from-blue-600 to-emerald-brand bg-clip-text text-transparent">Get paid instantly.</span>
@@ -289,9 +286,9 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
             <p className="max-w-xs text-xs leading-relaxed text-slate-400">
               The multi-tenant commerce platform and seller PWA built for Ghanaian merchants - POS, payouts, inventory and storefronts in one place.
             </p>
-            <p className="text-xs font-bold text-blue-600">
-              Every store gets its own address automatically
-            </p>
+            <a className="text-xs font-bold text-blue-600" href="https://demo.didwaghana.com">
+              Checkout A Demo
+            </a>
           </div>
 
           <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Product links">

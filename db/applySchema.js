@@ -12,8 +12,10 @@
  *   - Runs inside a single transaction, so a failure leaves nothing half-applied.
  *   - Takes a Postgres advisory lock, so concurrent serverless cold starts
  *     cannot race each other into conflicting DDL.
- *   - Skips entirely when the applied checksum matches the file, so a warm
- *     instance does no DDL work on every request.
+ *   - Skips all DDL when the applied checksum matches the file, so a warm
+ *     instance does no DDL work on every request and only replays the two
+ *     idempotent catalogue seeds. The checksum is line-ending insensitive, so a
+ *     Windows (CRLF) checkout matches a schema applied from the LF file.
  *   - The schema uses IF NOT EXISTS throughout, so re-applying is safe.
  */
 import fs from 'node:fs';
@@ -34,6 +36,19 @@ const LOCK_KEY = 8_147_231;
  * until the platform's execution limit (300s on Vercel).
  */
 const LOCK_TIMEOUT_MS = 15_000;
+
+/**
+ * The schema marker table. It lives outside schema.sql so it survives future
+ * schema edits - a table inside the schema could never record "this file was
+ * applied", because dropping it would erase the record.
+ */
+const SCHEMA_STATE_DDL = `
+  CREATE TABLE IF NOT EXISTS schema_state (
+    id         INTEGER PRIMARY KEY DEFAULT 1,
+    checksum   TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`;
 
 /**
  * Split a SQL file into individual statements.
@@ -132,8 +147,46 @@ export function splitSql(sql) {
   return statements;
 }
 
-function checksum(text) {
-  return crypto.createHash('sha256').update(text).digest('hex');
+/**
+ * Create the marker table if needed and record the applied schema checksum.
+ *
+ * Marker table lives outside schema.sql so it survives future schema edits, and
+ * it must be written by EVERY applier: a manual `npm run db:init` that applies
+ * schema.sql without recording the checksum leaves the marker stale, so the next
+ * cold start re-runs the whole DDL instead of taking the no-op path.
+ *
+ * @param {(sql: string, params?: any[]) => Promise<any>} exec
+ * @param {string} value - the schema checksum the app compares against
+ */
+export async function recordSchemaState(exec, value) {
+  await exec(SCHEMA_STATE_DDL);
+  await exec(
+    'INSERT INTO schema_state (id, checksum, applied_at) VALUES (1, $1, NOW()) '
+    + 'ON CONFLICT (id) DO UPDATE SET '
+    + 'checksum = EXCLUDED.checksum, applied_at = EXCLUDED.applied_at',
+    [value],
+  );
+}
+
+/**
+ * Hash of a schema file's CONTENT, independent of how the checkout wrote it.
+ *
+ * The line endings MUST be normalised. Git stores db/schema.sql with LF, but a
+ * Windows checkout (core.autocrlf=true) writes CRLF, and hashing the raw bytes
+ * made the same schema hash to a different value on Windows than on the Linux
+ * host that originally applied it. The checksum then never matched, so every
+ * boot re-ran the entire DDL instead of taking the no-op path.
+ *
+ * Exported so scripts/dbInit.js can record exactly the value this module
+ * compares against - otherwise a manual apply leaves a stale marker behind and
+ * the next boot re-applies the whole schema.
+ *
+ * @param {string} text
+ * @returns {string} hex sha256
+ */
+export function schemaChecksum(text) {
+  const normalized = String(text).replace(/\r\n/g, '\n');
+  return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 
 /**
@@ -148,22 +201,27 @@ function checksum(text) {
  *
  * @param {{ query: (sql: string, params?: any[]) => Promise<any> }} client - a dedicated pg client
  * @param {{ quiet?: boolean }} [options]
+ * @returns {Promise<{
+ *   applied: boolean,
+ *   statements: number,
+ *   checksum: string,
+ *   themesSeeded: number,
+ *   domainsSeeded: number,
+ *   reason?: string,
+ * }>} `themesSeeded` and `domainsSeeded` count rows actually written, so a warm
+ *   database reports 0 and 0.
  */
 export async function applySchemaIfMissing(client, { quiet = true } = {}) {
   // Params MUST be forwarded: the catalog seeder runs parameterised upserts
   // through this runner, and dropping them would insert nothing.
   const exec = (sql, params) => client.query(sql, params);
   const sql = fs.readFileSync(SCHEMA_PATH, 'utf8');
-  const sum = checksum(sql);
+  const sum = schemaChecksum(sql);
 
   // Marker table lives outside schema.sql so it survives future schema edits.
-  await exec(`
-    CREATE TABLE IF NOT EXISTS schema_state (
-      id         INTEGER PRIMARY KEY DEFAULT 1,
-      checksum   TEXT NOT NULL,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+  // It MUST exist before the read below: a failing statement inside a
+  // transaction aborts it, and every later statement in the apply would fail.
+  await exec(SCHEMA_STATE_DDL);
 
   await exec('BEGIN');
   try {
@@ -184,15 +242,18 @@ export async function applySchemaIfMissing(client, { quiet = true } = {}) {
     /* The theme catalog and the domain catalogue are seeded on every apply -
        including the no-op path - because a database can carry a current schema
        and still hold zero templates or zero priced TLDs, which is exactly what
-       an unseeded fresh database looks like. */
+       an unseeded fresh database looks like. Each catalogue is reported
+       separately, so a half-seeded database is visible in the return value and
+       the two counts are never added together. */
     const seedCatalog = async () => {
-      let count = 0;
+      let themes = 0;
+      let domains = 0;
       try {
         const result = await seedThemeCatalog(exec);
         if (result.seeded) {
           console.log(`[db] theme catalog seeded (${result.seeded} templates).`);
         }
-        count += result.seeded;
+        themes = result.seeded;
       } catch (err) {
         // Never fail the schema apply over a catalog: the app still runs, and
         // `npm run db:migrate` can seed it later.
@@ -203,44 +264,51 @@ export async function applySchemaIfMissing(client, { quiet = true } = {}) {
         if (pricing.seeded) {
           console.log(`[db] domain catalogue seeded (${pricing.seeded} TLDs).`);
         }
-        count += pricing.seeded;
+        domains = pricing.seeded;
       } catch (err) {
         console.warn('[db] domain catalogue not seeded:', err.message);
       }
-      return count;
+      return { themes, domains };
     };
 
     if (existing === sum) {
-      const themesSeeded = await seedCatalog();
+      const seeded = await seedCatalog();
       await exec('COMMIT');
-      return { applied: false, statements: 0, checksum: sum, themesSeeded, reason: 'already-current' };
+      return {
+        applied: false,
+        statements: 0,
+        checksum: sum,
+        themesSeeded: seeded.themes,
+        domainsSeeded: seeded.domains,
+        reason: 'already-current',
+      };
     }
 
     const statements = splitSql(sql);
     for (const statement of statements) {
       await exec(statement);
     }
-    // The DDL above guarantees the table exists, so the catalog can be filled.
-    const themesSeeded = await seedCatalog();
-    await exec(
-      'INSERT INTO schema_state (id, checksum, applied_at) VALUES (1, '
-      + quoteLiteral(sum) + ', NOW()) ON CONFLICT (id) DO UPDATE SET '
-      + 'checksum = EXCLUDED.checksum, applied_at = EXCLUDED.applied_at',
-    );
+    // The DDL above guarantees the tables exist, so the catalogues can be filled.
+    const seeded = await seedCatalog();
+    // Parameterised (never interpolated) and shared with `npm run db:init`, so
+    // every applier records the marker in exactly the same form.
+    await recordSchemaState(exec, sum);
     await exec('COMMIT');
 
     if (!quiet) {
       console.log(`[db] schema applied automatically (${statements.length} statements).`);
     }
-    return { applied: true, statements: statements.length, checksum: sum, themesSeeded };
+    return {
+      applied: true,
+      statements: statements.length,
+      checksum: sum,
+      themesSeeded: seeded.themes,
+      domainsSeeded: seeded.domains,
+    };
   } catch (err) {
     try { await exec('ROLLBACK'); } catch { /* noop */ }
     throw err;
   }
-}
-
-function quoteLiteral(value) {
-  return `'${String(value).replace(/'/g, "''")}'`;
 }
 
 export default applySchemaIfMissing;

@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { recordSchemaState, schemaChecksum } from '../db/applySchema.js';
 
 dotenv.config();
 
@@ -38,8 +39,15 @@ async function main() {
     ssl: useSsl ? { rejectUnauthorized: false } : undefined,
   });
 
+  // Every statement must land: the schema checksum is only recorded when the
+  // apply was complete, otherwise the marker would claim a schema that is not
+  // actually there.
+  let clean = true;
+  let schemaSql = '';
+
   for (const schemaPath of schemaFiles) {
     const sql = fs.readFileSync(schemaPath, 'utf8');
+    schemaSql = sql;
     console.log(`Applying ${schemaPath} ...`);
     try {
       await pool.query(sql);
@@ -58,12 +66,24 @@ async function main() {
           await pool.query(stmt.endsWith(';') ? stmt : `${stmt};`);
           applied += 1;
         } catch (e) {
+          clean = false;
           console.warn(`  skipped: ${e.message.split('\n')[0]}`);
         }
       }
       console.log(`Applied ${applied}/${statements.length} statements.`);
     }
   }
+
+  /* Record the checksum the app compares on boot (db/applySchema.js). Without
+     this write a manual apply leaves the marker stale, so the next cold start
+     re-runs the entire schema - ~150ms per statement against Neon. */
+  if (clean) {
+    await recordSchemaState((sql, params) => pool.query(sql, params), schemaChecksum(schemaSql));
+    console.log('Schema checksum recorded - the app skips the DDL on boot.');
+  } else {
+    console.warn('Some statements were skipped, so the schema checksum was NOT recorded.');
+  }
+
   await pool.end();
 }
 

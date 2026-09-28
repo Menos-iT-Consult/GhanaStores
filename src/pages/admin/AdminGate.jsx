@@ -3,6 +3,7 @@
  *
  * The old admin rendered its dashboard unconditionally: there was no sign-in
  * screen wired into the SPA at all, so an unauthenticated visitor simply saw an
+ * error banner where the data should be. This gate owns the whole admin entry
  * point - it validates the stored session against GET /api/admin/me (so an
  * administrator whose access was revoked is bounced out instead of staring at
  * failed requests), shows the sign-in screen when there is no session, and maps

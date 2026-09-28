@@ -32,7 +32,7 @@ npm install            # install all dependencies
 cp .env.example .env   # then edit values (see below)
 # Fresh database (destructive):
 RESET_DATABASE=yes npm run db:reset
-npm run db:init        # optional: applies db/schema.sql (the app also self-applies)
+npm run db:init        # optional: applies db/schema.sql and records its checksum (the app also self-applies)
 npm run db:migrate     # add/seed the 100 theme templates
 npm run db:seed        # optional demo store + catalog + orders
 node server.js         # API on http://localhost:4000
