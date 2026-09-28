@@ -402,6 +402,105 @@ router.post('/connect-existing', requireSeller, async (req, res, next) => {
   }
 });
 
+/**
+ * Add a custom domain (BYOD): provision with Vercel + Cloudflare, then persist.
+ *
+ * This is the merchant-facing entry point for the full automatic flow. It is a
+ * superset of /connect-existing, which registers only the Cloudflare hostname.
+ *
+ * The domain is persisted with status PENDING_DNS: nothing is ACTIVE until the
+ * merchant points their DNS at the fallback origin and /verify-status confirms
+ * it. Attaching it to stores.custom_domain happens in /verify, deliberately -
+ * claiming a domain before it resolves would let one merchant squat a hostname
+ * and point a half-built storefront at it.
+ */
+router.post('/add', requireSeller, async (req, res, next) => {
+  let provisioned = null;
+  try {
+    const domainName = normalizeDomain(req.body?.domainName ?? req.body?.domain);
+    if (!domainName) {
+      return res.status(400).json({ error: 'domainName is required.' });
+    }
+    if (!DOMAIN_RE.test(domainName)) {
+      return res.status(400).json({ error: 'Enter a valid domain name, e.g. mybrand.com' });
+    }
+
+    // A hostname may belong to exactly one storefront, ever. Without this a
+    // second merchant could claim a domain that is already live elsewhere.
+    const { rows: claimed } = await query(
+      'SELECT store_id FROM store_domains WHERE LOWER(domain_name) = LOWER($1)',
+      [domainName],
+    );
+    if (claimed.length && claimed[0].store_id !== req.auth.sub) {
+      return res.status(409).json({ error: 'That domain is already connected to another store.' });
+    }
+
+    provisioned = await domainService.provisionCustomDomain(domainName, req.auth.sub);
+
+    // The status enum is UPPER_CASE and CHECK-constrained in the schema, so
+    // 'pending_dns' from the API contract would be rejected by Postgres.
+    const status = String(provisioned.status || 'PENDING_DNS').toUpperCase();
+
+    await query(
+      `INSERT INTO store_domains (store_id, domain_name, provider, status, custom_hostname_id, ssl_status, dns_target_cname, verification_errors)
+       VALUES ($1, $2, 'EXTERNAL', $3, $4, $5, $6, $7)
+       ON CONFLICT (LOWER(domain_name)) DO UPDATE SET
+         store_id = EXCLUDED.store_id,
+         status = EXCLUDED.status,
+         custom_hostname_id = EXCLUDED.custom_hostname_id,
+         ssl_status = EXCLUDED.ssl_status,
+         verification_errors = EXCLUDED.verification_errors,
+         updated_at = NOW()
+       WHERE store_domains.store_id = EXCLUDED.store_id`,
+      [
+        req.auth.sub,
+        provisioned.domainName,
+        status,
+        provisioned.customHostnameId || null,
+        provisioned.cloudflare?.sslStatus || 'pending',
+        FALLBACK_ORIGIN,
+        JSON.stringify(provisioned.verificationErrors || []),
+      ],
+    );
+
+    // The `value` key is what the dashboard's DNS table renders; `pointsTo` is
+    // the historical name the other domain endpoints emit. Both are sent so no
+    // consumer has to be updated in the same deploy as this endpoint.
+    const dnsRecords = DNS_RECORDS.map((r) => ({ ...r, value: r.pointsTo }));
+
+    return res.status(201).json({
+      success: true,
+      domain: provisioned.domainName,
+      domainName: provisioned.domainName,
+      status,
+      // Lowercase alias matching the documented response contract.
+      statusLower: status.toLowerCase(),
+      dnsRecords,
+      dnsTarget: {
+        fallbackOrigin: FALLBACK_ORIGIN,
+        target: FALLBACK_ORIGIN,
+        ttl: 3600,
+        records: DNS_RECORDS,
+        note: ROOT_CNAME_NOTE,
+      },
+      ssl: {
+        status: provisioned.cloudflare?.sslStatus || 'pending',
+        note: 'SSL is issued automatically once your DNS points at us. This can take up to 15 minutes.',
+      },
+      customHostnameId: provisioned.customHostnameId || null,
+      vercel: provisioned.vercel || null,
+      verificationErrors: provisioned.verificationErrors || [],
+      nextStep: `Point both DNS records at ${FALLBACK_ORIGIN}, then confirm from the Domain page.`,
+      dryRun: provisioned.dryRun || false,
+    });
+  } catch (err) {
+    // The service already rolls back the Vercel leg when Cloudflare fails. Here
+    // we only have to report it: the normalized middleware turns this into a
+    // safe message plus a reference id, and logs the provider detail.
+    next(err);
+  }
+});
+
 /* --- Flow A: Verify Status & List --- */
 
 router.get('/verify-status', requireSeller, async (req, res, next) => {

@@ -21,6 +21,10 @@ const HUBTEL_CLIENT_ID = process.env.HUBTEL_CLIENT_ID || '';
 const HUBTEL_CLIENT_SECRET = process.env.HUBTEL_CLIENT_SECRET || '';
 const HUBTEL_BASE_URL = process.env.HUBTEL_CHECKOUT_BASE_URL || 'https://api.hubtel.com';
 const HUBTEL_CALLBACK_URL = process.env.HUBTEL_CALLBACK_URL || '';
+/* v13 is the oldest API version Vercel still serves. v10 (the number usually
+   quoted in tutorials) is retired and answers 404, which reads exactly like a
+   bad project id - so a "successful" rollout on v10 silently provisions nothing. */
+const VERCEL_API_VERSION = process.env.VERCEL_API_VERSION || '13';
 const PLATFORM_DOMAIN = (process.env.PLATFORM_DOMAIN || 'didwaghana.com').replace(/^https?:\/\//, '');
 /* Self-hosted deployments terminate TLS with Caddy and hand sellers this host;
    the Cloudflare for SaaS flow below uses the fallback origin instead. */
@@ -87,6 +91,39 @@ const cf = axios.create({
   },
 });
 
+/* -------------------------------------------------------------------------
+ * Vercel (the fallback origin's host)
+ *
+ * Registered on the project so the Edge Network will complete an SSL
+ * handshake for the hostname. Without it, Cloudflare's origin fetch to
+ * Vercel fails the handshake and the storefront shows Error 525 - which is
+ * indistinguishable, from the browser, from the domain being broken.
+ * ------------------------------------------------------------------------- */
+const VERCEL_AUTH_TOKEN = process.env.VERCEL_AUTH_TOKEN || '';
+const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID || '';
+const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || '';
+
+const vc = axios.create({
+  baseURL: `https://api.vercel.com/v${VERCEL_API_VERSION}`,
+  timeout: 25_000,
+  headers: {
+    Authorization: `Bearer ${VERCEL_AUTH_TOKEN}`,
+    'Content-Type': 'application/json',
+  },
+});
+
+// Vercel scopes every project call to a team when one is configured, via
+// ?teamId=. Without it a token belonging to a team 404s on its own projects.
+vc.interceptors.request.use((config) => {
+  if (VERCEL_TEAM_ID) config.params = { ...config.params, teamId: VERCEL_TEAM_ID };
+  return config;
+});
+
+/** Vercel is optional: without it the platform still provisions via Cloudflare. */
+function vercelConfigured() {
+  return Boolean(VERCEL_AUTH_TOKEN && VERCEL_PROJECT_ID);
+}
+
 let _opToken = null;
 let _opTokenExpiry = 0;
 
@@ -146,7 +183,11 @@ export async function connectExistingDomain({ storeId, domainName }) {
   try {
     const { data } = await cf.post(`/zones/${CLOUDFLARE_ZONE_ID}/custom_hostnames`, {
       hostname: clean,
-      ssl: { method: 'http', type: 'dv' },
+      // `http` = Cloudflare validates over HTTP once the CNAME resolves, which
+      // is the only workable method here: the merchant's DNS is not set up yet.
+      // `dv` = domain-validated DV cert. min_tls_version 1.2 is the floor
+      // Cloudflare's edge enforces on a custom hostname.
+      ssl: { method: 'http', type: 'dv', settings: { min_tls_version: '1.2' } },
     });
     cfResult = data;
   } catch (err) {
@@ -168,6 +209,114 @@ export async function connectExistingDomain({ storeId, domainName }) {
     customHostnameId: hostname.id,
     verificationErrors: hostname.ssl?.validation_errors || [],
     dnsTarget: dnsTargetBlock(),
+  };
+}
+
+/**
+ * Register the hostname on the Vercel project.
+ *
+ * Idempotent: Vercel answers 409 once the domain exists, which is success for
+ * our purposes, so a retried provisioning does not fail on its own leftovers.
+ */
+export async function registerDomainOnVercel(domainName) {
+  const clean = cleanDomain(domainName);
+  if (!vercelConfigured()) {
+    console.warn('[domain] VERCEL_AUTH_TOKEN/VERCEL_PROJECT_ID unset; skipping the Vercel leg.');
+    return { skipped: true, reason: 'not_configured' };
+  }
+
+  try {
+    const { data } = await vc.post(`/projects/${VERCEL_PROJECT_ID}/domains`, { name: clean });
+    return { domainId: data?.domain?.name || clean, raw: data };
+  } catch (err) {
+    // Already registered: the desired end state is already true.
+    if (err.response?.status === 409 || err.response?.status === 400) {
+      console.log(`[domain] ${clean} already on the Vercel project; treating as provisioned.`);
+      return { domainId: clean, alreadyPresent: true };
+    }
+    const detail = err.response?.data || err.message;
+    console.error('[domain] Vercel domain registration failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    throw new Error('We could not register your domain with our hosting provider. Please try again.');
+  }
+}
+
+/** Best-effort removal, used to roll back a half-finished provisioning. */
+async function removeDomainFromVercel(domainName) {
+  if (!vercelConfigured()) return;
+  try {
+    await vc.delete(`/projects/${VERCEL_PROJECT_ID}/domains/${encodeURIComponent(cleanDomain(domainName))}`);
+  } catch (err) {
+    // Rollback is advisory: log loudly but never mask the original failure.
+    console.error('[domain] rollback: could not remove the Vercel domain:', err.message);
+  }
+}
+
+/** Best-effort removal of the Cloudflare custom hostname. */
+async function removeCloudflareHostname(customHostnameId) {
+  if (!customHostnameId || domainDryRun) return;
+  try {
+    await cf.delete(`/zones/${CLOUDFLARE_ZONE_ID}/custom_hostnames/${customHostnameId}`);
+  } catch (err) {
+    console.error('[domain] rollback: could not remove the Cloudflare hostname:', err.message);
+  }
+}
+
+/**
+ * Full BYOD provisioning: Vercel first, then Cloudflare, with a compensating
+ * delete if the second leg fails.
+ *
+ * Order matters. Vercel is the cheap, idempotent leg and its failure is
+ * unrecoverable for the merchant (no cert can be issued), so it runs first and
+ * aborts the sequence. Cloudflare is the authoritative registrar, so if it fails
+ * after Vercel succeeded we remove the Vercel entry again: a half-provisioned
+ * domain that silently serves somebody else's storefront is worse than none.
+ */
+export async function provisionCustomDomain(domainName, storeId) {
+  const clean = cleanDomain(domainName);
+  if (!clean) throw new Error('Domain name is required.');
+
+  if (domainDryRun) {
+    console.log(`[domain:DRY_RUN] Provision ${clean} for store ${storeId}`);
+    return {
+      dryRun: true,
+      domainName: clean,
+      storeId,
+      status: 'PENDING_DNS',
+      vercel: { dryRun: true },
+      cloudflare: { dryRun: true, customHostnameId: `dry-hostname-${Date.now()}` },
+      dnsTarget: dnsTargetBlock(),
+      verificationErrors: [],
+    };
+  }
+
+  // A. Vercel: the Edge Network must accept the hostname.
+  const vercel = await registerDomainOnVercel(clean);
+
+  // B. Cloudflare for SaaS: the authoritative custom hostname + DV cert.
+  let cloudflare;
+  try {
+    cloudflare = await connectExistingDomain({ storeId, domainName: clean });
+  } catch (err) {
+    // Compensating action: do not leave the Vercel entry behind.
+    await removeDomainFromVercel(clean);
+    throw err;
+  }
+
+  return {
+    domainName: clean,
+    storeId,
+    status: cloudflare.status || 'PENDING_DNS',
+    vercel,
+    cloudflare: {
+      customHostnameId: cloudflare.customHostnameId,
+      // Cloudflare issues the cert asynchronously, so it is never "active" yet
+      // at this point. Surfacing 'pending' is the honest answer, and
+      // /verify-status is what later reports the real outcome.
+      sslStatus: 'pending',
+    },
+    customHostnameId: cloudflare.customHostnameId,
+    verificationErrors: cloudflare.verificationErrors || [],
+    dnsTarget: cloudflare.dnsTarget || dnsTargetBlock(),
   };
 }
 
@@ -421,6 +570,8 @@ export async function provisionCloudflareHostname(domainName) {
 
 export default {
   connectExistingDomain,
+  provisionCustomDomain,
+  registerDomainOnVercel,
   verifyDomainStatus,
   searchDomains,
   initializeHubtelCheckout,
@@ -431,6 +582,7 @@ export default {
   get platformDomain() { return PLATFORM_DOMAIN; },
   get cnameTarget() { return CNAME_TARGET; },
   get fallbackOrigin() { return FALLBACK_ORIGIN; },
+  get vercelConfigured() { return vercelConfigured(); },
   dnsRecordsFor,
   ROOT_CNAME_NOTE,
 };

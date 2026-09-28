@@ -59,6 +59,10 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `PLATFORM_URL` | Public origin for PDF/QR verification links | `https://didwaghana.com` |
 | `ROOT_DOMAIN` | Apex used by the Host resolver (dev: `localhost:5173`) | `didwaghana.com` |
 | `DOMAIN_FALLBACK_ORIGIN` | Cloudflare for SaaS fallback origin that sellers point **both** `@` and `www` at with a CNAME (or ALIAS/ANAME) | `fallback.<PLATFORM_DOMAIN>` (`fallback.didwaghana.com`) |
+| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ZONE_ID` | Cloudflare for SaaS custom-hostname registration (BYOD) | dry-run when unset |
+| `VERCEL_AUTH_TOKEN` / `VERCEL_PROJECT_ID` | Registers the merchant hostname on the Vercel project so the Edge Network completes the SSL handshake. **Optional** - unset skips the leg with a warning | dry-run when unset |
+| `VERCEL_TEAM_ID` | Only for team-owned Vercel projects (sent as `?teamId=`) | empty |
+| `VERCEL_API_VERSION` | Vercel REST API version. `v10` is retired and answers 404 | `13` |
 | `CNAME_TARGET` | Self-hosted / Caddy target only - no longer the record shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
 | `VITE_PLATFORM_DOMAIN` | Browser-side apex for seller storefront URLs - **fallback only**, the API's own apex wins (see `src/config.js`) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
 | `VITE_PREVIEW_HOSTS` | Host suffixes treated as platform traffic (preview URLs) | empty - nothing is exempt by default |
