@@ -143,6 +143,8 @@ construction (verified in the e2e suite).
 ```bash
 node scripts/e2eTest.js     # 37 assertions across all 7 modules
 node scripts/routeTest.js   # 44 route-table assertions (no server, no DB)
+npm run test:uploads        # storage guards, signed-URL contract, bucket CORS policy
+npm run r2:cors             # live R2 probe: bucket policy + browser preflight + PUT
 ```
 
 The suite registers two fresh stores and asserts: trial trigger + welcome SMS,
@@ -206,6 +208,9 @@ and the output directory (`dist`). No code changes required.
 | `PLATFORM_URL` | `https://didwaghana.com` (used for PDF verification links) |
 | `ROOT_DOMAIN` | `didwaghana.com` (apex used by the Host-header resolver) |
 | `CNAME_TARGET` | The project-specific CNAME from your Vercel domain card (what sellers point their own domain at) |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | Cloudflare R2 credentials + bucket (`didwa-media`) for seller photos and store logos. The access key can stay Object Read & Write; the bucket CORS policy is applied separately, see "Media uploads (Cloudflare R2)" below |
+| `R2_PUBLIC_URL` | The bucket's public custom domain, `https://media.didwaghana.com`. Must be Cloudflare-proxied, because delivery goes through `/cdn-cgi/image/...` |
+| `R2_ALLOWED_ORIGINS` | Optional. Comma-separated browser origins allowed to upload, or `*` (default). `R2_CHECK_ORIGIN` picks the origin `npm run r2:cors` probes with |
 
 ### 3. Cron job & auth
 
@@ -286,6 +291,44 @@ Notes:
   Vercel deployment URL.
 - On a Pro plan you may raise the ceiling via
   `vercel.json` -> `"functions": { "api/index.js": { "maxDuration": 30 } }`.
+
+### 6. Media uploads (Cloudflare R2)
+
+Seller photos and store logos are uploaded straight from the browser to R2 with a
+short-lived presigned PUT, so image bytes never pass through the serverless
+function. Two things must be true, and only the first is a credential:
+
+| Requirement | Why |
+| --- | --- |
+| An **Object Read & Write** R2 API token plus the bucket name in the env vars | The server signs the PUT and re-checks (`HeadObject`) what actually landed |
+| A **CORS policy on the bucket** | The browser PUTs to `<bucket>.<account>.r2.cloudflarestorage.com`, a different origin from the storefront, so it sends an OPTIONS preflight first. R2 returns no `Access-Control-Allow-Origin` header without a bucket rule, so the PUT is never sent: the seller gets a generic upload error, the console shows `blocked by CORS policy` / `net::ERR_FAILED`, and nothing at all reaches the bucket |
+
+The policy lives in `services/storage.js` (origins, methods and headers) and is
+applied with a script, so it cannot drift from what the uploader actually sends:
+
+```bash
+npm run r2:cors -- --apply    # write the policy the app expects to R2_BUCKET
+npm run r2:cors               # diagnose: preflight + real PUT/DELETE round trip
+npm run r2:cors -- --show     # print the policy currently on the bucket
+```
+
+The diagnostic signs a real PUT with the same code the API uses, sends the
+preflight a browser would send, performs the upload, and deletes the probe
+object afterwards. If the key cannot write bucket configuration, it prints the
+JSON to paste into Cloudflare dashboard -> R2 -> bucket -> Settings -> CORS
+Policy instead.
+
+`R2_ALLOWED_ORIGINS` narrows the policy (for example
+`https://didwaghana.com,https://*.didwaghana.com,http://localhost:5173`); the
+default is `*`. That is deliberate: the origin is not what grants write access -
+a valid 15-minute presigned URL is, and one can only be obtained by a signed-in
+seller - while sellers reach their dashboard through custom domains that no
+fixed origin list can enumerate in advance.
+
+Delivery is public and read-only through `media.didwaghana.com` with Cloudflare
+Image Resizing (`/cdn-cgi/image/width:640,...`), so one stored key serves the
+product card, the hero image, the logo and the browser-tab icon. Set
+`R2_IMAGE_RESIZE=off` when the zone has image resizing disabled.
 
 > Tip: run `npx vercel` locally for a preview deployment; every push to your
 > git branch redeploys automatically.

@@ -64,6 +64,87 @@ export function storageConfig() {
 
 export const isConfigured = () => storageConfig() !== null;
 
+/* ------------------------------- Bucket CORS -------------------------------
+ * A presigned PUT is signed HERE but sent by the merchant's BROWSER, so it goes
+ * to <account>.r2.cloudflarestorage.com - a different origin from the storefront,
+ * the seller dashboard, or a shop's own domain. The browser therefore sends an
+ * OPTIONS preflight first, and R2 answers one with no Access-Control-Allow-Origin
+ * header unless the bucket carries a matching CORS rule. Without the rule the PUT
+ * is never attempted at all: the seller sees "Upload failed. Check your
+ * connection and try again." and the browser console shows a blocked XHR.
+ *
+ * The policy lives in code (and is applied by `npm run r2:cors -- --apply`)
+ * rather than in a dashboard someone has to remember, because a missing rule
+ * disables the whole upload feature with no server-side error to notice.
+ *
+ * `*` is the default origin because the origin is NOT what grants write access -
+ * the signature is. A URL can only be obtained by a signed-in seller
+ * (POST /api/uploads/presign) and expires in 15 minutes, so allowing any origin
+ * to USE a signed URL gives nobody a way to OBTAIN one. Sellers also reach their
+ * dashboard through custom domains that no fixed list can enumerate in advance.
+ * Set R2_ALLOWED_ORIGINS to narrow it when that is preferred.
+ */
+export const CORS_ALLOWED_METHODS = ['PUT', 'GET', 'HEAD'];
+export const CORS_ALLOWED_HEADERS = ['*'];
+export const CORS_EXPOSE_HEADERS = ['ETag'];
+export const CORS_MAX_AGE_SECONDS = 3600;
+
+/**
+ * R2 rejects a policy with malformed origins, so a bad value is caught here
+ * instead of silently leaving the bucket unprotected. R2 accepts `*`, or an
+ * origin pattern (`scheme://host[:port]`) containing at most ONE wildcard, which
+ * may span dots: `https://*.didwaghana.com` matches `https://a.b.didwaghana.com`
+ * but not the bare apex. A path component and a wildcard port are never valid.
+ */
+export function isValidCorsOrigin(pattern) {
+  const value = String(pattern || '').trim();
+  if (!value) return false;
+  if (value === '*') return true;
+  const match = /^(https?):\/\/([^/?#]+)$/.exec(value);
+  if (!match) return false;
+  const host = match[2];
+  if ((host.match(/\*/g) || []).length > 1) return false;
+  const [hostname, port] = host.split(':');
+  if (port && (port.includes('*') || !/^\d+$/.test(port))) return false;
+  if (!hostname || hostname.startsWith('.') || hostname.endsWith('.')) return false;
+  return /^[a-z0-9.*-]+$/i.test(hostname);
+}
+
+/** Origins the bucket must accept for browser uploads to work at all. */
+export function corsOrigins() {
+  const configured = String(process.env.R2_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const origins = configured.length ? configured : ['*'];
+  const invalid = origins.filter((origin) => !isValidCorsOrigin(origin));
+  if (invalid.length) {
+    throw Object.assign(
+      new Error(`R2_ALLOWED_ORIGINS has ${invalid.length} invalid origin(s): ${invalid.join(', ')}. `
+        + 'Each entry must be "*" or an origin like https://shop.example.com - no path, at most one "*".'),
+      { status: 500 },
+    );
+  }
+  return origins;
+}
+
+/** The CORS rule set for the bucket, in the shape the S3 API (and R2) uses. */
+export function corsRules() {
+  return [{
+    AllowedHeaders: [...CORS_ALLOWED_HEADERS],
+    AllowedMethods: [...CORS_ALLOWED_METHODS],
+    AllowedOrigins: corsOrigins(),
+    ExposeHeaders: [...CORS_EXPOSE_HEADERS],
+    MaxAgeSeconds: CORS_MAX_AGE_SECONDS,
+  }];
+}
+
+/** The S3 endpoint browsers PUT to - the origin a bucket CORS rule must cover. */
+export function storageEndpoint() {
+  const config = storageConfig();
+  return config ? `https://${config.accountId}.r2.cloudflarestorage.com` : null;
+}
+
 let cachedClient = null;
 let cachedKey = '';
 function client() {
@@ -77,6 +158,15 @@ function client() {
         accessKeyId: String(process.env.R2_ACCESS_KEY_ID).trim(),
         secretAccessKey: String(process.env.R2_SECRET_ACCESS_KEY).trim(),
       },
+      // The SDK default is WHEN_SUPPORTED, which - for a PRESIGNED PUT - computes
+      // a CRC32 of the EMPTY body at signing time and bakes it into the URL
+      // (x-amz-sdk-checksum-algorithm=CRC32 & x-amz-checksum-crc32=AAAAAA==).
+      // The browser then uploads real bytes, R2 validates them against that
+      // pinned checksum and rejects the object, so no merchant image could ever
+      // be stored through a signed URL. WHEN_REQUIRED leaves the checksum out of
+      // the URL, which is what makes the signature usable by a browser.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
     cachedKey = config.accountId;
   }

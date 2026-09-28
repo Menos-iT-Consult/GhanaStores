@@ -25,6 +25,7 @@
     "db:reset": "node scripts/dbReset.js",
     "db:migrate": "node db/migrate.js",
     "db:seed": "node scripts/dbSeed.js",
+    "r2:cors": "node scripts/r2Cors.js",
     "admin:create": "node scripts/createAdmin.js",
     "token": "node scripts/mintToken.js"
   },

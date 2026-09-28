@@ -164,7 +164,11 @@ export function putToSignedUrl(uploadUrl, file, onProgress) {
         ? 'The upload could not be authorised. Please try again.'
         : `Upload failed (${xhr.status}).`));
     };
-    xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+    // A blocked CORS preflight, an offline browser and a dropped connection all
+    // arrive here as a network error with no status, so the copy stays
+    // actionable and the real cause is left in the console. A bucket with no
+    // CORS rule fails exactly here - see `npm run r2:cors`.
+    xhr.onerror = () => reject(new Error('The upload could not reach storage. Check your connection and try again.'));
     xhr.ontimeout = () => reject(new Error('The upload timed out. Please try again.'));
     xhr.send(file);
   });

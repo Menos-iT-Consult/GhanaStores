@@ -12,14 +12,16 @@
  *     every size the platform renders (product card, logo, tab icon), and fall
  *     back to the stored absolute URL for rows that predate uploads.
  *
- * The AWS signing itself needs real credentials, so it is not exercised here;
- * that is the one manual smoke test after the env vars are set.
+ *  4. The presigned-URL contract and the bucket CORS policy the browser needs.
+ *     Signing is LOCAL - it needs credentials, not a network - so the signed URL
+ *     can be inspected here; the live browser path is covered by `npm run r2:cors`.
  *
  * Usage: node scripts/uploadTest.js   (no network, no database, no credentials)
  */
 import {
-  ALLOWED_TYPES, KINDS, MAX_UPLOAD_BYTES, RENDITIONS, assertUploadable, buildDeliveryUrl,
-  buildObjectKey, isOwnedKey, productImageUrl, storageConfig,
+  ALLOWED_TYPES, KINDS, MAX_UPLOAD_BYTES, PRESIGN_TTL_SECONDS, RENDITIONS, assertUploadable,
+  buildDeliveryUrl, buildObjectKey, corsRules, isOwnedKey, isValidCorsOrigin, presignUpload,
+  productImageUrl, storageConfig,
 } from '../services/storage.js';
 
 let pass = 0;
@@ -161,6 +163,75 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
   log('resizing can be turned off for a zone without image resizing',
     buildDeliveryUrl(key, RENDITIONS.productCard) === `https://media.didwaghana.com/${key}`);
   delete process.env.R2_IMAGE_RESIZE;
+}
+
+/* ---------- The presigned PUT contract ---------- */
+{
+  /* The bytes are PUT by the BROWSER, so the URL may only contain things a
+     browser can honour. The SDK's WHEN_SUPPORTED default computes a CRC32 of the
+     (empty) body at signing time and pins it into the URL, which makes the
+     signature misleading to any S3-compatible store that validates it. */
+  const signed = new URL(await presignUpload({
+    key: buildObjectKey(STORE_A, 'product', 'image/png'),
+    contentType: 'image/png',
+  }));
+  log('the URL is an S3 presign', signed.searchParams.get('X-Amz-Algorithm') === 'AWS4-HMAC-SHA256');
+  log('the signature covers the host only', signed.searchParams.get('X-Amz-SignedHeaders') === 'host');
+  log('the payload is unsigned, so the browser can stream the file',
+    signed.searchParams.get('X-Amz-Content-Sha256') === 'UNSIGNED-PAYLOAD');
+  log('the URL expires in 15 minutes',
+    signed.searchParams.get('X-Amz-Expires') === String(PRESIGN_TTL_SECONDS));
+  log('no body checksum is pinned into the URL',
+    [...signed.searchParams.keys()].every((param) => !/checksum/i.test(param)),
+    [...signed.searchParams.keys()].filter((param) => /checksum/i.test(param)).join(', '));
+}
+
+/* ---------- Bucket CORS (the browser half of the upload) ---------- */
+{
+  /* The PUT goes to <account>.r2.cloudflarestorage.com from the storefront's
+     origin, so the browser only sends it after a preflight R2 answers with
+     Access-Control-Allow-Origin. Without a bucket rule the whole feature is dead
+     with no server-side error at all, which is why the policy is asserted here. */
+  const [rule] = corsRules();
+  log('the bucket needs exactly one rule', corsRules().length === 1);
+  log('PUT is allowed, or no image can be uploaded', rule.AllowedMethods.includes('PUT'));
+  log('uploads can be read back', rule.AllowedMethods.includes('GET') && rule.AllowedMethods.includes('HEAD'));
+  log('any origin by default, because sellers reach their dashboard on their own domain',
+    rule.AllowedOrigins.join() === '*');
+  log('the headers the uploader sends are allowed', rule.AllowedHeaders.join() === '*');
+  log('the ETag is exposed to the uploader', rule.ExposeHeaders.includes('ETag'));
+  log('the preflight is cached for an hour', rule.MaxAgeSeconds === 3600);
+
+  process.env.R2_ALLOWED_ORIGINS = 'https://*.didwaghana.com, https://didwaghana.com, http://localhost:5173';
+  const narrowed = corsRules()[0].AllowedOrigins;
+  log('an explicit origin list is honoured',
+    narrowed.length === 3 && narrowed[1] === 'https://didwaghana.com', narrowed.join(' '));
+  log('whitespace around an origin is trimmed', narrowed.every((origin) => origin === origin.trim()));
+  log('a subdomain wildcard covers every storefront', narrowed[0] === 'https://*.didwaghana.com');
+
+  process.env.R2_ALLOWED_ORIGINS = 'https://ok.example.com,https://www.didwaghana.com/';
+  const badStatus = statusOf(() => corsRules());
+  log('a malformed origin is refused rather than applied to the bucket', badStatus === 500, `got ${badStatus}`);
+  delete process.env.R2_ALLOWED_ORIGINS;
+
+  /* R2 accepts "*", or one wildcard per origin pattern, never a path or a
+     wildcard port - a rejected pattern would leave the bucket unprotected. */
+  for (const [label, origin, expected] of [
+    ['the any-origin wildcard', '*', true],
+    ['an https origin', 'https://shop.example.com', true],
+    ['an explicit port', 'http://localhost:5173', true],
+    ['a subdomain wildcard', 'https://*.didwaghana.com', true],
+    ['a wildcard spanning dots', 'https://*.shop.example.com', true],
+    ['two wildcards', 'https://*.*.example.com', false],
+    ['a trailing slash', 'https://www.didwaghana.com/', false],
+    ['a path', 'https://static.example.com/fonts/a.woff2', false],
+    ['a missing scheme', 'didwaghana.com', false],
+    ['a non-http scheme', 'ftp://example.com', false],
+    ['a wildcard port', 'http://localhost:*', false],
+    ['an empty value', '', false],
+  ]) {
+    log(`isValidCorsOrigin: ${label}`, isValidCorsOrigin(origin) === expected);
+  }
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);
