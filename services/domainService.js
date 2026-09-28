@@ -151,19 +151,77 @@ op.interceptors.request.use(async (config) => {
   return config;
 });
 
-function cleanDomain(domainName) {
-  return String(domainName || '')
+/**
+ * Canonical form of a merchant domain: lowercase, no scheme, no path, and no
+ * leading `www.`.
+ *
+ * The www stripping is the fix for "connected, but Store Not Found".
+ *
+ * The DNS table we instruct merchants to follow points BOTH `@` and `www` at the
+ * fallback origin, so both hostnames are expected to reach this platform. We
+ * used to store whatever the merchant typed, which produced two failures:
+ *
+ *   - typed `www.mybrand.com` (the input placeholder invites exactly that):
+ *     the apex `mybrand.com` - the address most visitors actually type - did
+ *     not match the stored value and 404'd.
+ *   - typed `mybrand.com`: the apex worked but `www.mybrand.com` 404'd.
+ *
+ * Storing the apex makes one canonical answer, and the www variant is served by
+ * a second Cloudflare custom hostname rather than by storing a second row.
+ */
+export function canonicalDomain(value) {
+  return String(value || '')
     .toLowerCase().trim()
     .replace(/^https?:\/\//, '')
-    .split('/')[0];
+    .split('/')[0]
+    .split(':')[0]
+    .replace(/\.+$/, '')
+    .replace(/^www\./, '');
 }
+
+/** The www sibling of an apex domain, used to register the second hostname. */
+export function wwwVariantOf(value) {
+  const apex = canonicalDomain(value);
+  return apex ? `www.${apex}` : '';
+}
+
 
 /* =========================================================================
  * Flow A: Bring Your Own Domain (BYOD)
  * ========================================================================= */
 
+/**
+ * Register the `www.` sibling of an already-provisioned apex hostname.
+ *
+ * We instruct merchants to point BOTH `@` and `www` at the fallback origin, so
+ * both hostnames are expected to serve. Cloudflare matches a custom hostname
+ * literally, so without this the www hostname is proxied to the fallback origin
+ * and then answered with "Storefront not found" - the exact symptom merchants
+ * report, on a domain that is connected and verified.
+ *
+ * Best effort by design: the apex is the canonical address and is what
+ * `stores.custom_domain` holds, so a www that Cloudflare refuses must not fail
+ * an otherwise good provisioning. The apex still serves.
+ */
+async function registerWwwVariant(apex, storeId) {
+  const www = wwwVariantOf(apex);
+  if (!www || domainDryRun) return {};
+  try {
+    const { data } = await cf.post(`/zones/${CLOUDFLARE_ZONE_ID}/custom_hostnames`, {
+      hostname: www,
+      ssl: { method: 'http', type: 'dv', settings: { min_tls_version: '1.2' } },
+    });
+    return { wwwCustomHostnameId: data?.result?.id || null, wwwRegistered: Boolean(data?.success) };
+  } catch (err) {
+    const detail = err.response?.data || err.message;
+    console.warn(`[domain] could not register the www hostname for ${apex} (store ${storeId}):`,
+      typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    return { wwwRegistered: false };
+  }
+}
+
 export async function connectExistingDomain({ storeId, domainName }) {
-  const clean = cleanDomain(domainName);
+  const clean = canonicalDomain(domainName);
   if (!clean) throw new Error('Domain name is required.');
 
   if (domainDryRun) {
@@ -209,6 +267,7 @@ export async function connectExistingDomain({ storeId, domainName }) {
     customHostnameId: hostname.id,
     verificationErrors: hostname.ssl?.validation_errors || [],
     dnsTarget: dnsTargetBlock(),
+    ...(await registerWwwVariant(clean, storeId)),
   };
 }
 
@@ -219,7 +278,7 @@ export async function connectExistingDomain({ storeId, domainName }) {
  * our purposes, so a retried provisioning does not fail on its own leftovers.
  */
 export async function registerDomainOnVercel(domainName) {
-  const clean = cleanDomain(domainName);
+  const clean = canonicalDomain(domainName);
   if (!vercelConfigured()) {
     console.warn('[domain] VERCEL_AUTH_TOKEN/VERCEL_PROJECT_ID unset; skipping the Vercel leg.');
     return { skipped: true, reason: 'not_configured' };
@@ -244,7 +303,7 @@ export async function registerDomainOnVercel(domainName) {
 async function removeDomainFromVercel(domainName) {
   if (!vercelConfigured()) return;
   try {
-    await vc.delete(`/projects/${VERCEL_PROJECT_ID}/domains/${encodeURIComponent(cleanDomain(domainName))}`);
+    await vc.delete(`/projects/${VERCEL_PROJECT_ID}/domains/${encodeURIComponent(canonicalDomain(domainName))}`);
   } catch (err) {
     // Rollback is advisory: log loudly but never mask the original failure.
     console.error('[domain] rollback: could not remove the Vercel domain:', err.message);
@@ -272,7 +331,7 @@ async function removeCloudflareHostname(customHostnameId) {
  * domain that silently serves somebody else's storefront is worse than none.
  */
 export async function provisionCustomDomain(domainName, storeId) {
-  const clean = cleanDomain(domainName);
+  const clean = canonicalDomain(domainName);
   if (!clean) throw new Error('Domain name is required.');
 
   if (domainDryRun) {
@@ -321,7 +380,7 @@ export async function provisionCustomDomain(domainName, storeId) {
 }
 
 export async function verifyDomainStatus(domainName) {
-  const clean = cleanDomain(domainName);
+  const clean = canonicalDomain(domainName);
 
   if (domainDryRun) {
     console.log(`[domain:DRY_RUN] Verify status for ${clean}`);

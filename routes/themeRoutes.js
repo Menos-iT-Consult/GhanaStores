@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
+import { canonicalDomain } from '../services/domainService.js';
 
 const router = Router();
 
@@ -53,6 +54,11 @@ router.get('/themes', async (req, res, next) => {
 router.get('/store/theme/public/:slug', async (req, res, next) => {
   try {
     const { slug } = req.params;
+    // The slug a storefront sends is whichever host the customer is on, so it
+    // can be the apex or its www. spelling. Normalising here is what keeps a
+    // working custom domain from rendering with no theme ("Store not found for
+    // this theme"), which is a blank storefront rather than a clear error.
+    const storeKey = canonicalDomain(slug);
     const { rows } = await query(
       `SELECT s.name              AS store_name,
               s.subdomain_slug    AS slug,
@@ -64,11 +70,11 @@ router.get('/store/theme/public/:slug', async (req, res, next) => {
               s.custom_theme_config
         FROM stores s
         LEFT JOIN theme_templates t ON t.id = s.active_theme_id
-       WHERE s.subdomain_slug = $1
-          OR s.custom_domain = $1
+       WHERE LOWER(s.subdomain_slug) = LOWER($1)
+          OR LOWER(s.custom_domain) = ANY ($2::text[])
        ORDER BY s.created_at DESC
        LIMIT 1`,
-      [slug],
+      [storeKey, [storeKey, `www.${storeKey}`]],
     );
 
     const store = rows[0];

@@ -86,13 +86,16 @@ const CNAME_PROXY_IP_RANGES = ['104.16.', '104.17.', '104.18.', '104.19.', '104.
 const DOMAIN_RE = /^(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$/i;
 
 function normalizeDomain(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .split('/')[0]
-    .split(':')[0]
-    .replace(/\.$/, '');
+  // Delegates to the service so the value stored, the value compared and the
+  // host the resolver matches on can never disagree - that disagreement is what
+  // produced a connected domain that rendered "Store Not Found".
+  return domainService.canonicalDomain(value);
+}
+
+/** The apex plus its www. spelling - the two forms one domain can be stored as. */
+function domainCandidates(value) {
+  const apex = normalizeDomain(value);
+  return apex ? [apex, `www.${apex}`] : [''];
 }
 
 function domainUrl(domain) {
@@ -143,12 +146,18 @@ router.get('/resolve', async (req, res, next) => {
 /* --------------------- Public storefront catalog by slug --------------------- */
 router.get('/storefront/:slug/products', async (req, res, next) => {
   try {
+    // Matched on the same candidates the resolver uses (slug, or the apex and
+    // its www. spelling). A case-sensitive `custom_domain = $1` here 404'd the
+    // catalogue for a store the host resolver had just successfully matched,
+    // which rendered as an empty shop on a perfectly working domain.
+    const key = normalizeDomain(req.params.slug);
     const s = await query(
       `SELECT id, name, subdomain_slug, whatsapp_number, phone, momo_number, currency, status
          FROM stores
-        WHERE subdomain_slug = $1 OR custom_domain = $1
+        WHERE LOWER(subdomain_slug) = LOWER($1)
+           OR LOWER(custom_domain) = ANY ($2::text[])
         LIMIT 1`,
-      [String(req.params.slug).toLowerCase()],
+      [key, domainCandidates(key)],
     );
     const store = s.rows[0];
     if (!store || store.status === 'SUSPENDED') {
@@ -310,14 +319,18 @@ router.post('/verify', requireSeller, async (req, res, next) => {
       });
     }
 
-    // Records verified - make sure no other tenant owns the domain.
+    // Records verified - make sure no other tenant owns the domain. LOWER() on
+    // both sides: a plain `=` is case-sensitive, so a store that saved
+    // "MyBrand.com" would slip past this check and two stores would end up
+    // fighting over one hostname.
     const taken = await query(
-      'SELECT 1 FROM stores WHERE custom_domain = $1 AND id <> $2',
+      'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
       [domain, req.auth.sub],
     );
     if (taken.rows.length > 0) {
       return res.status(409).json({ error: 'This domain is already connected to another store.' });
     }
+    // Canonical (lowercase apex) so the resolver's LOWER() comparison matches.
     await query('UPDATE stores SET custom_domain = $2 WHERE id = $1', [req.auth.sub, domain]);
 
     return res.json({
@@ -425,11 +438,14 @@ router.post('/add', requireSeller, async (req, res, next) => {
       return res.status(400).json({ error: 'Enter a valid domain name, e.g. mybrand.com' });
     }
 
-    // A hostname may belong to exactly one storefront, ever. Without this a
-    // second merchant could claim a domain that is already live elsewhere.
+    // A hostname may belong to exactly one storefront, ever. Both the apex and
+    // its www. spelling are checked: a merchant who typed `www.mybrand.com`
+    // would otherwise slip past a check that only knows the apex form and
+    // silently re-point a domain another store is already serving.
     const { rows: claimed } = await query(
-      'SELECT store_id FROM store_domains WHERE LOWER(domain_name) = LOWER($1)',
-      [domainName],
+      `SELECT store_id FROM store_domains
+        WHERE LOWER(domain_name) = ANY ($1::text[])`,
+      [domainCandidates(domainName)],
     );
     if (claimed.length && claimed[0].store_id !== req.auth.sub) {
       return res.status(409).json({ error: 'That domain is already connected to another store.' });
@@ -525,9 +541,10 @@ router.get('/verify-status', requireSeller, async (req, res, next) => {
         ],
       );
       if (result.status === 'ACTIVE') {
-        // Never steal a domain already attached to a different tenant.
+        // Never steal a domain already attached to a different tenant. LOWER()
+        // on both sides so a differently-cased row cannot be bypassed.
         const taken = await query(
-          'SELECT 1 FROM stores WHERE custom_domain = $1 AND id <> $2 LIMIT 1',
+          'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
           [result.domainName, req.auth.sub],
         );
         if (taken.rows.length === 0) {
@@ -726,9 +743,11 @@ webhookRouter.post('/hubtel', async (req, res) => {
         [result.storeId, result.domainName],
       );
 
-      // Never steal a domain already attached to a different tenant.
+      // Never steal a domain already attached to a different tenant. LOWER() on
+      // both sides: this is the only ownership check on the purchase path, so a
+      // case-sensitive comparison here let a differently-cased row through.
       const taken = await query(
-        'SELECT 1 FROM stores WHERE custom_domain = $1 AND id <> $2 LIMIT 1',
+        'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
         [result.domainName, result.storeId],
       );
       if (taken.rows[0]) {

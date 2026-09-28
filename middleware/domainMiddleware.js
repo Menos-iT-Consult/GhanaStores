@@ -113,6 +113,20 @@ export function normalizeHost(rawHost) {
     .replace(/\.+$/, '');
 }
 
+/**
+ * The stored-domain spellings a Host header may legitimately match.
+ *
+ * Returns the host itself, plus its apex and its `www.` form. The apex is what
+ * we store going forward; the `www.` form is kept so stores connected before
+ * that normalisation keep resolving.
+ */
+function customDomainCandidates(host) {
+  const h = normalizeHost(host);
+  if (!h) return [''];
+  const apex = h.replace(/^www\./, '');
+  return [...new Set([h, apex, `www.${apex}`])];
+}
+
 /** Only public storefront traffic may 404; API and health must pass through. */
 function isStorefrontRequest(req) {
   const path = req.path || '';
@@ -172,12 +186,19 @@ export async function resolveTenantStore(req, res, next, deps = {}) {
     }
 
     // 2) Custom domain -> stores.custom_domain
+    //
+    // Rows are stored canonically (apex, no `www.`) by the provisioning flow,
+    // but a row saved before that normalisation can still carry the `www.`
+    // form a merchant typed. Matching both shapes here means those stores are
+    // repaired by a deploy instead of staying a "Store Not Found" storefront
+    // until the merchant reconnects. The Host header is the authority: we never
+    // rewrite it, we only widen the lookup.
     const custom = await runQuery(
       `SELECT ${TENANT_COLUMNS}
          FROM stores
-        WHERE LOWER(custom_domain) = $1 AND status <> 'SUSPENDED'
+        WHERE LOWER(custom_domain) = ANY ($1::text[]) AND status <> 'SUSPENDED'
         LIMIT 1`,
-      [host],
+      [customDomainCandidates(host)],
     );
     if (custom.rows[0]) {
       req.tenantStore = custom.rows[0];

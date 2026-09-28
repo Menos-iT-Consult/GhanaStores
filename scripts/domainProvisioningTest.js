@@ -100,7 +100,10 @@ console.log('\nDiDwa BYOD provisioning -> services/domainService.js + routes/dom
 /* ---------- 5. One domain, one store, never ACTIVE on add ---------- */
 {
   log('a domain claimed by another store is a 409', /claimed\[0\]\.store_id !== req\.auth\.sub/.test(add) && /res\.status\(409\)/.test(add));
-  log('the ownership check queries by lower-cased name', /LOWER\(domain_name\) = LOWER\(\$1\)/.test(add));
+  // The lookup is by candidate LIST now, so the guard asserts the list, not a
+  // single equality. The ownership check must still be case-insensitive.
+  log('the ownership check queries by lower-cased name', /LOWER\(domain_name\) = ANY \(\$1::text\[\]\)/.test(add));
+  log('the ownership check covers both spellings', /domainCandidates\(domainName\)/.test(add));
   log('the upsert cannot steal a row from another store', /WHERE store_domains\.store_id = EXCLUDED\.store_id/.test(add));
   log('the domain is stored PENDING_DNS, never ACTIVE', !/status: 'ACTIVE'/.test(add) && /'PENDING_DNS'/.test(add));
   log('the domain is not attached to the store on add', !/UPDATE stores SET custom_domain/.test(add));

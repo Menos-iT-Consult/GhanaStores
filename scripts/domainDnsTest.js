@@ -37,8 +37,13 @@ for (const key of [
   'DOMAIN_FALLBACK_ORIGIN',
 ]) delete process.env[key];
 process.env.PLATFORM_DOMAIN = 'didwaghana.com';
+const { classifyHost, resolveTenantStore } = await import('../middleware/domainMiddleware.js');
 
 const domainService = (await import('../services/domainService.js')).default;
+const svc = await import('../services/domainService.js');
+const svcSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'domainService.js'), 'utf8');
+const mwSource = fs.readFileSync(path.join(__dirname, '..', 'middleware', 'domainMiddleware.js'), 'utf8');
+const routesSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'domainRoutes.js'), 'utf8');
 const { ROOT_CNAME_NOTE, dnsRecordsFor } = await import('../services/domainService.js');
 
 console.log('\nDiDwa custom-domain DNS instructions -> services/domainService.js + src/pages/DomainManager.jsx\n');
@@ -127,6 +132,71 @@ console.log('\nDiDwa custom-domain DNS instructions -> services/domainService.js
   log('the component never hard-codes 104.16.0.1', !code.includes('104.16.0.1'));
   log('the component never points a record at a Cloudflare edge IP', !/104\.1[6-9]\.\d+/.test(code));
   log('the component never tells a merchant to use a Vercel CNAME', !/vercel-dns/i.test(code));
+}
+
+/* ---------- "connected but Store Not Found": the www/apex mismatch ---------- */
+// The regression this guards: a merchant connected a domain and got the branded
+// Store Not Found page. Two spellings of one domain were stored and compared
+// literally, so whichever form the merchant typed, the other 404'd.
+{
+  log('a www-prefixed input is canonicalised to the apex', svc.canonicalDomain('www.mybrand.com') === 'mybrand.com');
+  log('case is normalised', svc.canonicalDomain('MyBrand.COM') === 'mybrand.com');
+  log('a scheme and path are stripped', svc.canonicalDomain('https://www.mybrand.com/') === 'mybrand.com');
+  log('a port is stripped', svc.canonicalDomain('mybrand.com:443') === 'mybrand.com');
+  log('a real subdomain is NOT stripped', svc.canonicalDomain('shop.mybrand.com') === 'shop.mybrand.com');
+  log('the www sibling is derivable', svc.wwwVariantOf('www.mybrand.com') === 'www.mybrand.com');
+  log('the service is what normalises, not each caller', !/function cleanDomain/.test(svcSource));
+
+  // The resolver must serve the apex and its www. spelling from one row.
+  const apexStore = { id: 's1', name: 'A', subdomain_slug: 'a', custom_domain: 'pentvarsconnect.com', status: 'ACTIVE' };
+  const resolveWith = async (host, row) => {
+    const q = async (sql, params) => {
+      if (!/custom_domain/.test(sql)) return { rows: [] };
+      const wants = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((v) => String(v).toLowerCase());
+      return { rows: wants.includes(row.custom_domain) ? [row] : [] };
+    };
+    const req = { headers: { host, accept: 'text/html' }, path: '/' };
+    const res = { status() { return this; }, json() { return this; } };
+    await resolveTenantStore(req, res, () => {}, { query: q });
+    return req.tenantStore?.id || null;
+  };
+
+  for (const host of ['pentvarsconnect.com', 'www.pentvarsconnect.com', 'WWW.PentVarsConnect.com']) {
+    log(`an apex row serves ${host}`, await resolveWith(host, apexStore) === 's1');
+  }
+  // A row saved before normalisation must keep working after a deploy.
+  const legacy = { ...apexStore, id: 's2', custom_domain: 'www.legacybrand.com' };
+  log('a legacy www-prefixed row still resolves (apex host)', await resolveWith('legacybrand.com', legacy) === 's2');
+  log('a legacy www-prefixed row still resolves (www host)', await resolveWith('www.legacybrand.com', legacy) === 's2');
+  log('a host owned by nobody is still unresolved', await resolveWith('nobody.com', apexStore) === null);
+  log('the resolver widens the lookup instead of rewriting the host', /ANY \(\$1::text\[\]\)/.test(mwSource));
+  log('the resolver still excludes suspended stores', /status <> 'SUSPENDED'/.test(mwSource));
+
+  // Both hostnames we instruct must actually be provisioned.
+  log('the www hostname is registered with Cloudflare', /registerWwwVariant/.test(svcSource) && /wwwVariantOf\(apex\)/.test(svcSource));
+  log('a failed www registration never fails the apex', /wwwRegistered: false/.test(svcSource));
+  log('ownership checks are case-insensitive', !/WHERE custom_domain = \$1/.test(routesSource));
+  log('ownership checks cover the www. spelling', /domainCandidates/.test(routesSource));
+
+  // Every other place that looks a store up by host had the same literal
+  // comparison, and each 404'd a domain the resolver had already matched.
+  const orderSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'orderRoutes.js'), 'utf8');
+  const themeSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'themeRoutes.js'), 'utf8');
+  // Strip comments first: this guard is about SQL that ships, and the fix's
+  // explanatory comments quote the old broken comparison on purpose.
+  // Only a COMPARISON counts - `SET custom_domain = $2` is an assignment and is
+  // correct; it was `WHERE custom_domain = $1` that broke.
+  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  log('no case-sensitive custom_domain COMPARISON survives anywhere',
+    [routesSource, orderSrc, themeSrc].every((s) => !/WHERE[^;]*?(^|[^_])custom_domain = \$/im.test(strip(s))));
+  log('the storefront catalogue matches both spellings', /LOWER\(custom_domain\) = ANY/.test(routesSource));
+  log('the storefront catalogue is case-insensitive', /LOWER\(subdomain_slug\) = LOWER/.test(routesSource));
+  log('the public theme lookup normalises the slug', /canonicalDomain\(slug\)/.test(themeSrc));
+  log('the checkout lookup normalises the slug', /canonicalDomain\(b\.slug\)/.test(orderSrc));
+  log('the checkout lookup covers the www. spelling', /`www\.\$\{key\}`/.test(orderSrc));
+  log('the theme lookup covers the www. spelling', /`www\.\$\{storeKey\}`/.test(themeSrc));
+  log('every affected route imports the shared normaliser',
+    /domainService\.js/.test(themeSrc) && /domainService\.js/.test(orderSrc));
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);

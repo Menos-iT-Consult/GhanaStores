@@ -27,6 +27,7 @@ import {
   recordLowStockAlerts,
 } from './inventoryRoutes.js';
 import { sendLowStockAlertSms } from '../services/smsService.js';
+import { canonicalDomain } from '../services/domainService.js';
 
 const router = Router();
 
@@ -86,9 +87,15 @@ router.post('/public/orders', async (req, res, next) => {
     // Multi-tenant scope: explicit store_id (embedded widget) or storefront slug.
     let storeId = b.store_id ?? b.storeId ?? null;
     if (!storeId && b.slug) {
+      // A storefront checkout sends whichever host the customer is on, so this
+      // is the apex or its www. spelling; both must resolve to the same store.
+      const key = canonicalDomain(b.slug);
       const s = await query(
-        'SELECT id FROM stores WHERE subdomain_slug = $1 OR custom_domain = $1 LIMIT 1',
-        [String(b.slug)],
+        `SELECT id FROM stores
+          WHERE LOWER(subdomain_slug) = LOWER($1)
+             OR LOWER(custom_domain) = ANY ($2::text[])
+          LIMIT 1`,
+        [key, [key, `www.${key}`]],
       );
       if (!s.rows[0]) return res.status(404).json({ error: 'Store not found.' });
       storeId = s.rows[0].id;
