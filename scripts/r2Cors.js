@@ -31,8 +31,12 @@ import {
   DeleteObjectCommand, GetBucketCorsCommand, PutBucketCorsCommand, S3Client,
 } from '@aws-sdk/client-s3';
 import {
-  PRESIGN_TTL_SECONDS, corsRules, presignUpload, storageConfig, storageEndpoint,
+  PRESIGN_TTL_SECONDS, RENDITIONS, buildDeliveryUrl, corsRules, presignUpload, storageConfig,
+  storageEndpoint,
 } from '../services/storage.js';
+// The client-side rendition fallback, so the diagnostic checks the same URL the
+// storefront would fall back to.
+import { originalImageUrl } from '../src/api.js';
 
 dotenv.config();
 
@@ -204,6 +208,39 @@ async function check() {
     uploaded = put.ok;
     const body = put.ok ? '' : String(await put.text()).slice(0, 300);
     report('the signed PUT stores the object', put.ok, put.ok ? `HTTP ${put.status}` : `HTTP ${put.status} ${body}`);
+
+    if (put.ok) {
+      /* The read half: these are the exact URLs the app hands to <img> tags, so a
+         wrong shape or a disabled zone feature surfaces here instead of as broken
+         images on a storefront. */
+      const plain = buildDeliveryUrl(probeKey);
+      const rendition = buildDeliveryUrl(probeKey, RENDITIONS.favicon);
+
+      const read = await fetch(plain);
+      report('the object is publicly readable through R2_PUBLIC_URL', read.ok,
+        `${read.status} ${read.headers.get('content-type')} ${plain}`);
+
+      if (rendition === plain) {
+        console.log('  (resizing is off, so delivery serves the original)');
+      } else {
+        const thumb = await fetch(rendition);
+        report('the resized rendition the app renders', thumb.ok,
+          thumb.ok
+            ? `${thumb.status} ${thumb.headers.get('content-type')} ${rendition}`
+            : `${thumb.status} - enable Image Transformations on the zone, or set `
+              + `R2_IMAGE_RESIZE=off to serve originals: ${rendition}`);
+
+        if (!thumb.ok) {
+          // The <img> fallback the storefront uses (src/components/SafeImage.jsx):
+          // prove the original behind the failed rendition is actually readable,
+          // so "feature off" is reported as degraded, not as broken images.
+          const original = originalImageUrl(rendition);
+          const fallback = await fetch(original);
+          report('the unresized original is readable, so images still render', fallback.ok,
+            `${fallback.status} ${original}`);
+        }
+      }
+    }
   } finally {
     // Always clean up: a diagnostic must not leave objects in the bucket.
     if (uploaded) {

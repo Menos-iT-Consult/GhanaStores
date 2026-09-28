@@ -23,6 +23,9 @@ import {
   buildDeliveryUrl, buildObjectKey, corsRules, isOwnedKey, isValidCorsOrigin, presignUpload,
   productImageUrl, storageConfig,
 } from '../services/storage.js';
+// The browser half of delivery: it derives the unresized original so a zone
+// without Cloudflare Image Transformations still renders the picture.
+import { originalImageUrl } from '../src/api.js';
 
 let pass = 0;
 let fail = 0;
@@ -141,11 +144,16 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
   const key = buildObjectKey(STORE_A, 'product', 'image/jpeg');
   const card = buildDeliveryUrl(key, RENDITIONS.productCard);
   log('a product card URL is resized on read',
-    card === `https://media.didwaghana.com/cdn-cgi/image/width:640,height:640,fit:scale-down,quality:75,format:auto/${key}`,
+    card === `https://media.didwaghana.com/cdn-cgi/image/width=640,height=640,fit=scale-down,quality=75,format=auto/${key}`,
     card);
+  /* Cloudflare parses `<key>=<value>`, comma separated: a colon form is not
+     recognised and 404s, which silently breaks every image on the platform. */
+  log('the resize options use key=value, never key:value',
+    card.includes('width=640') && !card.includes('width:640') && !/:/.test(card.split('/cdn-cgi/image/')[1].split('/')[0]));
+  log('the options are comma separated', card.split('/cdn-cgi/image/')[1].split('/')[0].split(',').length === 5);
   log('the hero rendition differs from the card', buildDeliveryUrl(key, RENDITIONS.productHero) !== card);
-  log('a logo gets its own rendition', buildDeliveryUrl(key, RENDITIONS.logo).includes('width:512'));
-  log('the tab icon is small', buildDeliveryUrl(key, RENDITIONS.favicon).includes('width:64'));
+  log('a logo gets its own rendition', buildDeliveryUrl(key, RENDITIONS.logo).includes('width=512'));
+  log('the tab icon is small', buildDeliveryUrl(key, RENDITIONS.favicon).includes('width=64'));
   log('a bare key serves the original', buildDeliveryUrl(key) === `https://media.didwaghana.com/${key}`);
   log('a leading slash on the key is tolerated',
     buildDeliveryUrl(`/${key}`) === `https://media.didwaghana.com/${key}`);
@@ -232,6 +240,26 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
   ]) {
     log(`isValidCorsOrigin: ${label}`, isValidCorsOrigin(origin) === expected);
   }
+}
+
+/* ---------- The browser's delivery fallback ---------- */
+{
+  /* A rendition 404s on a zone without Image Transformations, so the <img>
+     swaps to the original. Deriving it must be exact: a mangled URL would swap
+     one broken image for another. */
+  const rendition = 'https://media.didwaghana.com/cdn-cgi/image/width=640,height=640,fit=scale-down,quality=75,format=auto/stores/abc/products/x.png';
+  log('a rendition falls back to the stored original',
+    originalImageUrl(rendition) === 'https://media.didwaghana.com/stores/abc/products/x.png',
+    originalImageUrl(rendition));
+  log('an unresized URL is returned unchanged (the swap is a no-op)',
+    originalImageUrl('https://media.didwaghana.com/stores/abc/products/x.png') === 'https://media.didwaghana.com/stores/abc/products/x.png');
+  log('a foreign host is never touched',
+    originalImageUrl('https://picsum.photos/seed/a/640/480') === 'https://picsum.photos/seed/a/640/480');
+  log('a URL with no key is left alone',
+    originalImageUrl('https://old.example/photo.jpg') === 'https://old.example/photo.jpg');
+  log('an empty src stays empty', originalImageUrl('') === '' && originalImageUrl(null) === '');
+  log('the fallback of a rendition matches the plain delivery URL',
+    originalImageUrl(rendition) === buildDeliveryUrl('stores/abc/products/x.png'));
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);

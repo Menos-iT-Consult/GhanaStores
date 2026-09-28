@@ -13,6 +13,7 @@
  */
 import { useState } from 'react';
 import { ghs } from '../../api.js';
+import SafeImage from '../SafeImage.jsx';
 import {
   IconStore, IconLogo, IconWhatsApp, IconCart,
   IconShield, IconTruck, IconWallet,
@@ -107,7 +108,7 @@ function ProductCard({ p, t, onNavigate, ctx }) {
       style={{ borderRadius: 'var(--radius)', background: 'var(--surface)' }}
     >
       <button type="button" onClick={open} className="relative block aspect-[4/3] w-full overflow-hidden">
-        <img src={p.img} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <SafeImage src={p.img} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         {c.features.enable_stock_counter && p.stock <= 5 && (
           <span className="absolute left-2 top-2 rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide shadow-sm" style={{ background: 'var(--accent)', color: '#0F172A' }}>
             Only {p.stock} left
@@ -169,7 +170,7 @@ function PreviewHeader({ t, active, onNavigate, ctx }) {
       <header className={`flex items-center gap-3 border-b px-5 py-3 ${compact ? 'px-3 py-2.5' : ''} ${centered ? 'flex-col justify-center gap-2' : 'justify-between'}`} style={{ borderColor: 'rgba(148,163,184,.25)' }}>
         <button type="button" onClick={() => onNavigate('home')} className={`flex items-center gap-2.5 ${centered ? 'flex-col' : ''}`}>
           {c.branding.logo_url ? (
-            <img src={c.branding.logo_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+            <SafeImage src={c.branding.logo_url} alt="" className="h-10 w-10 rounded-full object-cover" />
           ) : (
             <IconLogo size={40} className="rounded-full" />
           )}
@@ -407,7 +408,7 @@ function ProductBody({ t, onNavigate, ctx }) {
 
       <div className={`gap-5 ${stack ? 'grid grid-cols-1' : 'flex'}`}>
         <div className={stack ? '' : 'w-[46%] shrink-0'}>
-          <img src={p.img || `https://picsum.photos/seed/${thumbs[thumb]}/640/480`} alt={p.name} className="w-full rounded-lg object-cover shadow-sm" style={{ borderRadius: 'var(--radius)' }} />
+          <SafeImage src={p.img || `https://picsum.photos/seed/${thumbs[thumb]}/640/480`} alt={p.name} className="w-full rounded-lg object-cover shadow-sm" style={{ borderRadius: 'var(--radius)' }} />
           <div className={`mt-2 flex gap-2 ${ctx.isLive ? 'hidden' : ''}`}>
             {thumbs.map((seed, i) => (
               <button
@@ -538,7 +539,7 @@ function CartBody({ t, onNavigate, ctx }) {
         <ul className="min-w-0 flex-1 space-y-3">
           {items.map((item) => (
             <li key={item.id} className="flex items-center gap-3 border-b pb-3" style={{ borderColor: 'rgba(148,163,184,.25)' }}>
-              <img src={item.img} alt="" className="h-14 w-14 shrink-0 rounded-md object-cover" />
+              <SafeImage src={item.img} alt="" className="h-14 w-14 shrink-0 rounded-md object-cover" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-bold">{item.name}</span>
                 {item.label ? <span className="block text-[10px] font-semibold opacity-60">{item.label}</span> : null}

@@ -174,6 +174,26 @@ export function putToSignedUrl(uploadUrl, file, onProgress) {
   });
 }
 
+/**
+ * The unresized original behind a delivery URL.
+ *
+ * Delivery normally goes through Cloudflare Image Transformations
+ * (`/cdn-cgi/image/width=640,.../<key>`), which the zone has to have enabled.
+ * Where it is not, that path 404s, so an <img> swaps to this URL instead of
+ * showing a broken image - the storefront keeps working and simply transfers the
+ * original bytes. A URL that is not a rendition comes back unchanged, which makes
+ * the swap a no-op once the feature is enabled.
+ */
+export function originalImageUrl(url) {
+  const value = String(url || '');
+  const marker = '/cdn-cgi/image/';
+  const at = value.indexOf(marker);
+  if (at === -1) return value;
+  const rest = value.slice(at + marker.length);
+  const afterOptions = rest.indexOf('/');
+  return afterOptions === -1 ? value : value.slice(0, at) + rest.slice(afterOptions);
+}
+
 /** GHS currency formatter used across all dashboards. */
 export function ghs(value) {
   const n = Number(value || 0);

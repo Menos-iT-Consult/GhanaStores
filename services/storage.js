@@ -222,7 +222,19 @@ export function assertUploadable({ contentType, size, kind }) {
   return { extension, bytes };
 }
 
-/** Absolute URL for a stored key, optionally resized by Cloudflare on read. */
+/**
+ * Absolute URL for a stored key, optionally resized by Cloudflare on read.
+ *
+ * Cloudflare's URL interface is `/cdn-cgi/image/<key>=<value>,.../<path>`: the
+ * options are comma separated and written with `=`. A colon form (`width:640`)
+ * is not parsed and returns 404, which takes every product card, logo and tab
+ * icon down with it, so the exact shape is pinned by scripts/uploadTest.js and
+ * exercised live by `npm run r2:cors`.
+ *
+ * The zone must also have Image Transformations enabled. When it does not -
+ * and whenever R2_IMAGE_RESIZE=off - delivery falls back to the plain object
+ * URL, so images still render at the cost of bandwidth.
+ */
 export function buildDeliveryUrl(key, { width, height, quality = 75, fit = 'scale-down', format = 'auto' } = {}) {
   const config = storageConfig();
   if (!config || !key) return null;
@@ -230,11 +242,11 @@ export function buildDeliveryUrl(key, { width, height, quality = 75, fit = 'scal
   const wantsResize = config.resize && (width || height);
   if (!wantsResize) return `${config.publicBase}/${path}`;
   const options = [
-    width ? `width:${Math.round(Number(width))}` : '',
-    height ? `height:${Math.round(Number(height))}` : '',
-    `fit:${fit}`,
-    `quality:${quality}`,
-    `format:${format}`,
+    width ? `width=${Math.round(Number(width))}` : '',
+    height ? `height=${Math.round(Number(height))}` : '',
+    `fit=${fit}`,
+    `quality=${quality}`,
+    `format=${format}`,
   ].filter(Boolean).join(',');
   return `${config.publicBase}/cdn-cgi/image/${options}/${path}`;
 }

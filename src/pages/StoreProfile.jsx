@@ -11,6 +11,7 @@ import { Globe, ImageIcon, Loader2, Store } from 'lucide-react';
 import { uploadApi } from '../api.js';
 import { getPlatformDomain } from '../config.js';
 import ImageUploader from '../components/ImageUploader.jsx';
+import SafeImage from '../components/SafeImage.jsx';
 import { IconLogo } from '../components/icons.jsx';
 
 /** A miniature browser tab, so the seller can see the icon they will get. */
@@ -19,7 +20,7 @@ function TabPreview({ faviconUrl, name }) {
     <div className="inline-flex items-center gap-2 rounded-t-lg border border-b-0 border-slate-200 bg-slate-100 px-3 py-1.5">
       <span className="flex h-4 w-4 items-center justify-center overflow-hidden rounded-[3px] bg-white">
         {faviconUrl
-          ? <img src={faviconUrl} alt="" className="h-full w-full object-cover" />
+          ? <SafeImage src={faviconUrl} alt="" className="h-full w-full object-cover" />
           : <IconLogo size={10} />}
       </span>
       <span className="max-w-[180px] truncate text-[11px] font-semibold text-slate-600">
@@ -128,7 +129,7 @@ export default function StoreProfile() {
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Storefront header</p>
                 <div className="flex max-w-sm items-center gap-3 rounded-xl border border-slate-200 p-3">
                   {state.logoUrl
-                    ? <img src={state.logoUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                    ? <SafeImage src={state.logoUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
                     : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100"><IconLogo size={24} /></span>}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-extrabold text-charcoal">{state.store?.name || 'Your store'}</p>

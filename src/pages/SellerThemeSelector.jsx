@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
+import SafeImage from '../components/SafeImage.jsx';
 import { IconSearch, IconCheck, IconAlert, IconStore } from '../components/icons.jsx';
 import {
   Eye, Filter, Monitor, Smartphone, LayoutGrid,
@@ -122,7 +123,7 @@ function ThemePreview({ theme, viewport }) {
                   className={cardStyleClasses(layout.cardStyle)}
                   style={{ borderRadius: radius }}
                 >
-                  <img
+                  <SafeImage
                     src={p.img}
                     alt={p.name}
                     className="h-10 w-full object-cover"

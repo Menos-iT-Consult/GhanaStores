@@ -209,7 +209,7 @@ and the output directory (`dist`). No code changes required.
 | `ROOT_DOMAIN` | `didwaghana.com` (apex used by the Host-header resolver) |
 | `CNAME_TARGET` | The project-specific CNAME from your Vercel domain card (what sellers point their own domain at) |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | Cloudflare R2 credentials + bucket (`didwa-media`) for seller photos and store logos. The access key can stay Object Read & Write; the bucket CORS policy is applied separately, see "Media uploads (Cloudflare R2)" below |
-| `R2_PUBLIC_URL` | The bucket's public custom domain, `https://media.didwaghana.com`. Must be Cloudflare-proxied, because delivery goes through `/cdn-cgi/image/...` |
+| `R2_PUBLIC_URL` | The bucket's public custom domain, `https://media.didwaghana.com`. Must be Cloudflare-proxied, because delivery goes through `/cdn-cgi/image/...`. Image Transformations must be enabled on the zone, or set `R2_IMAGE_RESIZE=off` |
 | `R2_ALLOWED_ORIGINS` | Optional. Comma-separated browser origins allowed to upload, or `*` (default). `R2_CHECK_ORIGIN` picks the origin `npm run r2:cors` probes with |
 
 ### 3. Cron job & auth
@@ -325,10 +325,30 @@ a valid 15-minute presigned URL is, and one can only be obtained by a signed-in
 seller - while sellers reach their dashboard through custom domains that no
 fixed origin list can enumerate in advance.
 
-Delivery is public and read-only through `media.didwaghana.com` with Cloudflare
-Image Resizing (`/cdn-cgi/image/width:640,...`), so one stored key serves the
-product card, the hero image, the logo and the browser-tab icon. Set
-`R2_IMAGE_RESIZE=off` when the zone has image resizing disabled.
+Delivery is public and read-only through `media.didwaghana.com` (the bucket's
+custom domain, set as `R2_PUBLIC_URL`), so one stored key serves the product
+card, the hero image, the logo and the browser-tab icon:
+
+```bash
+# what services/storage.js builds for a stored key
+https://media.didwaghana.com/cdn-cgi/image/width=640,height=640,fit=scale-down,quality=75,format=auto/stores/<store>/products/<id>.jpg
+https://media.didwaghana.com/stores/<store>/products/<id>.jpg   # original, no options
+```
+
+Two things to know about that first URL:
+
+- The options are `key=value`, comma separated. A colon form (`width:640`) is
+  not parsed by Cloudflare and 404s - so it is asserted in `npm run test:uploads`,
+  not left to chance.
+- **Image Transformations must be enabled for the zone** (Cloudflare dashboard ->
+  Images -> Transformations). `npm run r2:cors` checks the real rendition URL and
+  says so if it 404s. If you would rather not enable it, set
+  `R2_IMAGE_RESIZE=off` and delivery serves the originals instead - images keep
+  working, at the cost of bandwidth.
+
+Reads need no CORS policy (`<img>`/`<link rel="icon">` are not CORS-checked), and
+the public host answers `200` with `access-control-allow-origin: *` anyway;
+writes are the only half that needs the bucket rule above.
 
 > Tip: run `npx vercel` locally for a preview deployment; every push to your
 > git branch redeploys automatically.
