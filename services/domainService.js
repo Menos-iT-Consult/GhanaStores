@@ -12,7 +12,6 @@ import { loadPricingCatalog, resolveDomainPrice } from './domainPricing.js';
 
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 const CLOUDFLARE_ZONE_ID = process.env.CLOUDFLARE_ZONE_ID || '';
-const CLOUDFLARE_PROXY_IP = process.env.CLOUDFLARE_PROXY_IP || '104.16.0.1';
 
 const OPENPROVIDER_API_URL = process.env.OPENPROVIDER_API_URL || 'https://api.openprovider.eu/v1';
 const OPENPROVIDER_USERNAME = process.env.OPENPROVIDER_USERNAME || '';
@@ -23,7 +22,50 @@ const HUBTEL_CLIENT_SECRET = process.env.HUBTEL_CLIENT_SECRET || '';
 const HUBTEL_BASE_URL = process.env.HUBTEL_CHECKOUT_BASE_URL || 'https://api.hubtel.com';
 const HUBTEL_CALLBACK_URL = process.env.HUBTEL_CALLBACK_URL || '';
 const PLATFORM_DOMAIN = (process.env.PLATFORM_DOMAIN || 'didwaghana.com').replace(/^https?:\/\//, '');
+/* Self-hosted deployments terminate TLS with Caddy and hand sellers this host;
+   the Cloudflare for SaaS flow below uses the fallback origin instead. */
 const CNAME_TARGET = process.env.CNAME_TARGET || `cname.${PLATFORM_DOMAIN}`;
+
+/**
+ * The Cloudflare for SaaS fallback origin: a plain hostname on our own zone that
+ * every merchant CNAME (root and www) points at.
+ *
+ * This replaced an A record to 104.16.0.1, which Cloudflare refuses with Error
+ * 1000 ("DNS points to prohibited IP") because that is a proxied edge address
+ * rather than a real origin. A CNAME - or ALIAS/ANAME where a registrar forbids
+ * a root CNAME - to this host is the shape Cloudflare for SaaS expects, so it is
+ * the only record shape this platform ever instructs.
+ */
+const FALLBACK_ORIGIN = String(process.env.DOMAIN_FALLBACK_ORIGIN || `fallback.${PLATFORM_DOMAIN}`)
+  .replace(/^https?:\/\//i, '')
+  .replace(/\/+$/, '')
+  .toLowerCase();
+
+/** Shown under the DNS table: the one registrar caveat that actually blocks people. */
+export const ROOT_CNAME_NOTE = 'Note: If your registrar (e.g. GoDaddy, Namecheap) does not allow CNAME records on the root (@) domain, choose ALIAS or ANAME as the record type, or point the CNAME to www.';
+
+/**
+ * The records a merchant must create, in table order. Both are CNAMEs to the
+ * fallback origin: there is deliberately no A record anywhere in this payload.
+ */
+export function dnsRecordsFor(target = FALLBACK_ORIGIN) {
+  const pointsTo = String(target || FALLBACK_ORIGIN).trim().toLowerCase();
+  return [
+    { type: 'CNAME', host: '@', pointsTo },
+    { type: 'CNAME', host: 'www', pointsTo },
+  ];
+}
+
+/** The `dnsTarget` block every connect response carries (and the UI renders). */
+function dnsTargetBlock() {
+  return {
+    fallbackOrigin: FALLBACK_ORIGIN,
+    // Back-compat alias: the UI used to ask for `cnameRecord`.
+    cnameRecord: FALLBACK_ORIGIN,
+    records: dnsRecordsFor(),
+    note: ROOT_CNAME_NOTE,
+  };
+}
 /* Pricing now lives in the domain_pricing table and is resolved by
  * services/domainPricing.js. DOMAIN_MARGIN is read only as a LAST RESORT, for
  * the case where the catalogue has not been seeded - once the table exists it is
@@ -96,7 +138,7 @@ export async function connectExistingDomain({ storeId, domainName }) {
       provider: 'EXTERNAL',
       customHostnameId: `dry-hostname-${Date.now()}`,
       verificationErrors: [],
-      dnsTarget: { aRecord: CLOUDFLARE_PROXY_IP, cnameRecord: CNAME_TARGET },
+      dnsTarget: dnsTargetBlock(),
     };
   }
 
@@ -125,7 +167,7 @@ export async function connectExistingDomain({ storeId, domainName }) {
     provider: 'EXTERNAL',
     customHostnameId: hostname.id,
     verificationErrors: hostname.ssl?.validation_errors || [],
-    dnsTarget: { aRecord: CLOUDFLARE_PROXY_IP, cnameRecord: CNAME_TARGET },
+    dnsTarget: dnsTargetBlock(),
   };
 }
 
@@ -388,5 +430,7 @@ export default {
   get dryRun() { return domainDryRun; },
   get platformDomain() { return PLATFORM_DOMAIN; },
   get cnameTarget() { return CNAME_TARGET; },
-  get cloudflareProxyIp() { return CLOUDFLARE_PROXY_IP; },
+  get fallbackOrigin() { return FALLBACK_ORIGIN; },
+  dnsRecordsFor,
+  ROOT_CNAME_NOTE,
 };

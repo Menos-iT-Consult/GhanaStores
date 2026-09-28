@@ -15,6 +15,7 @@ import { requireSeller } from '../middleware/authMiddleware.js';
 import { adminDomain, resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
 import { priceDomainForPurchase } from '../services/domainPricing.js';
+import * as domainService from '../services/domainService.js';
 
 /** Lowercase, strip scheme/path/whitespace - the canonical form of a domain. */
 function cleanDomainName(value) {
@@ -39,6 +40,15 @@ const ROOT_DOMAIN = (process.env.ROOT_DOMAIN || 'localhost:5173').split(':')[0];
 // Falls back to a subdomain OF THE PLATFORM DOMAIN so white-label deploys
 // only need to set PLATFORM_DOMAIN (override with an explicit CNAME_TARGET).
 const CNAME_TARGET = process.env.CNAME_TARGET || `cname.${PLATFORM_DOMAIN}`;
+/* Sellers point BOTH their root and www at the Cloudflare for SaaS fallback
+   origin - a hostname this platform owns. The record contract itself lives in
+   services/domainService.js so the instructions the UI renders, the payload the
+   API returns and the target the verifier accepts cannot drift apart. An A
+   record to a Cloudflare edge IP is what produced Error 1000 ("DNS points to
+   prohibited IP"), so nothing in the platform emits one any more. */
+const FALLBACK_ORIGIN = domainService.fallbackOrigin;
+const DNS_RECORDS = domainService.dnsRecordsFor(FALLBACK_ORIGIN);
+const ROOT_CNAME_NOTE = domainService.ROOT_CNAME_NOTE;
 // Vercel's DNS targets. Vercel now issues a project-specific CNAME such as
 // `01c53a14e266ef4f.vercel-dns-017.com`; `cname.vercel-dns.com` is the legacy
 // target and still works. Every shape must be recognised, otherwise custom-domain
@@ -53,6 +63,20 @@ function isVercelCnameTarget(host) {
   if (/^(?:[a-z0-9-]+\.)*vercel-dns-\d{2,4}\.(com|net)$/.test(h)) return true;
   if (h.endsWith('.vercel-dns.com')) return true;
   return false;
+}
+
+/**
+ * True when a resolved CNAME target is a host this platform actually tells
+ * merchants to use: the Cloudflare for SaaS fallback origin, the self-hosted
+ * CNAME_TARGET, or a Vercel target (kept so a deployment that is still
+ * instructed by Vercel keeps verifying).
+ */
+function isPlatformDnsTarget(host) {
+  const h = String(host || '').toLowerCase().replace(/\.$/, '');
+  if (!h) return false;
+  return h === FALLBACK_ORIGIN
+    || h === String(CNAME_TARGET).toLowerCase()
+    || isVercelCnameTarget(h);
 }
 const VERCEL_APEX_IPS = new Set(['76.76.21.21', '76.76.21.22', '76.76.21.61', '76.76.21.98', '76.76.21.241', '76.76.21.242']);
 // Cloudflare returns its anycast edge addresses when a record is orange-clouded,
@@ -183,10 +207,12 @@ router.get('/my', requireSeller, async (req, res, next) => {
       subdomainSlug: store.subdomain_slug,
       customDomain: store.custom_domain,
       dns: {
-        recordType: 'CNAME',
-        host: '@ (or www)',
-        target: CNAME_TARGET,
+        // The two records a merchant creates, exactly as the table shows them.
+        records: DNS_RECORDS,
+        fallbackOrigin: FALLBACK_ORIGIN,
+        target: FALLBACK_ORIGIN,
         ttl: 3600,
+        note: ROOT_CNAME_NOTE,
       },
       ssl: {
         mode: 'Automatic (Caddy on-demand TLS / NGINX certbot)',
@@ -246,19 +272,22 @@ router.post('/verify', requireSeller, async (req, res, next) => {
     let aRecords = [];
     try { aRecords = await dns.resolve4(domain); } catch { /* none */ }
 
-    // A Vercel target can appear as the project-scoped CNAME Vercel now issues,
-    // as the legacy cname.vercel-dns.com, as a Cloudflare-flattened CNAME (which
-    // resolves straight to Vercel's apex A records), or as an ALIAS.
-    const cnameOk = cnameRecords.some((r) =>
-      isVercelCnameTarget(r) || String(r).toLowerCase() === String(CNAME_TARGET).toLowerCase());
+    /* A target can appear as the fallback origin CNAME we instruct, as the
+       self-hosted CNAME_TARGET, as a Vercel target (project-scoped CNAME or the
+       legacy cname.vercel-dns.com), or as an ALIAS. */
+    const cnameOk = cnameRecords.some(isPlatformDnsTarget);
     const apexOk = aRecords.some((ip) => VERCEL_APEX_IPS.has(ip));
-    // Orange-clouded records resolve to Cloudflare anycast IPs, which hides the
-    // real target, so accept that shape only when the platform target is Vercel.
+    // A CNAME to the fallback origin resolves to Cloudflare's anycast addresses,
+    // which hide the real target - so the proxied shape is the EXPECTED shape
+    // here, not a fallback. Accepting it is what lets a correctly configured
+    // merchant pass verification at all.
     const cloudflareProxied = aRecords.some((ip) =>
       CNAME_PROXY_IP_RANGES.some((range) => ip.startsWith(range)));
     const platformIsVercel = isVercelCnameTarget(CNAME_TARGET);
+    const platformIsCloudflare = FALLBACK_ORIGIN.endsWith(`.${PLATFORM_DOMAIN}`)
+      || String(CNAME_TARGET).toLowerCase().endsWith(`.${PLATFORM_DOMAIN}`);
     const pointsAtPlatform = cnameOk || apexOk
-      || (cloudflareProxied && platformIsVercel);
+      || (cloudflareProxied && (platformIsVercel || platformIsCloudflare));
 
     const records = {
       cname: cnameRecords,
@@ -272,8 +301,10 @@ router.post('/verify', requireSeller, async (req, res, next) => {
         error: 'DNS record not detected yet. Point your domain at DiDwa, then retry.',
         records,
         instructions: {
-          www: `CNAME ${domain.split('.')[0] === 'www' ? domain : 'www'} -> ${VERCEL_CNAME}`,
-          apex: `For the apex root use an ALIAS to ${VERCEL_CNAME} or A records to ${[...VERCEL_APEX_IPS].join(', ')}`,
+          // The same two records the table shows - no A record, ever.
+          records: DNS_RECORDS,
+          fallbackOrigin: FALLBACK_ORIGIN,
+          note: ROOT_CNAME_NOTE,
           ttl: '3600 seconds (provisioning can take a few minutes).',
         },
       });
@@ -293,7 +324,7 @@ router.post('/verify', requireSeller, async (req, res, next) => {
       verified: true,
       customDomain: domain,
       records,
-      message: 'Domain verified and connected. SSL is provisioned automatically by Vercel.',
+      message: 'Domain verified and connected. SSL is provisioned automatically by Cloudflare for SaaS.',
     });
   } catch (err) {
     next(err);
@@ -320,8 +351,6 @@ router.get('/caddy-ask', async (req, res) => {
 /* =========================================================================
  * Unified Domain Acquisition Routes (Flow A + Flow B)
  * ========================================================================= */
-
-import * as domainService from '../services/domainService.js';
 
 /* --- Flow A: Connect Existing Domain (BYOD) --- */
 

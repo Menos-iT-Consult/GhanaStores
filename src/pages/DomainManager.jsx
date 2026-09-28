@@ -20,6 +20,42 @@ import {
 
 const DOMAIN_RE = /^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 
+/**
+ * Shown under the DNS table: the one registrar caveat that actually stops
+ * people. Kept in sync with the API's `dnsTarget.note` (asserted in
+ * scripts/domainDnsTest.js) so the two copies cannot drift.
+ */
+export const DNS_HELPER_NOTE = 'Note: If your registrar (e.g. GoDaddy, Namecheap) does not allow CNAME records on the root (@) domain, choose ALIAS or ANAME as the record type, or point the CNAME to www.';
+
+/**
+ * The rows the DNS table renders.
+ *
+ * Both records are CNAMEs to the Cloudflare for SaaS fallback origin. There is
+ * deliberately no A row: an A record to a Cloudflare edge address such as
+ * 104.16.0.1 is refused with Error 1000 ("DNS points to prohibited IP"), so a
+ * CNAME - or ALIAS/ANAME where a registrar forbids a root CNAME - is the only
+ * thing this platform ever asks a merchant to create.
+ *
+ * The API sends `records`; `fallbackOrigin`/`cnameRecord` are older payload
+ * spellings, and any A row is dropped rather than shown.
+ */
+export function dnsRows(dnsTarget) {
+  const source = dnsTarget || {};
+  const fallbackOrigin = String(source.fallbackOrigin || source.cnameRecord || '').trim();
+  const sent = (Array.isArray(source.records) ? source.records : [])
+    .map((row) => ({
+      type: String(row?.type || 'CNAME').toUpperCase(),
+      host: String(row?.host || '@'),
+      pointsTo: String(row?.pointsTo || fallbackOrigin).trim(),
+    }))
+    .filter((row) => row.type !== 'A' && row.pointsTo);
+  if (sent.length) return sent;
+  return [
+    { type: 'CNAME', host: '@', pointsTo: fallbackOrigin },
+    { type: 'CNAME', host: 'www', pointsTo: fallbackOrigin },
+  ];
+}
+
 /* =========================================================================
  * Utility: copy to clipboard
  * ========================================================================= */
@@ -196,31 +232,25 @@ function ConnectExistingTab({ storeId = null }) {
                 <th className="px-5 py-2.5 font-semibold uppercase tracking-wide">Action</th>
               </tr></thead>
               <tbody className="divide-y divide-slate-50">
-                <tr className="transition hover:bg-mist/50">
-                  <td className="px-5 py-3"><span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">A</span></td>
-                  <td className="px-5 py-3 font-mono text-slate-600">@</td>
-                  <td className="px-5 py-3 font-mono text-slate-600">{result.dnsTarget.aRecord}</td>
-                  <td className="px-5 py-3">
-                    <button type="button" onClick={() => copy(result.dnsTarget.aRecord, 'apex')}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-charcoal">
-                      <Copy size={11} aria-hidden="true" />{copied === 'apex' ? 'Copied' : 'Copy'}
-                    </button>
-                  </td>
-                </tr>
-                <tr className="transition hover:bg-mist/50">
-                  <td className="px-5 py-3"><span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-0.5 text-[11px] font-bold text-purple-700">CNAME</span></td>
-                  <td className="px-5 py-3 font-mono text-slate-600">www</td>
-                  <td className="px-5 py-3 font-mono text-slate-600">{result.dnsTarget.cnameRecord}</td>
-                  <td className="px-5 py-3">
-                    <button type="button" onClick={() => copy(result.dnsTarget.cnameRecord, 'www')}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-charcoal">
-                      <Copy size={11} aria-hidden="true" />{copied === 'www' ? 'Copied' : 'Copy'}
-                    </button>
-                  </td>
-                </tr>
+                {dnsRows(result.dnsTarget).map((row) => (
+                  <tr key={row.host} className="transition hover:bg-mist/50">
+                    <td className="px-5 py-3"><span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-0.5 text-[11px] font-bold text-purple-700">{row.type}</span></td>
+                    <td className="px-5 py-3 font-mono text-slate-600">{row.host}</td>
+                    <td className="px-5 py-3 font-mono text-slate-600">{row.pointsTo}</td>
+                    <td className="px-5 py-3">
+                      <button type="button" onClick={() => copy(row.pointsTo, row.host)}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-charcoal">
+                        <Copy size={11} aria-hidden="true" />{copied === row.host ? 'Copied' : 'Copy'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+          <p className="border-t border-slate-100 px-5 py-3 text-[11px] leading-relaxed text-slate-500">
+            {result.dnsTarget.note || DNS_HELPER_NOTE}
+          </p>
           <div className="border-t border-slate-100 px-5 py-3">
             <button type="button" onClick={handleVerify} disabled={verifying}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">

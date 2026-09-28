@@ -58,7 +58,8 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `PLATFORM_DOMAIN` | Platform apex domain for subdomains | `didwaghana.com` (falls back to `ROOT_DOMAIN`, then `didwaghana.com`) |
 | `PLATFORM_URL` | Public origin for PDF/QR verification links | `https://didwaghana.com` |
 | `ROOT_DOMAIN` | Apex used by the Host resolver (dev: `localhost:5173`) | `didwaghana.com` |
-| `CNAME_TARGET` | CNAME target shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
+| `DOMAIN_FALLBACK_ORIGIN` | Cloudflare for SaaS fallback origin that sellers point **both** `@` and `www` at with a CNAME (or ALIAS/ANAME) | `fallback.<PLATFORM_DOMAIN>` (`fallback.didwaghana.com`) |
+| `CNAME_TARGET` | Self-hosted / Caddy target only - no longer the record shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
 | `VITE_PLATFORM_DOMAIN` | Browser-side apex for seller storefront URLs - **fallback only**, the API's own apex wins (see `src/config.js`) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
 | `VITE_PREVIEW_HOSTS` | Host suffixes treated as platform traffic (preview URLs) | empty - nothing is exempt by default |
 | `ENABLE_CRON` | Start the billing scheduler | `false` |
@@ -144,6 +145,7 @@ construction (verified in the e2e suite).
 node scripts/e2eTest.js     # 37 assertions across all 7 modules
 node scripts/routeTest.js   # 44 route-table assertions (no server, no DB)
 npm run test:uploads        # storage guards, signed-URL contract, bucket CORS policy
+npm run test:domain-dns     # the DNS records sellers are told to create (no A records)
 npm run r2:cors             # live R2 probe: bucket policy + browser preflight + PUT
 ```
 
@@ -207,7 +209,8 @@ and the output directory (`dist`). No code changes required.
 | `VITE_PREVIEW_HOSTS` | Optional comma separated host suffixes treated as platform traffic (e.g. `vercel.app` on Preview deployments); those hosts render the marketing site instead of a storefront |
 | `PLATFORM_URL` | `https://didwaghana.com` (used for PDF verification links) |
 | `ROOT_DOMAIN` | `didwaghana.com` (apex used by the Host-header resolver) |
-| `CNAME_TARGET` | The project-specific CNAME from your Vercel domain card (what sellers point their own domain at) |
+| `CNAME_TARGET` | The project-specific CNAME from your Vercel domain card - only for self-hosted/Caddy setups |
+| `DOMAIN_FALLBACK_ORIGIN` | The Cloudflare for SaaS fallback origin shown to sellers in the DNS table (`fallback.didwaghana.com`). Add it to the Vercel project domains if you self-host, or leave it unset to derive it from `PLATFORM_DOMAIN` |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | Cloudflare R2 credentials + bucket (`didwa-media`) for seller photos and store logos. The access key can stay Object Read & Write; the bucket CORS policy is applied separately, see "Media uploads (Cloudflare R2)" below |
 | `R2_PUBLIC_URL` | The bucket's public custom domain, `https://media.didwaghana.com`. Must be Cloudflare-proxied, because delivery goes through `/cdn-cgi/image/...`. Image Transformations must be enabled on the zone, or set `R2_IMAGE_RESIZE=off` |
 | `R2_ALLOWED_ORIGINS` | Optional. Comma-separated browser origins allowed to upload, or `*` (default). `R2_CHECK_ORIGIN` picks the origin `npm run r2:cors` probes with |
@@ -266,11 +269,17 @@ validates a real origin certificate and `Full (strict)` works.
 
 Notes:
 
-- Set `CNAME_TARGET` to the same project-specific value Vercel shows, so the DNS
-  instructions sellers see in `/api/domains/my` point at your project. The
-  verification endpoint recognises the project-scoped targets, the legacy
-  `cname.vercel-dns.com`, Vercel's apex IPs, and Cloudflare-proxied records, so
-  verification keeps working whichever of those Vercel hands you.
+- Seller custom domains are pointed at the **Cloudflare for SaaS fallback
+  origin** (`DOMAIN_FALLBACK_ORIGIN`, default `fallback.<PLATFORM_DOMAIN>`), not
+  at a Vercel CNAME: both `@` and `www` get a CNAME (or ALIAS/ANAME) to that
+  host. An A record to a Cloudflare edge address is what produced Error 1000
+  ("DNS points to prohibited IP"), so the platform emits no A record at all - see
+  `npm run test:domain-dns`, which pins the table, the `/api/domains/verify`
+  instructions and the accepted target together.
+- The verification endpoint recognises the fallback origin, the self-hosted
+  `CNAME_TARGET`, the project-scoped Vercel targets, the legacy
+  `cname.vercel-dns.com`, Vercel's apex IPs and Cloudflare-proxied records, so
+  verification keeps working whichever shape a merchant's registrar produces.
 - The tenant resolver (`middleware/domainMiddleware.js`) maps the `Host` header
   to `stores.custom_domain` or `stores.subdomain_slug`, so storefronts work the
   same behind Cloudflare or Vercel - both preserve the `Host` header.
