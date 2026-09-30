@@ -29,6 +29,11 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     heading_weight: '700',
     body_size: 16,
   },
+  /* Button styling, consumed by useTokens().btn() as a class-name builder. */
+  buttons: {
+    shadow: true,
+    uppercase: false,
+  },
   colors: {
     primary: '#0B6E4F',
     background: '#FFFFFF',
@@ -72,6 +77,56 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     quantity_stepper: true,
     related_products: true,
     reviews: true,
+    /* Fallback description and spec bullets, shown only when the product itself
+       has none of its own. */
+    fallback_description: 'Handcrafted in Ghana with premium local materials. Ships within 24 hours nationwide with tracked delivery.',
+    feature_bullets: ['Hand-woven authentic weave', 'Colourfast natural dyes'],
+  },
+  home_content: {
+    hero_button_label: 'Shop Now',
+    featured_heading: 'Featured products',
+    view_all_label: 'View all',
+    show_trust_strip: true,
+  },
+  shop_content: {
+    heading_all: 'All Products',
+    search_placeholder: 'Search products',
+    empty_body: 'This store has no products available yet.',
+    empty_hint: 'Check back soon.',
+    no_match_body: 'No products match your search.',
+    no_match_hint: 'Try a different search or browse everything.',
+    clear_filters_label: 'Clear filters',
+  },
+  cart_content: {
+    heading: 'Your Cart',
+    empty_body: 'Your cart is empty.',
+    browse_label: 'Browse the collection',
+    continue_label: 'Continue shopping',
+  },
+  contact_content: {
+    whatsapp_number: '',
+    form_name_placeholder: 'Your name',
+    form_email_placeholder: 'Email address',
+    form_message_placeholder: 'How can we help?',
+    submit_label: 'Send message',
+  },
+  trust_badges: {
+    secured: 'GH Secured',
+    delivery: '24-hr delivery',
+    payment: 'MoMo accepted',
+  },
+  about_content: {
+    stats: [
+      { v: '10k+', k: 'Happy customers' },
+      { v: '24hr', k: 'Nationwide delivery' },
+      { v: '16', k: 'Regions served' },
+    ],
+    why_title: 'Why shop with us',
+    why_points: [
+      'Buyer protection on every order',
+      'Tracked same-day dispatch in Accra',
+      'MoMo, cards and cash on delivery',
+    ],
   },
   pages_content: {
     about_title: 'Our Story',
@@ -89,11 +144,18 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
  * Deep-merge two theme configs: nested objects merge, scalars (and nulls) from
  * `override` win. Shared by normalizeCustomThemeConfig and the storefront, so a
  * seller override and a stored config always layer the same way.
+ *
+ * ARRAYS REPLACE rather than merge. Index-wise merging meant a merchant who
+ * deleted a bullet from a three-item list kept the surviving items' old
+ * positions: removing "Colourfast natural dyes" left a hole rather than
+ * shortening the list, and removing the only item could not make it empty.
  */
 export function mergeThemeConfig(base, override) {
   if (base == null || typeof base !== 'object') return override;
   if (override == null || typeof override !== 'object') return override;
-  const out = Array.isArray(base) ? [...base] : { ...base };
+  // An array in either position is a whole value, not a bag of keys to merge.
+  if (Array.isArray(base) || Array.isArray(override)) return override;
+  const out = { ...base };
   for (const k of Object.keys(override || {})) out[k] = mergeThemeConfig(base[k], override[k]);
   return out;
 }

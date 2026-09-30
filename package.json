@@ -27,6 +27,7 @@
     "test:payments-db": "node scripts/paymentDbTest.js",
     "payments:repair-db": "node scripts/paymentDbRepair.js",
     "test:storefront-theme": "node scripts/storefrontThemeTest.js",
+    "test:storefront": "node scripts/storefrontRenderTest.js",
     "start": "NODE_ENV=production node server.js",
     "db:init": "node scripts/dbInit.js",
     "db:reset": "node scripts/dbReset.js",
