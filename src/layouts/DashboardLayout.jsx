@@ -38,7 +38,7 @@ import {
 const DASHBOARD_NAV = [
   { path: '/dashboard',       label: 'Analytics',     icon: IconDashboard },
   { path: '/pos',             label: 'POS Terminal',  icon: IconCart },
-  { path: '/payouts',         label: 'Payouts',       icon: IconWallet },
+  { path: '/settings/payments', label: 'Payments',    icon: IconWallet },
   { path: '/inventory',       label: 'Inventory',     icon: IconBox },
   { path: '/orders',          label: 'Orders',        icon: IconReceipt },
   { path: '/dashboard/themes',label: 'Theme Market',  icon: Palette },

@@ -179,20 +179,11 @@ router.post('/orders/:id/refund', requireAdmin, async (req, res, next) => {
       let reversal = null;
       if (wasPaid) {
         const total = Number(order.total || 0);
-        // Reverse the wallet credit the original PAID transition made. The
-        // balance column is CHECK >= 0, so an over-debit floors at zero and the
-        // shortfall is reported rather than hidden.
-        const { rows: wallet } = await t.query(
-          `WITH previous AS (SELECT available_balance FROM stores WHERE id = $1)
-           UPDATE stores
-              SET available_balance = GREATEST(stores.available_balance - $2, 0)
-            WHERE stores.id = $1
-           RETURNING stores.name, stores.available_balance,
-                     (SELECT available_balance FROM previous) AS previous_balance`,
-          [order.store_id, total],
-        );
-        const walletBefore = Number(wallet[0]?.previous_balance || 0);
-        const walletAfter = Number(wallet[0]?.available_balance || 0);
+        // There is no wallet to reverse: the customer's money went straight to
+        // the merchant's own gateway account, so the actual refund has to be
+        // issued in their Paystack/Hubtel dashboard. We record the intent and
+        // the amount so the merchant can reconcile it, and say so plainly rather
+        // than implying DiDwa moved money it never held.
 
         // Keep loyalty in step, so a refunded sale stops inflating the
         // merchant's customer lifetime value.
@@ -210,10 +201,11 @@ router.post('/orders/:id/refund', requireAdmin, async (req, res, next) => {
 
         reversal = {
           total,
-          walletBefore,
-          walletAfter,
-          debited: Number((walletBefore - walletAfter).toFixed(2)),
-          shortfall: Number((total - (walletBefore - walletAfter)).toFixed(2)),
+          settledWithGateway: true,
+          // No debit happened on our side; the merchant refunds the customer in
+          // their own gateway dashboard.
+          debited: 0,
+          action: 'refund must be issued by the merchant in their payment gateway',
         };
       }
       return { order, from, moved, wasPaid, reversal };
@@ -242,9 +234,11 @@ router.post('/orders/:id/refund', requireAdmin, async (req, res, next) => {
     res.json({
       order: outcome.moved,
       reversal: outcome.reversal,
-      note: outcome.reversal?.shortfall > 0
-        ? `Wallet debited ${outcome.reversal.debited} of ${outcome.reversal.total}: the merchant `
-          + 'balance could only absorb part of the refund.'
+      // Be explicit that no money moved on our side - a silent success here would
+      // read as "DiDwa refunded the customer" when it did not.
+      note: outcome.reversal
+        ? `Order cancelled. GHS ${outcome.reversal.total.toFixed(2)} was collected by the `
+          + "merchant's payment gateway, so the refund must be issued there."
         : undefined,
     });
   } catch (err) {

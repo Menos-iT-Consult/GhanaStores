@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, CreditCard, Globe, Package, Receipt, Store, TrendingUp,
-  TrendingDown, Users, Wallet,
+  TrendingDown, Users,
 } from 'lucide-react';
 import { adminApi, ghs } from '../../api.js';
 import { navigate } from '../../router.js';
@@ -115,9 +115,9 @@ export default function AdminOverview() {
         <StatCard
           title="Needs attention"
           value={num(num(metrics.merchants_suspended) + num(metrics.domains_broken)
-            + num(metrics.payments_failed) + num(metrics.payouts_to_review))}
+            + num(metrics.payments_failed))}
           icon={AlertTriangle}
-          detail={`${num(metrics.payouts_to_review)} payouts to approve - ${num(metrics.domains_broken)} domain issues`}
+          detail={`${num(metrics.payments_failed)} failed subscription payments - ${num(metrics.domains_broken)} domain issues`}
           tone="amber"
         />
       </div>
@@ -138,7 +138,6 @@ export default function AdminOverview() {
               { label: 'Active domains', value: num(metrics.domains_active), icon: Globe },
               { label: 'Payments failed', value: num(metrics.payments_failed), icon: CreditCard },
               { label: 'Variants low on stock', value: num(metrics.variants_low_stock), icon: Package },
-              { label: 'Merchant funds held', value: ghs(metrics.merchant_funds_held), icon: Wallet },
             ].map(({ label, value, icon: Icon }) => (
               <div key={label} className="flex items-center justify-between gap-3 px-5 py-3">
                 <dt className="flex items-center gap-2 text-xs font-semibold text-slate-500">

@@ -22,7 +22,7 @@ import WelcomePage from './pages/WelcomePage.jsx';
 import { AboutPage, ContactPage, PrivacyPage, TermsPage } from './pages/PublicPages.jsx';
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
-import SellerPayouts from './pages/SellerPayouts.jsx';
+import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
 import SellerInventory from './pages/SellerInventory.jsx';
 import SellerOrders from './pages/SellerOrders.jsx';
 import SellerThemeSelector from './pages/SellerThemeSelector.jsx';
@@ -195,7 +195,7 @@ export default function App() {
       case '/dashboard': return <SellerAnalytics />;
       case '/login': return null; // redirected by the effect above
       case '/pos': return <SellerPOS />;
-      case '/payouts': return <SellerPayouts />;
+      case '/settings/payments': return <SellerPaymentSettings />;
       case '/inventory': return <SellerInventory />;
       case '/orders': return <SellerOrders />;
       case '/themes': return <SellerThemeSelector />;

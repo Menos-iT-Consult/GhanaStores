@@ -115,7 +115,9 @@ export async function transitionOrder(client, { order, storeId, next }) {
     }
   }
 
-  // First payment confirmation: credit the wallet once and award loyalty.
+  // First payment confirmation: award loyalty. No wallet credit - the money was
+  // collected by the merchant's own gateway into their own account, so DiDwa
+  // never held it and has nothing to credit.
   let pointsAwarded = 0;
   if (to === 'PAID') {
     const cfg = await client.query(
@@ -123,11 +125,6 @@ export async function transitionOrder(client, { order, storeId, next }) {
       [storeId],
     );
     pointsAwarded = pointsForSpend(order.total, cfg.rows[0]?.loyalty_points_per_ghs ?? 0);
-
-    await client.query(
-      'UPDATE stores SET available_balance = available_balance + $2 WHERE id = $1',
-      [storeId, order.total],
-    );
 
     if (order.customer_phone) {
       await client.query(

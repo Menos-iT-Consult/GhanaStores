@@ -28,6 +28,12 @@ import {
 } from './inventoryRoutes.js';
 import { sendLowStockAlertSms } from '../services/smsService.js';
 import { canonicalDomain } from '../services/domainService.js';
+import {
+  getSettings as getStoreSettings,
+  resolveMethod,
+  chargeStorePayment,
+  availableMethods,
+} from '../services/storePayments.js';
 
 const router = Router();
 
@@ -35,8 +41,10 @@ const router = Router();
 const ORDER_STATUSES = ['PENDING', 'PROCESSING', 'DELIVERED', 'CANCELLED'];
 const PAYMENT_STATUSES = ['PENDING', 'PAID', 'FAILED'];
 /* Must match the orders.payment_method CHECK constraint in db/schema.sql.
-   BANK_TRANSFER was advertised here but rejected by the database. */
-const PAYMENT_METHODS = ['COD', 'MOMO', 'CASH'];
+   BANK_TRANSFER was advertised here but rejected by the database.
+   PAYSTACK/HUBTEL name the specific BYOK gateway that took the money; CASH and
+   MOMO are the legacy spellings kept for older orders and the POS. */
+const PAYMENT_METHODS = ['COD', 'MOMO', 'CASH', 'PAYSTACK', 'HUBTEL'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -64,6 +72,43 @@ function canonicalParam(b) {
 }
 
 /* ------------------------------- Guest checkout ---------------------------- */
+
+/**
+ * GET /api/public/payment-methods?slug=<apex-or-custom-domain>
+ *
+ * Lets the storefront render exactly the methods this store can charge with,
+ * before an order exists. Public by necessity (a customer is not a signed-in
+ * seller) but strictly read-only and it exposes only method NAMES - no keys, no
+ * amounts, no store internals. A store with no configured keys reports COD.
+ */
+router.get('/public/payment-methods', async (req, res, next) => {
+  try {
+    const key = canonicalDomain(String(req.query.slug || ''));
+    if (!key) return res.status(400).json({ error: 'A store slug or custom domain is required.' });
+
+    const s = await query(
+      `SELECT id FROM stores
+        WHERE LOWER(subdomain_slug) = LOWER($1)
+           OR LOWER(custom_domain) = ANY ($2::text[])
+        LIMIT 1`,
+      [key, [key, `www.${key}`]],
+    );
+    if (!s.rows[0]) return res.status(404).json({ error: 'Store not found.' });
+
+    const settings = await getStoreSettings(s.rows[0].id);
+    const methods = availableMethods(settings);
+
+    res.json({
+      methods,
+      // The gateway whose keys are live, so the storefront can label the option.
+      activeGateway: settings?.activeGateway || 'COD',
+      codEnabled: methods.includes('COD'),
+      // Paystack's public key is publishable - the checkout script needs it.
+      paystackPublicKey: methods.includes('PAYSTACK') ? settings.paystackPublicKey : null,
+    });
+  } catch (err) { next(err); }
+});
+
 // POST /api/public/orders - called by customer storefronts upon checkout.
 // Wraps pricing + order/items creation + stock decrement in one transaction.
 router.post('/public/orders', async (req, res, next) => {
@@ -74,7 +119,9 @@ router.post('/public/orders', async (req, res, next) => {
     const customerPhone = String(b.customer_phone ?? b.customerPhone ?? '').trim();
     const customerAddress = String(b.customer_address ?? b.customerAddress ?? '').trim();
     const methodRaw = String(b.payment_method ?? b.paymentMethod ?? 'COD').toUpperCase();
-    const paymentMethod = PAYMENT_METHODS.includes(methodRaw) ? methodRaw : 'COD';
+    // The requested method is NOT trusted: resolvePaymentMethod() below narrows
+    // it to what this store is actually able to charge with, so a hand-rolled
+    // POST cannot push a store with no keys into a card payment.
     const notes = b.notes ? String(b.notes).slice(0, 500) : null;
 
     if (!customerName || !customerPhone || !customerAddress) {
@@ -123,6 +170,12 @@ router.post('/public/orders', async (req, res, next) => {
     if (badId) {
       return res.status(400).json({ error: 'Every cart line needs a valid variant_id or product_id.' });
     }
+
+    // Resolve the store's own payment configuration. This is what makes checkout
+    // BYOK: the methods offered are the merchant's, and a store with no keys
+    // can only ever be COD, regardless of what the request asked for.
+    const paymentSettings = await getStoreSettings(storeId);
+    const paymentMethod = resolveMethod(paymentSettings, methodRaw);
 
     const alertCandidates = [];
     const created = await withTransaction(async (t) => {
@@ -225,6 +278,35 @@ router.post('/public/orders', async (req, res, next) => {
       recordLowStockAlerts(storeId, alertCandidates).catch(() => {});
     }
 
+    // The order now exists, so the gateway can be initialised against a real
+    // order number as the transaction reference. Done post-commit on purpose:
+    // a gateway timeout must never discard a placed order.
+    let payment = { method: paymentMethod, requiresCharge: false, success: true };
+    if (paymentMethod !== 'COD') {
+      try {
+        payment = await chargeStorePayment(storeId, {
+          reference: created.order_number,
+          amount: totalAmount,
+          method: paymentMethod,
+          email: b.customer_email || b.customerEmail || null,
+          msisdn: customerPhone,
+          network: b.momoNetwork || 'MTN',
+          description: `Order ${created.order_number}`,
+          callbackUrl: `${process.env.CLIENT_URL || ''}/api/webhooks/${paymentMethod.toLowerCase()}`,
+        });
+        // The reference sent to the gateway IS the order number, so the webhook
+        // can match the callback to this order with no extra bookkeeping.
+        if (!payment.success) {
+          console.warn(`[checkout] ${paymentMethod} declined to initialise for ${created.order_number}: ${payment.message || ''}`);
+        }
+      } catch (err) {
+        console.error(`[checkout] ${paymentMethod} charge failed for ${created.order_number}: ${err.message}`);
+        // The order is already committed, so it stands and the customer can
+        // retry; telling them the order failed would invite a duplicate order.
+        payment = { method: paymentMethod, requiresCharge: true, success: false, error: 'Payment could not be started.' };
+      }
+    }
+
     res.status(201).json({
       message: `Order ${created.order_number} placed successfully.`,
       order: {
@@ -232,10 +314,23 @@ router.post('/public/orders', async (req, res, next) => {
         orderNumber: created.order_number,
         totalAmount: Number(created.totalAmount),
         paymentMethod,
-        paymentStatus: 'PENDING',
-        orderStatus: 'PENDING',
+        paymentStatus: payment.paymentStatus || 'PENDING',
+        orderStatus: payment.orderStatus || 'PENDING',
         createdAt: created.created_at,
       },
+      payment: {
+        method: payment.method || paymentMethod,
+        // COD settles with nothing further to do; a gateway needs the customer
+        // to complete an authorisation before the webhook marks it paid.
+        requiresAction: Boolean(payment.requiresCharge && payment.success),
+        requiresCharge: Boolean(payment.requiresCharge),
+        authorizationUrl: payment.authorizationUrl || null,
+        accessCode: payment.accessCode || null,
+        error: payment.error || null,
+      },
+      // What this store can offer, so the storefront renders exactly the
+      // methods that are actually chargeable right now.
+      availableMethods: availableMethods(paymentSettings),
     });
   } catch (err) {
     if (err.status) {

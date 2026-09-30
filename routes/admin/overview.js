@@ -37,10 +37,8 @@ router.get('/overview', requireAdmin, async (_req, res, next) => {
           (SELECT COUNT(*) FROM store_domains WHERE status = 'ACTIVE')                AS domains_active,
           (SELECT COUNT(*) FROM store_domains WHERE status IN ('FAILED','CANCELLED'))  AS domains_broken,
           (SELECT COUNT(*) FROM subscription_payments WHERE status = 'FAILED')        AS payments_failed,
-          (SELECT COUNT(*) FROM payouts WHERE status = 'PENDING_REVIEW')               AS payouts_to_review,
           (SELECT COUNT(*) FROM product_variants
-            WHERE stock_quantity <= low_stock_threshold)                               AS variants_low_stock,
-          (SELECT COALESCE(SUM(pending_balance), 0) FROM stores)                      AS merchant_funds_held`),
+            WHERE stock_quantity <= low_stock_threshold)                               AS variants_low_stock`),
 
       query(`SELECT to_char(day, 'YYYY-MM-DD') AS day, COALESCE(SUM(total), 0) AS revenue,
                     COUNT(*)::int AS orders

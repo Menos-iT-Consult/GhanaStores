@@ -31,7 +31,7 @@ import { errorHandler, requestContext, apiNotFound, installProcessGuards } from 
 import billingRoutes from './routes/billingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import posRoutes from './routes/posRoutes.js';
-import payoutRoutes from './routes/payoutRoutes.js';
+import paymentSettingsRoutes from './routes/paymentSettingsRoutes.js';
 import whatsappInvoiceRoutes, { whatsappRouter } from './routes/whatsappInvoiceRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 import domainRoutes from './routes/domainRoutes.js';
@@ -77,8 +77,16 @@ app.use((req, res, next) => {
   if (old.count > 120) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
   next();
 });
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
+/* retain the raw body for webhook signature verification.
+   Paystack signs the EXACT bytes it sent with HMAC-SHA512; a body that has been
+   through JSON.parse + JSON.stringify is not byte-identical, so verifying
+   against req.body alone would reject every real callback. verify:false then
+   populates req.body from the captured buffer. The 2mb cap is unchanged. */
+app.use(express.json({ limit: '2mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
+app.use(express.urlencoded({
+  extended: true,
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(cors({
   origin: process.env.CLIENT_URL || '*',
   credentials: false,
@@ -132,9 +140,12 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/api/billing', billingRoutes);
+app.use('/api/payment-settings', paymentSettingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/pos', posRoutes);
-app.use('/api/payouts', payoutRoutes);
+// Seller payouts were removed with the escrow model: customer money now settles
+// directly in the merchant's own gateway account, so there is no platform
+// balance to pay out from. See db/schema.sql (payouts_retired).
 app.use('/api/orders', whatsappInvoiceRoutes);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/inventory', inventoryRoutes);

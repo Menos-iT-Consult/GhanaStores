@@ -23,7 +23,6 @@ import AdminOrders from './AdminOrders.jsx';
 import AdminCatalog from './AdminCatalog.jsx';
 import AdminCustomers from './AdminCustomers.jsx';
 import AdminPayments from './AdminPayments.jsx';
-import AdminPayouts from './AdminPayouts.jsx';
 import AdminLogistics from './AdminLogistics.jsx';
 import AdminDomains from './AdminDomains.jsx';
 import AdminThemes from './AdminThemes.jsx';
@@ -40,7 +39,6 @@ const ADMIN_ROUTES = [
   ['/admin/catalog', AdminCatalog],
   ['/admin/customers', AdminCustomers],
   ['/admin/payments', AdminPayments],
-  ['/admin/payouts', AdminPayouts],
   ['/admin/logistics', AdminLogistics],
   ['/admin/domains', AdminDomains],
   ['/admin/pricing', AdminDomainPricing],

@@ -653,6 +653,11 @@ export { router as domainRouter };
 import { Router as WebhookRouter } from 'express';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { normalizeGhPhone } from '../utils/helpers.js';
+import {
+  handlePaystackWebhook,
+  handleHubtelWebhook,
+  findOrderByReference,
+} from '../services/paymentWebhooks.js';
 
 export const webhookRouter = WebhookRouter();
 
@@ -711,7 +716,70 @@ function verifyWebhook(req) {
   return { ok: false, reason: 'Missing or invalid webhook credentials.' };
 }
 
+/**
+ * POST /api/webhooks/paystack
+ *
+ * Net-new endpoint. Paystack is a per-store BYOK gateway, so there is no
+ * platform-wide secret here: the store is resolved from data.reference and the
+ * signature is checked with that store's own secret key.
+ */
+webhookRouter.post('/paystack', async (req, res) => {
+  try {
+    const result = await handlePaystackWebhook(
+      req.rawBody ?? JSON.stringify(req.body || {}),
+      req.get('x-paystack-signature') || '',
+    );
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    // Always 200: a non-2xx makes Paystack retry the same event forever, and a
+    // retry storm on a handler that already logged is worse than one lost event.
+    console.error('[payment-webhook] paystack handler error:', err.message);
+    return res.status(200).json({ received: true, processed: false });
+  }
+});
+
+/**
+ * POST /api/webhooks/hubtel
+ *
+ * Serves two callers on one path, disambiguated by whether the payload carries
+ * a ClientReference that matches a DiDwa order:
+ *   - a STORE ORDER payment  -> per-store BYOK handling, signed with that
+ *     merchant's own client secret (handleHubtelWebhook).
+ *   - a PLATFORM DOMAIN purchase -> the pre-existing flow below, signed with
+ *     the platform-wide HUBTEL_WEBHOOK_SECRET.
+ * The order lookup runs first so domain provisioning keeps working unchanged.
+ */
 webhookRouter.post('/hubtel', async (req, res) => {
+  // Resolve which flow this belongs to BEFORE the try below. Deciding inside a
+  // try means an error in the order flow silently falls through to the platform
+  // domain flow, where the same reference means something else entirely.
+  let isOrderFlow = false;
+  try {
+    const orderRef = req.body?.ClientReference ?? req.body?.clientReference
+      ?? req.body?.Reference ?? req.body?.reference;
+    isOrderFlow = Boolean(orderRef) && Boolean(await findOrderByReference(orderRef));
+  } catch (err) {
+    console.error('[webhook] hubtel order lookup failed:', err.message);
+    return res.status(202).json({ received: true, processed: false, reason: 'Lookup unavailable.' });
+  }
+
+  if (isOrderFlow) {
+    // Guarded separately: never let a throw here be reinterpreted as a domain
+    // purchase callback.
+    let result;
+    try {
+      result = await handleHubtelWebhook(
+        req.body || {},
+        req.get('x-hubtel-signature') || req.get('x-webhook-signature') || null,
+        req.rawBody ?? null,
+      );
+    } catch (err) {
+      console.error('[payment-webhook] hubtel handler error:', err.message);
+      return res.status(202).json({ received: true, processed: false, reason: 'Handler error.' });
+    }
+    return res.status(result.status).json(result.body);
+  }
+
   try {
     const auth = verifyWebhook(req);
     if (!auth.ok) {

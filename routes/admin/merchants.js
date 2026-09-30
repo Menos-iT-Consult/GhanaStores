@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DiDwa - Super admin merchant oversight (every tenant on the platform).
  *
  * This is the page the super admin lives in: who is on the platform, what they
@@ -30,8 +30,6 @@ export const storeRow = (row) => ({
   plan: row.plan,
   trialEndsAt: row.trial_ends_at,
   graceEndsAt: row.grace_ends_at,
-  availableBalance: row.available_balance,
-  pendingBalance: row.pending_balance,
   themeId: row.active_theme_id,
   themeName: row.theme_name,
   ordersCount: Number(row.orders_count || 0),
@@ -73,7 +71,7 @@ router.get('/merchants', requireAdmin, async (req, res, next) => {
     const columns = `
         s.id, s.name, s.owner_name, s.email, s.phone, s.subdomain_slug, s.custom_domain,
         s.whatsapp_number, s.momo_number, s.status, s.plan, s.trial_ends_at, s.grace_ends_at,
-        s.available_balance, s.pending_balance, s.active_theme_id, s.created_at,
+        s.active_theme_id, s.created_at,
         t.name AS theme_name,
         (SELECT COUNT(*) FROM orders o WHERE o.store_id = s.id) AS orders_count,
         (SELECT COALESCE(SUM(o.total), 0) FROM orders o
@@ -221,60 +219,18 @@ router.patch('/merchants/:id/plan', requireAdmin, async (req, res, next) => {
   }
 });
 
+
 /* --------------------------- Move a store balance -------------------------- */
-router.patch('/merchants/:id/balance', requireAdmin, async (req, res, next) => {
-  try {
-    const id = uuidParam(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid merchant id.' });
-    const amount = Number(req.body?.amount);
-    if (!Number.isFinite(amount) || amount === 0) {
-      return res.status(400).json({ error: 'Enter a non-zero adjustment amount.' });
-    }
-    if (Math.abs(amount) > 10_000_000) {
-      return res.status(400).json({ error: 'Adjustment is unrealistically large.' });
-    }
-    const reason = String(req.body?.reason || '').trim().slice(0, 500);
-    if (!reason) return res.status(400).json({ error: 'A reason is required for balance adjustments.' });
-
-    // The CTE captures the balance BEFORE the update so both the response and
-    // the audit entry can show what actually changed.
-    const { rows } = await query(
-      `WITH previous AS (SELECT available_balance FROM stores WHERE id = $1)
-       UPDATE stores
-          SET available_balance = GREATEST(stores.available_balance + $2, 0)
-        WHERE stores.id = $1
-       RETURNING stores.id, stores.name, stores.available_balance, stores.pending_balance,
-                 (SELECT available_balance FROM previous) AS previous_balance`,
-      [id, amount],
-    );
-    if (!rows[0]) return res.status(404).json({ error: 'Merchant not found.' });
-
-    const applied = Number(rows[0].available_balance) - Number(rows[0].previous_balance);
-    await recordAdminAction(req, {
-      action: 'merchant.balance',
-      targetType: 'store',
-      targetId: id,
-      detail: {
-        name: rows[0].name,
-        requested: amount,
-        applied,
-        reason,
-        balanceAfter: rows[0].available_balance,
-      },
-    });
-
-    res.json({
-      merchant: rows[0],
-      applied,
-      // A debit larger than the wallet holds stops at zero (the column is
-      // CHECK >= 0), so the shortfall is reported instead of hidden.
-      note: Math.abs(applied) < Math.abs(amount)
-        ? `Balance floored at zero: ${amount} was requested but ${applied} was applied.`
-        : undefined,
-    });
-  } catch (err) {
-    next(err);
-  }
+/* REMOVED with the platform wallet. A merchant's money now settles directly in
+   their own gateway account, so DiDwa holds no balance to credit or debit. The
+   retired columns remain in the database for audit purposes only; see
+   db/schema.sql. This is NOT a refund path - refunds are a merchant action
+   taken in their own Paystack/Hubtel dashboard. */
+router.patch('/merchants/:id/balance', requireAdmin, (req, res) => {
+  res.status(410).json({
+    error: 'Store balances were removed when DiDwa moved to merchant-held payment accounts.',
+    code: 'WALLET_REMOVED',
+  });
 });
 
 export default router;

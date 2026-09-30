@@ -5,7 +5,7 @@
  * page and both serious for a surface where every account is fully privileged:
  *
  *  1. An endpoint that exists but is not behind requireAdmin. The super admin can
- *     suspend merchants, settle payouts and move balances; one missing guard
+ *     suspend merchants and change plans; one missing guard
  *     would expose all of it to anyone who can reach the API.
  *  2. A write that records an action name with no human label, so the audit log
  *     shows a raw string like "merchant.balance" to whoever reads it months
@@ -28,11 +28,10 @@ function log(name, ok, detail = '') {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ADMIN_DIR = path.join(ROOT, 'routes', 'admin');
 
-/** Every admin route file, plus the two seller routers whose admin-gated
- *  handlers (payout settle, manual billing activation) also write audit rows. */
+/** Every admin route file, plus the seller routers whose admin-gated
+ *  handlers (manual billing activation) also write audit rows. */
 const AUDITED_SOURCES = [
   ...fs.readdirSync(ADMIN_DIR).filter((n) => n.endsWith('.js')).map((n) => path.join('routes', 'admin', n)),
-  path.join('routes', 'payoutRoutes.js'),
   path.join('routes', 'billingRoutes.js'),
 ];
 
@@ -109,8 +108,6 @@ const PAGE_ENDPOINTS = [
   '/api/admin/customers',
   '/api/admin/payments',
   '/api/admin/payments/gateways',
-  '/api/admin/payouts',
-  '/api/admin/payouts/summary',
   '/api/admin/riders',
   '/api/admin/riders/summary',
   '/api/admin/domains',
@@ -152,7 +149,6 @@ for (const action of Object.keys(ACTION_LABELS)) {
 const writes = [
   ['merchants.js', 'merchant.status'],
   ['merchants.js', 'merchant.plan'],
-  ['merchants.js', 'merchant.balance'],
   ['orders.js', 'order.status'],
   ['catalog.js', 'catalog.stock'],
   ['domains.js', 'domain.retry'],

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * End-to-end API verification for DiDwa.
  * Exercises every module against a running server (default :4000).
  * Usage: node scripts/e2eTest.js [baseUrl]
@@ -152,54 +152,11 @@ async function main() {
   });
   log('Oversell blocked (409)', oversell.status === 409);
 
-  /* ---------- Wallet top-up (deterministic payout branch) ---------- */
-  // Credit the wallet to a known GHS 6,000 so the above-threshold review
-  // branch is exercised regardless of earlier POS sale totals.
-  const storeId = reg.json?.store?.id;
-  await query(
-    'UPDATE stores SET available_balance = 6000, pending_balance = 0 WHERE id = $1',
-    [storeId],
-  );
-  console.log('  ....  Wallet topped up to GHS 6,000.00 for payout tests');
-
-  /* ---------- Payouts (Module 3) ---------- */
-  const summary = await call('GET', '/api/payouts/summary', { token });
-  log('GET /api/payouts/summary', summary.status === 200 && Boolean(summary.json?.wallet),
-    `available=${summary.json?.wallet?.available_balance}`);
-
-  const paySmall = await call('POST', '/api/payouts/request', {
-    token, body: { amount: 100, network: 'MTN', destination: '0244000111' },
-  });
-  log('Instant payout < threshold', paySmall.status === 200 && paySmall.json?.payout?.status === 'APPROVED',
-    String(paySmall.json?.message || '').slice(0, 70));
-
-  const afterPay = await call('GET', '/api/payouts/summary', { token });
-  log('Balance debited after payout',
-    Number(afterPay.json?.wallet?.available_balance) === Number(summary.json.wallet.available_balance) - 100,
-    `now=${afterPay.json?.wallet?.available_balance}`);
-
-  const payBig = await call('POST', '/api/payouts/request', {
-    token,
-    body: {
-      amount: Math.min(
-        Number(summary.json?.riskThresholdGhs || 5000) + 100,
-        Math.floor(Number(summary.json?.wallet?.available_balance)) - 105,
-      ),
-      network: 'VODAFONE',
-      destination: '0244000111',
-    },
-  });
-  log('Large payout queued for review (202)', payBig.status === 202,
-    String(payBig.json?.message || '').slice(0, 60));
-
-  const overBal = await call('POST', '/api/payouts/request', {
-    token, body: { amount: 999999, network: 'MTN', destination: '0244000111' },
-  });
-  log('Over-balance payout rejected', overBal.status === 400);
-
-  const history = await call('GET', '/api/payouts/history', { token });
-  log('GET /api/payouts/history', history.status === 200 && history.json?.payouts?.length === 2);
-
+  /* ---------- Seller payouts removed with the platform wallet ---------- */
+  // Customer money now settles directly in each merchant's own gateway account, so
+  // there is no platform balance, no payout queue and nothing to reconcile
+  // here. The /api/payouts surface was removed with it (db/schema.sql records the
+  // renamed payouts_retired table for audit).
   /* ---------- Storefront + WhatsApp checkout (Module 5) ---------- */
   const catalog = await call('GET', `/api/domains/storefront/${slug}/products`);
   log('Public storefront catalog', catalog.status === 200 && catalog.json?.products?.length === 1,

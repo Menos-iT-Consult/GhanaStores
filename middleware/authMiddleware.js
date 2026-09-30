@@ -124,7 +124,7 @@ export async function loadSellerStore(req, res, next) {
     const { rows } = await query(
       `SELECT id, name, email, phone, owner_name, subdomain_slug, custom_domain,
               status, plan, trial_ends_at, grace_ends_at, whatsapp_number, momo_number,
-              available_balance, pending_balance, currency,
+              currency,
               loyalty_points_per_ghs, loyalty_point_value, created_at
          FROM stores WHERE id = $1 LIMIT 1`,
       [req.auth.sub],

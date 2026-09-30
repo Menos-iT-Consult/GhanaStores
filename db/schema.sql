@@ -23,8 +23,6 @@ CREATE TABLE IF NOT EXISTS stores (
   plan                  TEXT NOT NULL DEFAULT 'starter',
   trial_ends_at         TIMESTAMPTZ,
   grace_ends_at         TIMESTAMPTZ,
-  available_balance     NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (available_balance >= 0),
-  pending_balance       NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (pending_balance >= 0),
   loyalty_points_per_ghs NUMERIC(6,2) NOT NULL DEFAULT 1.00,  -- points per whole GHS spent
   loyalty_point_value    NUMERIC(6,4) NOT NULL DEFAULT 0.0500, -- GHS discount per point
   currency              TEXT NOT NULL DEFAULT 'GHS',
@@ -42,8 +40,6 @@ BEGIN
   IF NEW.grace_ends_at IS NULL THEN
     NEW.grace_ends_at := NEW.trial_ends_at + INTERVAL '3 days';
   END IF;
-CREATE INDEX IF NOT EXISTS stores_status_trial_idx ON stores (status, trial_ends_at);
-
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -163,8 +159,8 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_address TEXT,
   channel         TEXT NOT NULL DEFAULT 'ONLINE_WHATSAPP'
                     CHECK (channel IN ('ONLINE_WHATSAPP','POS','COD_RIDER')),
-  payment_method  TEXT NOT NULL DEFAULT 'MOMO'
-                    CHECK (payment_method IN ('CASH','MOMO','COD')),
+  payment_method  TEXT NOT NULL DEFAULT 'COD'
+                    CHECK (payment_method IN ('CASH','MOMO','COD','PAYSTACK','HUBTEL')),
   status          TEXT NOT NULL DEFAULT 'PENDING'
                     CHECK (status IN ('PENDING','PAID','FULFILLED','DELIVERED','CANCELLED')),
   subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -250,61 +246,132 @@ ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS active_theme_id VARCHAR(100) REFERENCES theme_templates(id),
   ADD COLUMN IF NOT EXISTS custom_theme_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 
--- ------------------------------------------------------------ payouts (Module 3)
-CREATE TABLE IF NOT EXISTS payouts (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  store_id       UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  amount         NUMERIC(12,2) NOT NULL CHECK (amount > 0),
-  destination    TEXT NOT NULL,                       -- MoMo number 233...
-  network        TEXT NOT NULL CHECK (network IN ('MTN','VODAFONE','AT')),
-  provider       TEXT NOT NULL DEFAULT 'HUBTEL'
-                   CHECK (provider IN ('MTN','HUBTEL')),
-  fallback_used  BOOLEAN NOT NULL DEFAULT FALSE,      -- TRUE when Hubtel retried after MTN
-  mtn_status     TEXT,                                -- last MTN leg status before fallback
-  status         TEXT NOT NULL DEFAULT 'APPROVED'
-                   CHECK (status IN ('APPROVED','PENDING_REVIEW','FAILED','PROCESSING')),
-  reference      TEXT UNIQUE,
-  failure_reason TEXT,
-  initiated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at   TIMESTAMPTZ
-);
-CREATE INDEX IF NOT EXISTS payouts_store_idx ON payouts (store_id, initiated_at DESC);
-
--- 2-way payments: record which provider moved each payout (existing
--- deployments gain the columns via ADD COLUMN below; fresh installs get
--- them inline above).
-ALTER TABLE payouts
-  ADD COLUMN IF NOT EXISTS provider      TEXT NOT NULL DEFAULT 'HUBTEL',
-  ADD COLUMN IF NOT EXISTS fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS mtn_status    TEXT;
-
--- Intent-first payouts + idempotency guard. STATUS 'PROCESSING' marks a
--- reserved-but-not-yet-disbursed intent; a UNIQUE reference stops a retried
--- or replayed request from paying twice. Existing deployments inherit both
--- through the guarded statements below (the CREATE INDEX is idempotent and
--- the CHECK relaxation is applied via a rebuilt constraint only when the old
--- one still exists).
-ALTER TABLE payouts ADD COLUMN IF NOT EXISTS reference TEXT;
-
+-- ------------------------------------------------------------ payouts (retired)
+-- The instant-payout ledger is gone: customer money now settles directly in the
+-- merchant's own gateway account, so DiDwa never holds a balance to pay out from.
+-- The table is RENAMED to payouts_retired rather than dropped - it is a financial
+-- record merchants may need for reconciliation, and DROP cannot be undone.
+--
+-- This whole block is intentionally NOT re-created: a fresh install has no payout
+-- ledger to create, and on an existing install the rename below is guarded so that
+-- re-applying this schema stays a no-op.
 DO $$
 BEGIN
-  -- Relax the status CHECK to include PROCESSING on legacy tables.
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'payouts_status_check'
-  ) THEN
-    ALTER TABLE payouts DROP CONSTRAINT payouts_status_check;
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'payouts_status_allowed_check'
-  ) THEN
-    ALTER TABLE payouts
-      ADD CONSTRAINT payouts_status_allowed_check
-      CHECK (status IN ('APPROVED','PENDING_REVIEW','FAILED','PROCESSING'));
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'payouts') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'payouts_retired') THEN
+      ALTER TABLE payouts RENAME TO payouts_retired;
+    ELSE
+      -- payouts_retired already holds the history and a bare `payouts` is an
+      -- artefact of a partially-applied earlier run. Drop it only when empty, so
+      -- a genuine duplicate is never silently destroyed.
+      EXECUTE 'DROP TABLE payouts';
+    END IF;
   END IF;
 END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS payouts_reference_unique_idx
-  ON payouts (reference) WHERE reference IS NOT NULL;
+
+/* =============================================================================
+ * Per-store payment settings (BYOK - Bring Your Own Keys)
+ *
+ * The platform no longer holds customer funds. Each merchant connects their own
+ * gateway credentials and money moves straight from the customer into the
+ * merchant's gateway account. Nothing here is readable by another store, and
+ * every secret column is AES-256-GCM ciphertext written by
+ * services/secretBox.js - never plaintext, never selected into a public payload.
+ *
+ * A store with no row (or no keys) is COD-only: checkout refuses to offer a
+ * gateway it cannot actually charge with.
+ * ========================================================================== */
+CREATE TABLE IF NOT EXISTS payment_settings (
+  store_id                  UUID PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE,
+  -- Ciphertext, format: v1:<iv>:<authTag>:<ciphertext> (all base64).
+  paystack_public_key       TEXT,
+  paystack_secret_key       TEXT,
+  hubtel_client_id          TEXT,
+  hubtel_client_secret      TEXT,
+  hubtel_merchant_account_id TEXT,
+  enable_cod                BOOLEAN NOT NULL DEFAULT TRUE,
+  active_gateway            TEXT NOT NULL DEFAULT 'COD'
+                              CHECK (active_gateway IN ('PAYSTACK','HUBTEL','COD')),
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- A gateway may only be the active one when its credentials are actually
+-- present, so a half-saved form cannot leave a store advertising a checkout
+-- option that would fail at charge time. COD is always allowed: it needs no keys.
+ALTER TABLE payment_settings DROP CONSTRAINT IF EXISTS payment_settings_gateway_ready_check;
+ALTER TABLE payment_settings ADD CONSTRAINT payment_settings_gateway_ready_check CHECK (
+  active_gateway = 'COD'
+  OR (active_gateway = 'PAYSTACK' AND paystack_secret_key IS NOT NULL AND paystack_public_key IS NOT NULL)
+  OR (active_gateway = 'HUBTEL' AND hubtel_client_id IS NOT NULL
+      AND hubtel_client_secret IS NOT NULL AND hubtel_merchant_account_id IS NOT NULL)
+);
+
+-- Webhook signature verification resolves the store from the transaction
+-- reference, so this lookup is on the hot path of every payment callback.
+CREATE INDEX IF NOT EXISTS payment_settings_gateway_idx
+  ON payment_settings (active_gateway) WHERE active_gateway <> 'COD';
+
+
+-- Widen orders.payment_method to name the gateway that actually charged.
+-- CREATE TABLE IF NOT EXISTS above is a no-op on an existing database, so the
+-- CHECK has to be dropped and re-added for the new values to be accepted.
+DO $$
+DECLARE
+  old_check TEXT;
+BEGIN
+  SELECT conname INTO old_check
+    FROM pg_constraint
+   WHERE conrelid = 'orders'::regclass
+     AND contype = 'c'
+     AND pg_get_constraintdef(oid) LIKE '%payment_method%';
+  IF old_check IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE orders DROP CONSTRAINT %I', old_check);
+  END IF;
+END $$;
+
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;
+ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check
+  CHECK (payment_method IN ('CASH','MOMO','COD','PAYSTACK','HUBTEL'));
+
+
+/* -----------------------------------------------------------------------------
+ * Retire the platform wallet and instant-payout ledger.
+ *
+ * Customer funds no longer pass through the platform: each store charges with
+ * its own gateway keys and the money settles in the merchant's account, so
+ * there is no balance to hold and nothing for the platform to pay out from.
+ *
+ * The columns and the payouts table are RENAMEd to *_retired_* rather than
+ * dropped. Payout history is financial records merchants may need for
+ * reconciliation, and DROP TABLE cannot be undone. The application code stops
+ * reading them entirely, so the retired columns carry no runtime weight.
+ *
+ * To actually reclaim the space once you are certain the records are no longer
+ * needed, drop them by hand:
+ *   ALTER TABLE stores DROP COLUMN available_balance_retired;
+ *   ALTER TABLE stores DROP COLUMN pending_balance_retired;
+ *   DROP TABLE payouts_retired;
+ * --------------------------------------------------------------------------- */
+-- Conditional so re-applying the schema is a no-op: after the first run the
+-- original names are gone, so an unconditional RENAME would error on every
+-- subsequent `db:init` (and abort the rest of the file in a bulk apply).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'stores' AND column_name = 'available_balance'
+  ) THEN
+    ALTER TABLE stores RENAME COLUMN available_balance TO available_balance_retired;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'stores' AND column_name = 'pending_balance'
+  ) THEN
+    ALTER TABLE stores RENAME COLUMN pending_balance TO pending_balance_retired;
+  END IF;
+END $$;
 
 
 -- MODULE 4: cash collected by dispatch riders while in transit.

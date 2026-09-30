@@ -124,7 +124,7 @@ router.post('/login', async (req, res, next) => {
 
     const { rows } = await query(
       `SELECT id, name, owner_name, email, phone, password_hash, subdomain_slug, status, plan,
-              trial_ends_at, grace_ends_at, currency, custom_domain, available_balance, pending_balance, created_at
+              trial_ends_at, grace_ends_at, currency, custom_domain, created_at
          FROM stores WHERE LOWER(email) = $1 LIMIT 1`,
       [String(email).trim().toLowerCase()],
     );

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DiDwa - Offline POS & COD Reconciliation Routes
  * MODULE 4: In-store register sales (cash / MoMo) with atomic inventory
  * decrement + loyalty awarding, plus Rider Transit Balance tracking and
@@ -270,11 +270,9 @@ async function finishPosSale(req, res, client, ctx) {
       );
     }
 
-    /* ---- Credit wallet + upsert loyalty ledger ---- */
-    await client.query(
-      'UPDATE stores SET available_balance = available_balance + $2 WHERE id = $1',
-      [req.auth.sub, total],
-    );
+    /* ---- Upsert loyalty ledger. No wallet credit: POS MoMo money is collected
+       straight into the merchant's own Hubtel/MTN account, so DiDwa never held
+       it and has no balance to credit. ---- */
 
     if (customerPhone) {
       await client.query(
@@ -422,10 +420,8 @@ router.post('/riders/:id/reconcile', requireActiveSeller, async (req, res, next)
       return res.status(404).json({ error: 'Open transit record not found.' });
     }
 
-    await client.query(
-      'UPDATE stores SET available_balance = available_balance + $2 WHERE id = $1',
-      [req.auth.sub, transit.amount],
-    );
+    // No wallet credit on delivery: the collected funds live in the merchant's
+    // own gateway account, so there is no platform balance to add to.
     // The parcel truly reached the buyer: close the transit AND mark every
     // carried order DELIVERED (mirroring order_status) in the same commit.
     const parsedIds = Array.isArray(transit.order_ids) ? transit.order_ids : [];

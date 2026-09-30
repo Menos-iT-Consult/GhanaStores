@@ -33,7 +33,6 @@ export const ADMIN_NAV = [
     group: 'Money',
     items: [
       { path: '/admin/payments', label: 'Payments', icon: CreditCard },
-      { path: '/admin/payouts', label: 'Payouts', icon: Activity },
       { path: '/admin/logistics', label: 'Logistics', icon: Truck },
     ],
   },
