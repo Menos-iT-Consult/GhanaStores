@@ -91,7 +91,13 @@ export default function CustomizerSidebar({
   const num = (path) => (e) => updateTokens(path, Number(e.target.value));
   const str = (path) => (e) => updateTokens(path, e.target.value);
   const b = (path) => (v) => updateTokens(path, v);
-return (
+
+  /* Shorthand handed to every section: `t` is the config, `str`/`num`/`color`/`b`
+     are the path-curried writers, and `updateTokens` is the raw escape hatch. */
+  const t = customTheme;
+  const shared = { t, str, num, color, b, updateTokens };
+
+  return (
     <aside
       id="gs-sidebar"
       aria-label="Theme customizer controls"
@@ -176,6 +182,3 @@ return (
     </aside>
   );
 }
-
-  const t = customTheme;
-  const shared = { t, str, num, color, b, updateTokens };
