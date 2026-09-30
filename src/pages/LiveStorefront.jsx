@@ -70,10 +70,18 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   const [cart, setCart] = useState([]);
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
   const [message, setMessage] = useState('');
+  // Whether `message` is a failure, so the checkout form colours it red.
+  const [checkoutError, setCheckoutError] = useState(false);
   const [busy, setBusy] = useState(false);
   /* Which themed page is on screen, and which product the detail page shows. */
   const [page, setPage] = useState('home');
   const [productId, setProductId] = useState(null);
+  /* The seller's configured gateway, fetched from the public endpoint. Only the
+     method the owner selected is offered: this is their shop, and letting a
+     customer pick a different rail would contradict the setting they saved under
+     /settings/payments. A store that has configured nothing falls back to COD,
+     which needs no keys and is what the server reports in that case. */
+  const [payMethod, setPayMethod] = useState('COD');
   // The live shop's own width, so it picks the same mobile/tablet/desktop layout
   // the customizer previews. Measured, not a media query - see the prop below.
   const container = useContainerTier();
@@ -118,15 +126,25 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       setTenant(resolved.tenant);
       // A missing catalogue or theme must not blank a real store: degrade to an
       // empty catalogue and the default theme instead of an error screen.
-      const [catalog, themed] = await Promise.all([
+      const [catalog, themed, methods] = await Promise.all([
         api.get(`/api/domains/storefront/${encodeURIComponent(slug)}/products`).catch(() => null),
         api.get(`/api/store/theme/public/${encodeURIComponent(slug)}`).catch(() => null),
+        // Never let a payment lookup failure break the shop: COD is the
+        // keyless default, so a store still sells rather than showing an error.
+        api.get(`/api/public/payment-methods?slug=${encodeURIComponent(slug)}`).catch(() => null),
       ]);
       if (!live) return;
       setProducts(catalog?.products || []);
       if (themed?.theme?.config || themed?.templateConfig) {
         setTheme(resolveStorefrontTheme(themed, resolved.tenant));
       }
+      /* Trust the server's activeGateway only if it is genuinely offered: it
+         validates readiness, whereas a hand-edited response naming an
+         unconfigured rail would send the customer to a gateway that cannot
+         charge them. */
+      const active = String(methods?.activeGateway || '').toUpperCase();
+      const offered = Array.isArray(methods?.methods) ? methods.methods : [];
+      if (offered.includes(active)) setPayMethod(active);
     })();
     return () => { live = false; };
   }, []);
@@ -170,16 +188,33 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   async function checkout(event) {
     event.preventDefault();
     if (!cart.length || busy) return;
-    setBusy(true); setMessage('');
+    setBusy(true); setMessage(''); setCheckoutError(false);
     try {
       const result = await api.post('/api/public/orders', {
         slug: tenant?.subdomainSlug, customer_name: customer.name,
         customer_phone: customer.phone, customer_address: customer.address,
-        payment_method: 'COD', items: cart.map((line) => ({ variantId: line.id, quantity: line.quantity })),
+        payment_method: payMethod, items: cart.map((line) => ({ variantId: line.id, quantity: line.quantity })),
       });
+      /* A gateway order is NOT settled yet: the customer still has to authorise
+         on the provider's page and the webhook is what marks it paid. So send
+         them there rather than claiming success. */
+      const authUrl = result?.payment?.authorizationUrl;
+      if (result?.payment?.requiresAction && authUrl) {
+        window.location.assign(authUrl);
+        return;
+      }
+      /* Reached when the gateway refused to start. The order still exists, so it
+         is NOT reported as a failure that invites a duplicate - the customer is
+         told what happened and can retry. */
+      if (result?.payment?.requiresCharge) {
+        setCheckoutError(true);
+        setMessage(`Order ${result.order.orderNumber} was created but payment could not be started. Please contact the store to complete your order.`);
+        setCart([]);
+        return;
+      }
       setMessage(`Order ${result.order.orderNumber} placed successfully. We will contact you to confirm delivery.`);
       setCart([]);
-    } catch (error) { setMessage(error.message); }
+    } catch (error) { setCheckoutError(true); setMessage(error.message); }
     finally { setBusy(false); }
   }
 
@@ -204,7 +239,10 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
         onAddToCart={addToCart}
         onSetQty={setLineQty}
         onRemove={removeLine}
-        checkout={{ customer, setCustomer, onSubmit: checkout, busy, message }}
+        checkout={{
+          customer, setCustomer, onSubmit: checkout, busy, message,
+          error: checkoutError, method: payMethod,
+        }}
       />
     </div>
   );

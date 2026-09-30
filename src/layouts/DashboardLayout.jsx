@@ -200,22 +200,8 @@ function MainSidebar({ open, store, onNavClose, route, onNavigate, isActive }) {
         </button>
       </div>
 
-      {/* Theme marketplace trigger (prominent) */}
-      <button
-        type="button"
-        onClick={() => onNavigate('/dashboard/themes')}
-        className={`flex w-full items-center gap-2.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold transition ${
-          isActive('/dashboard/themes')
-            ? 'bg-blue-600 text-white'
-            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-        }`}
-      >
-        <Palette size={17} />
-        <span>Theme Market</span>
-      </button>
-
       {/* Primary nav */}
-      <nav className="mt-1 space-y-1" aria-label="Main navigation">
+      <nav className="mt-3 space-y-1" aria-label="Main navigation">
         {DASHBOARD_NAV.map(({ path, label, icon: Icon }) => (
           <button
             key={path}
@@ -235,9 +221,17 @@ function MainSidebar({ open, store, onNavClose, route, onNavigate, isActive }) {
 
       {/* Footer: store + logout */}
       <div className="mt-auto border-t border-slate-800 p-4">
-        <p className="truncate text-sm font-bold text-white">
+        {/* The name opens the storefront too, so a seller never has to aim at the
+            small URL text to preview their shop. */}
+        <a
+          href={storefrontUrl(store)}
+          target="_blank"
+          rel="noreferrer"
+          className="block truncate text-sm font-bold text-white hover:text-blue-300"
+          title={store?.name ? `Open ${store.name}` : 'Open my store'}
+        >
           {store?.name || 'My Store'}
-        </p>
+        </a>
         <a
           href={storefrontUrl(store)}
           target="_blank"
