@@ -595,6 +595,12 @@ function CartBody({ t, onNavigate, ctx }) {
               </div>
               <input required value={ctx.checkout.customer.name} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, name: e.target.value })} placeholder="Full name" aria-label="Full name" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
               <input required value={ctx.checkout.customer.phone} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, phone: e.target.value })} placeholder="Phone number" aria-label="Phone number" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
+              {/* Card gateways require an email, so ask for one whenever the
+                  store takes card payment. Optional for COD, where nobody
+                  charges an address. */}
+              {ctx.checkout.method === 'PAYSTACK' ? (
+                <input required type="email" value={ctx.checkout.customer.email || ''} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, email: e.target.value })} placeholder="Email address" aria-label="Email address" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
+              ) : null}
               <textarea required value={ctx.checkout.customer.address} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, address: e.target.value })} placeholder="Delivery address" aria-label="Delivery address" rows={2} className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
               <button type="submit" disabled={ctx.checkout.busy || !items.length} className={`w-full rounded-lg px-3 py-2 text-xs font-bold text-white transition disabled:opacity-40 ${t.btn()}`} style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}>
                 {ctx.checkout.busy ? 'Placing order...' : `Pay with ${PAYMENT_LABELS[ctx.checkout.method] || 'Cash on Delivery'}`}

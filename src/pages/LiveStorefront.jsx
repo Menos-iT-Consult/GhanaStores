@@ -193,6 +193,8 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       const result = await api.post('/api/public/orders', {
         slug: tenant?.subdomainSlug, customer_name: customer.name,
         customer_phone: customer.phone, customer_address: customer.address,
+        // Card gateways need an email to charge; sent only when we collected one.
+        customer_email: customer.email || undefined,
         payment_method: payMethod, items: cart.map((line) => ({ variantId: line.id, quantity: line.quantity })),
       });
       /* A gateway order is NOT settled yet: the customer still has to authorise

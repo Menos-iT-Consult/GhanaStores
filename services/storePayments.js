@@ -186,7 +186,12 @@ export function paystackClient(settings) {
           reference,
           amount: Math.round(Number(amount) * 100), // Paystack works in pesewas
           currency: 'GHS',
-          email: email || undefined,
+          // Paystack REQUIRES a valid email and answers 400 "Invalid Email
+          // Address Passed" without one, so a customer who never typed an address
+          // produced an order with no payment page. The customer's real address is
+          // used when given; otherwise a per-order no-reply address keeps the
+          // charge working and still routes receipts to the merchant.
+          email: email || `orders+${reference}@payments.didwaghana.com`,
           callback_url: callbackUrl || undefined,
         },
         { headers: { Authorization: `Bearer ${key}` }, timeout: 20_000 },

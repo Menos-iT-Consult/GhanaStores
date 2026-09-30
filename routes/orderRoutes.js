@@ -286,7 +286,13 @@ router.post('/public/orders', async (req, res, next) => {
       try {
         payment = await chargeStorePayment(storeId, {
           reference: created.order_number,
-          amount: totalAmount,
+          /* `totalAmount` is computed inside the transaction above and only
+             exists on its return value. Referring to the bare name here threw a
+             ReferenceError that the catch below swallowed into a generic
+             "Payment could not be started", so EVERY gateway checkout silently
+             failed with no authorizationUrl and the customer was never sent to
+             the payment page. */
+          amount: created.totalAmount,
           method: paymentMethod,
           email: b.customer_email || b.customerEmail || null,
           msisdn: customerPhone,
