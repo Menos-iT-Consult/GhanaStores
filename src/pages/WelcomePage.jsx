@@ -13,7 +13,7 @@
  */
 import { useEffect, useState } from 'react';
 import {
-  ArrowRight, BarChart3, BellRing, ChevronRight, Globe,
+  ArrowRight, BarChart3, BellRing, Check, ChevronRight, Globe,
   Menu, MessageCircle, Package, ShieldCheck, Smartphone, Sparkles,
   Wallet, X, Zap,
 } from 'lucide-react';
