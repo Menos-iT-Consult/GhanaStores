@@ -25,7 +25,7 @@ const PUBLIC_LINKS = ['/', '/about', '/contact', '/terms', '/privacy'];
 
 /* Links in the seller sidebar (DashboardLayout) - all auth-gated. */
 const SIDEBAR_LINKS = ['/dashboard', '/pos', '/settings/payments', '/inventory', '/orders',
-  '/dashboard/themes', '/domains', '/store-profile'];
+  '/dashboard/themes', '/domains', '/developer-guide'];
 
 console.log('\nDiDwa route table -> src/routes.js\n');
 

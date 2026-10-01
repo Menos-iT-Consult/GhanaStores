@@ -26,6 +26,7 @@ import { useEffect, useState } from 'react';
 import { Menu, Loader2, Check } from 'lucide-react';
 import { IconStore } from '../components/icons.jsx';
 import { navigate, usePathname } from '../router.js';
+import { uploadApi } from '../api.js';
 import MainSidebar from './dashboard/MainSidebar.jsx';
 import CustomizerSidebar from './dashboard/customizer/CustomizerSidebar.jsx';
 import { useThemeDraft } from './dashboard/useThemeDraft.js';
@@ -107,6 +108,27 @@ export default function DashboardLayout({ children }) {
      closes the drawer and restores the dark primary nav sidebar. */
   const onBack = () => onNavigate('/dashboard/themes');
 
+  /* Clear the store logo. The logo lives on the STORE (stores.logo_url) and is
+     only MIRRORED into the theme token, so blanking the token alone would leave
+     the uploaded file in place and keep serving the browser tab icon via
+     /api/domains/resolve. The DELETE has to happen first; the token is blanked
+     on success only, so a failed request leaves the draft showing the real
+     logo rather than an empty field. */
+  const [logoError, setLogoError] = useState('');
+  const [removingLogo, setRemovingLogo] = useState(false);
+  const onRemoveLogo = async () => {
+    setLogoError('');
+    setRemovingLogo(true);
+    try {
+      await uploadApi.removeLogo();
+      setCustomTheme((prev) => ({ ...prev, branding: { ...prev.branding, logo_url: '' } }));
+    } catch (err) {
+      setLogoError(err.message || 'Could not remove your logo. Please try again.');
+    } finally {
+      setRemovingLogo(false);
+    }
+  };
+
   /* Warn before unsaved theme edits are lost. Guarded on isCustomizerOpen so
      the prompt only appears while the customizer is actually on screen - a
      dirty draft must not block navigation everywhere else in the dashboard. */
@@ -148,6 +170,7 @@ export default function DashboardLayout({ children }) {
           onPublish={onPublish}
           onBack={onBack}
           onResetDefaults={onResetDefaults}
+          onRemoveLogo={onRemoveLogo}
         />
       )}
 

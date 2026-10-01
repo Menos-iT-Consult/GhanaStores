@@ -7,10 +7,10 @@
  * differ (280px navy nav vs 380px light customizer panel).
  */
 import {
-  IconStore, IconDashboard, IconCart, IconBox, IconReceipt,
+  IconDashboard, IconCart, IconBox, IconReceipt,
   IconWallet, IconLogout, IconX, IconLogo,
 } from '../../components/icons.jsx';
-import { Palette, Globe } from 'lucide-react';
+import { Palette, Globe, FileText } from 'lucide-react';
 
 /** Primary seller navigation, shown whenever the customizer is closed. */
 export const DASHBOARD_NAV = [
@@ -20,8 +20,8 @@ export const DASHBOARD_NAV = [
   { path: '/inventory',        label: 'Inventory',     icon: IconBox },
   { path: '/orders',           label: 'Orders',        icon: IconReceipt },
   { path: '/dashboard/themes', label: 'Theme Market',  icon: Palette },
-  { path: '/domains',          label: 'Domains',       icon: Globe },
-  { path: '/store-profile',    label: 'Store profile', icon: IconStore },
+  { path: '/domains',          label: 'Domains',        icon: Globe },
+  { path: '/developer-guide',  label: 'Developer Guide', icon: FileText },
 ];
 
 /** Route that flips the shell into sidebar-replacing customizer mode. */

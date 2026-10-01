@@ -65,13 +65,18 @@ function useLiveThemeVars(customTheme) {
  * @param {Function} props.onPublish Publish handler.
  * @param {Function} props.onBack Leave customizer mode.
  * @param {Function} props.onResetDefaults Restore schema defaults.
+ * @param {Function} props.onRemoveLogo Clear the store logo on the store record
+ *   and blank the token. Handled here rather than in IdentitySection so the
+ *   section modules stay pure token writers with no API side effects.
+ * @param {string} props.logoError Message from a failed logo removal.
+ * @param {boolean} props.removingLogo A removal request is in flight.
  */
 export default function CustomizerSidebar({
   open,
   collapsed,
   onToggleCollapse,
   customTheme, setCustomTheme, isPublishing, publishSuccess,
-  onPublish, onBack, onResetDefaults,
+  onPublish, onBack, onResetDefaults, onRemoveLogo, logoError, removingLogo,
 }) {
   useLiveThemeVars(customTheme);
 
@@ -95,7 +100,7 @@ export default function CustomizerSidebar({
   /* Shorthand handed to every section: `t` is the config, `str`/`num`/`color`/`b`
      are the path-curried writers, and `updateTokens` is the raw escape hatch. */
   const t = customTheme;
-  const shared = { t, str, num, color, b, updateTokens };
+  const shared = { t, str, num, color, b, updateTokens, onRemoveLogo, logoError, removingLogo };
 
   return (
     <aside

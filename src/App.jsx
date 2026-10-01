@@ -30,7 +30,7 @@ import SellerThemeMarketplace from './pages/SellerThemeMarketplace.jsx';
 import ThemeDemoViewer from './pages/ThemeDemoViewer.jsx';
 import ThemeCustomizer from './pages/ThemeCustomizer.jsx';
 import DomainManager from './pages/DomainManager.jsx';
-import StoreProfile from './pages/StoreProfile.jsx';
+import SellerDeveloperGuide from './pages/SellerDeveloperGuide.jsx';
 import LiveStorefront from './pages/LiveStorefront.jsx';
 import StorefrontFavicon from './components/StorefrontFavicon.jsx';
 import AdminGate from './pages/admin/AdminGate.jsx';
@@ -202,7 +202,7 @@ export default function App() {
       case '/dashboard/themes': return <SellerThemeMarketplace />;
       case '/dashboard/themes/customizer': return <ThemeCustomizer chromeless />;
       case '/domains': return <DomainManager subdomain={store?.subdomain_slug} storeId={store?.id} />;
-      case '/store-profile': return <StoreProfile />;
+      case '/developer-guide': return <SellerDeveloperGuide />;
       default: return <NotFoundPage authed={authed} embedded />;
     }
   }, [effectiveRoute, authed]);

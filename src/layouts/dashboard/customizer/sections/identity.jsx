@@ -2,11 +2,13 @@
  * layouts/dashboard/customizer/sections/identity.jsx
  * Store name, tagline and logo - the tokens a shopper sees first.
  */
-import { Type } from 'lucide-react';
+import { AlertCircle, Type } from 'lucide-react';
 import ImageUploader from '../../../../components/ImageUploader.jsx';
 import { Accordion, Field, Note, INPUT_CLS } from '../ui.jsx';
 
-export default function IdentitySection({ t, str, updateTokens }) {
+export default function IdentitySection({
+  t, str, updateTokens, onRemoveLogo, logoError, removingLogo,
+}) {
   return (
     <Accordion id="identity" icon={Type} title="Identity & Tagline">
       <div className="space-y-2">
@@ -36,8 +38,14 @@ export default function IdentitySection({ t, str, updateTokens }) {
             hint="Square images work best. Up to 5MB, JPEG/PNG/WebP/AVIF."
             previewClass="h-16 w-16"
             onUploaded={(saved) => updateTokens('branding.logo_url', saved.rawUrl || saved.url || '')}
-            onRemoved={() => updateTokens('branding.logo_url', '')}
+            onRemoved={removingLogo ? undefined : onRemoveLogo}
           />
+          {logoError ? (
+            <p className="flex items-start gap-1 text-[11px] font-semibold text-rose-600">
+              <AlertCircle size={12} className="mt-px shrink-0" aria-hidden="true" />
+              {logoError}
+            </p>
+          ) : null}
         </div>
 
         <Field label="Logo image URL">
@@ -52,7 +60,7 @@ export default function IdentitySection({ t, str, updateTokens }) {
         <Note>
           The browser tab icon is derived from this logo automatically, so there
           is nothing else to set. Paste an image URL to use an image hosted
-          elsewhere.
+          elsewhere. Removing the logo also clears your tab icon.
         </Note>
       </div>
     </Accordion>
