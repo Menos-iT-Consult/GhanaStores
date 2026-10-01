@@ -82,6 +82,25 @@ export function requireAuth(req, res, next) {
 }
 
 /**
+ * Attaches a seller identity when one is present, but never rejects the request.
+ *
+ * Public pages that personalise - the pricing page marks the plan the signed-in
+ * seller is already on - must stay open to visitors who are not signed in. A
+ * missing, malformed or expired token simply leaves req.auth unset; the same is
+ * true of an ADMIN token, which is not a seller.
+ */
+export function optionalSeller(req, _res, next) {
+  const token = readToken(req);
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload?.role === 'SELLER') req.auth = payload;
+    } catch { /* anonymous - the public page still renders */ }
+  }
+  return next();
+}
+
+/**
  * Platform administrator only.
  *
  * The token's ADMIN role is not enough on its own: the subject must also exist

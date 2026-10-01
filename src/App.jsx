@@ -19,10 +19,11 @@ import TrialBanner from './components/TrialBanner.jsx';
 import DashboardLayout from './layouts/DashboardLayout.jsx';
 import AuthScreen from './pages/AuthScreen.jsx';
 import WelcomePage from './pages/WelcomePage.jsx';
-import { AboutPage, ContactPage, PrivacyPage, TermsPage } from './pages/PublicPages.jsx';
+import { AboutPage, ContactPage, FeaturesPage, HowItWorksPage, PrivacyPage, PricingPage, TermsPage } from './pages/PublicPages.jsx';
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
+import SellerPlan from './pages/SellerPlan.jsx';
 import SellerInventory from './pages/SellerInventory.jsx';
 import SellerOrders from './pages/SellerOrders.jsx';
 import SellerThemeSelector from './pages/SellerThemeSelector.jsx';
@@ -196,6 +197,7 @@ export default function App() {
       case '/login': return null; // redirected by the effect above
       case '/pos': return <SellerPOS />;
       case '/settings/payments': return <SellerPaymentSettings />;
+      case '/settings/plan': return <SellerPlan />;
       case '/inventory': return <SellerInventory />;
       case '/orders': return <SellerOrders />;
       case '/themes': return <SellerThemeSelector />;
@@ -265,6 +267,9 @@ export default function App() {
   };
   switch (route) {
     case '/': return <WelcomePage {...welcomeProps} />;
+    case '/pricing': return <PricingPage authed={authed} />;
+    case '/features': return <FeaturesPage authed={authed} />;
+    case '/how-it-works': return <HowItWorksPage authed={authed} />;
     case '/about': return <AboutPage authed={authed} />;
     case '/contact': return <ContactPage authed={authed} />;
     case '/terms': return <TermsPage authed={authed} />;

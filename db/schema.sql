@@ -6,6 +6,55 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- ------------------------------------------------------------ plans (catalog)
+-- The subscription catalogue: what a seller can buy and for how much. This
+-- table is the SINGLE SOURCE OF TRUTH for plan pricing - the public /pricing
+-- page, the seller upgrade flow and the charge in subscription_payments all
+-- resolve the amount from here. Nothing is ever hard-coded on the client, so an
+-- admin price change takes effect everywhere at once (every write is audited).
+--
+-- id is a stable slug ('starter'|'growth'|'scale') rather than a uuid because
+-- it is referenced from stores.plan and subscription_payments.plan_id, which
+-- already hold these slugs as text.
+--
+-- Billing is PAY-UPFRONT: one charge buys the period, nothing auto-renews, so
+-- a cycle only decides how long stores.plan_period_end runs for.
+CREATE TABLE IF NOT EXISTS plans (
+  id                 TEXT PRIMARY KEY
+                         CHECK (id ~ '^[a-z][a-z0-9-]{1,31}$'),
+  name               TEXT NOT NULL,
+  tagline            TEXT,
+  monthly_price_ghs  NUMERIC(12,2) NOT NULL CHECK (monthly_price_ghs >= 0),
+  yearly_price_ghs   NUMERIC(12,2) NOT NULL CHECK (yearly_price_ghs >= 0),
+  features           TEXT[] NOT NULL DEFAULT '{}',
+  max_products       INTEGER NOT NULL DEFAULT 500 CHECK (max_products >= 0),
+  is_enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order         INTEGER NOT NULL DEFAULT 100,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- A yearly plan that costs more than 12 months of the monthly rate is almost
+  -- always a typo, and sellers would be charged the inflated amount.
+  CONSTRAINT plans_yearly_not_above_12x
+    CHECK (yearly_price_ghs <= monthly_price_ghs * 12)
+);
+CREATE INDEX IF NOT EXISTS plans_enabled_sort_idx ON plans (is_enabled, sort_order);
+
+-- Seed the catalogue from the tiers that were previously hard-coded in
+-- routes/billingRoutes.js, so every existing store keeps resolving to a plan.
+-- Yearly is priced at 10x monthly (two months free). ON CONFLICT DO NOTHING:
+-- an admin edit must survive a re-run of the schema.
+INSERT INTO plans (id, name, tagline, monthly_price_ghs, yearly_price_ghs, features, max_products, sort_order) VALUES
+  ('starter', 'Starter', '14-day free trial', 0, 0,
+   ARRAY['Up to 20 products','Mobile money payments','Order tracking','Email support'],
+   20, 1),
+  ('growth', 'Growth', 'For growing shops', 79, 790,
+   ARRAY['Up to 500 products','Mobile money payments','Domain name included','Theme marketplace','Priority support'],
+   500, 2),
+  ('scale', 'Scale', 'High-volume merchants', 199, 1990,
+   ARRAY['Unlimited products','Multi-currency pricing','Team seats','Dedicated account manager'],
+   100000, 3)
+ON CONFLICT (id) DO NOTHING;
+
 -- ------------------------------------------------------------ stores (tenants)
 CREATE TABLE IF NOT EXISTS stores (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,6 +70,10 @@ CREATE TABLE IF NOT EXISTS stores (
   status                TEXT NOT NULL DEFAULT 'TRIAL'
                           CHECK (status IN ('TRIAL','ACTIVE','PAST_DUE','SUSPENDED')),
   plan                  TEXT NOT NULL DEFAULT 'starter',
+  -- Pay-upfront billing: the cycle the seller bought and the instant that paid
+  -- period runs out. NULL on a free trial (nothing was charged yet).
+  plan_cycle            TEXT CHECK (plan_cycle IN ('monthly','yearly')),
+  plan_period_end       TIMESTAMPTZ,
   trial_ends_at         TIMESTAMPTZ,
   grace_ends_at         TIMESTAMPTZ,
   loyalty_points_per_ghs NUMERIC(6,2) NOT NULL DEFAULT 1.00,  -- points per whole GHS spent
@@ -30,6 +83,20 @@ CREATE TABLE IF NOT EXISTS stores (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS stores_email_lower_idx ON stores ((LOWER(email)));
 CREATE INDEX IF NOT EXISTS stores_status_trial_idx ON stores (status, trial_ends_at);
+
+-- The tenant's plan must be one the catalogue actually offers. Added NOT VALID
+-- then validated so the constraint can be attached to a populated table without
+-- a long ACCESS EXCLUSIVE lock.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'stores_plan_fkey'
+  ) THEN
+    ALTER TABLE stores ADD CONSTRAINT stores_plan_fkey
+      FOREIGN KEY (plan) REFERENCES plans(id) NOT VALID;
+  END IF;
+END $$;
+ALTER TABLE stores VALIDATE CONSTRAINT stores_plan_fkey;
 
 -- MODULE 1: automatic 14-day free trial on registration.
 CREATE OR REPLACE FUNCTION set_store_trial_period() RETURNS TRIGGER AS $$
@@ -48,6 +115,14 @@ DROP TRIGGER IF EXISTS trg_stores_auto_trial ON stores;
 CREATE TRIGGER trg_stores_auto_trial
   BEFORE INSERT ON stores
   FOR EACH ROW EXECUTE FUNCTION set_store_trial_period();
+
+-- Pay-upfront billing state. The plan catalogue was added after stores already
+-- existed, so CREATE TABLE IF NOT EXISTS above would not have added these three
+-- columns to a live table - they need the same ALTER the rest of this schema
+-- uses for post-creation columns.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS plan_cycle       TEXT CHECK (plan_cycle IN ('monthly','yearly')),
+  ADD COLUMN IF NOT EXISTS plan_period_end  TIMESTAMPTZ;
 
 -- MODULE 8: seller-uploaded media in Cloudflare R2.
 -- logo_url is the store's brand mark: a STORE attribute, not a theme token, so
@@ -444,6 +519,11 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
                       CHECK (provider IN ('MTN','HUBTEL','PENDING')),
   reference         TEXT,
   gateway_reference TEXT,
+  -- Which cycle was bought, so a later reconciliation knows how long the paid
+  -- period should run for. Recorded on the payment, not inferred later.
+  cycle             TEXT CHECK (cycle IN ('monthly','yearly')),
+  period_start      TIMESTAMPTZ,
+  period_end        TIMESTAMPTZ,
   status            TEXT NOT NULL DEFAULT 'PENDING'
                       CHECK (status IN ('PENDING','PAID','FAILED')),
   failure_reason    TEXT,
@@ -454,6 +534,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS subscription_payments_ref_idx
   ON subscription_payments (reference) WHERE reference IS NOT NULL;
 CREATE INDEX IF NOT EXISTS subscription_payments_store_idx
   ON subscription_payments (store_id, initiated_at DESC);
+
+-- Cycle and the paid period, added after this table already existed (see the
+-- same ALTER on stores above).
+ALTER TABLE subscription_payments
+  ADD COLUMN IF NOT EXISTS cycle        TEXT CHECK (cycle IN ('monthly','yearly')),
+  ADD COLUMN IF NOT EXISTS period_start TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS period_end   TIMESTAMPTZ;
+
+-- A paid subscription can only ever point at a real catalogue entry, so a typo
+-- in the upgrade request cannot write an unpriceable plan onto a money row.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'subscription_payments_plan_fkey'
+  ) THEN
+    ALTER TABLE subscription_payments ADD CONSTRAINT subscription_payments_plan_fkey
+      FOREIGN KEY (plan_id) REFERENCES plans(id) NOT VALID;
+  END IF;
+END $$;
+ALTER TABLE subscription_payments VALIDATE CONSTRAINT subscription_payments_plan_fkey;
 
 -- ------------------------------------------------------------ store domains (Module 7)
 CREATE TABLE IF NOT EXISTS store_domains (

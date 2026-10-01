@@ -10,10 +10,12 @@
  */
 import { useState } from 'react';
 import {
-  ArrowRight, Check, Mail, MapPin, MessageCircle,
-  Phone, Scale, Send, ShieldCheck, Zap,
+  ArrowRight, BarChart3, Check, Globe, Mail, MapPin, MessageCircle,
+  Package, Phone, Scale, Send, ShieldCheck, Smartphone, Wallet, Zap,
 } from 'lucide-react';
 import { LogoLockup } from '../components/icons.jsx';
+import PlanGrid, { CycleToggle } from '../components/PlanGrid.jsx';
+import { usePlans } from '../lib/plans.js';
 import { getPlatformDomain } from '../config.js';
 import { navigate } from '../router.js';
 
@@ -24,14 +26,28 @@ const CONTACT_PHONE_RAW = String(import.meta.env.VITE_PLATFORM_PHONE || '+233 20
 const CONTACT_PHONE_E164 = CONTACT_PHONE_RAW.replace(/\s+/g, '');
 
 /* ------------------------------ Shared shell ------------------------------- */
-export function PublicShell({ authed, children }) {
+/** Primary marketing nav: every destination is a real page, not a scroll anchor. */
+export const MARKETING_LINKS = [
+  ['/features', 'Features'],
+  ['/how-it-works', 'How it works'],
+  ['/pricing', 'Pricing'],
+  ['/about', 'About Us'],
+  ['/contact', 'Contact'],
+];
+
+export function PublicShell({ authed, children, wide = false }) {
   return (
     <div className="flex min-h-screen flex-col bg-white text-charcoal">
       <header className="sticky top-0 z-40 border-b border-slate-900/5 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className={`mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6 ${wide ? 'max-w-6xl' : 'max-w-5xl'}`}>
           <button type="button" onClick={() => { navigate('/'); }} aria-label="Back to home">
             <LogoLockup onLight />
           </button>
+          <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-500 lg:flex" aria-label="Site sections">
+            {MARKETING_LINKS.map(([path, label]) => (
+              <a key={path} href={path} className="transition hover:text-charcoal">{label}</a>
+            ))}
+          </nav>
           <div className="flex items-center gap-2">
             {authed ? (
               <button
@@ -66,11 +82,11 @@ export function PublicShell({ authed, children }) {
       <main className="flex-1">{children}</main>
 
       <footer className="border-t border-slate-900/5 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 text-xs font-semibold text-slate-400 sm:flex-row sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-xs font-semibold text-slate-400 sm:flex-row sm:px-6">
           <LogoLockup onLight />
           <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="Site links">
-            {[['/', 'Home'], ['/about', 'About Us'], ['/contact', 'Contact']].map(([hash, label]) => (
-              <a key={label} href={hash} className="transition hover:text-charcoal">{label}</a>
+            {[['/', 'Home'], ['/features', 'Features'], ['/pricing', 'Pricing'], ['/about', 'About Us'], ['/contact', 'Contact']].map(([href, label]) => (
+              <a key={label} href={href} className="transition hover:text-charcoal">{label}</a>
             ))}
             <a href="/terms" className="transition hover:text-charcoal">Terms</a>
             <a href="/privacy" className="transition hover:text-charcoal">Privacy</a>
@@ -427,4 +443,207 @@ export function PrivacyPage({ authed = false }) {
 
 
 
+
+/* ----------------------------- Marketing pages ---------------------------- */
+/**
+ * These three pages used to be sections of the welcome page reached by
+ * scrolling. They are real routes now, so a visitor can link straight to the
+ * one they care about and search engines can index it.
+ */
+export const FEATURE_CARDS = [
+  { Icon: Smartphone, title: 'Offline-first POS', body: 'Ring up sales with no internet - transactions sync the moment you are back online.' },
+  { Icon: Wallet, title: 'Instant MoMo payouts', body: 'Cash out to MTN, Telecel/Vodafone or AT Money the moment an order settles.' },
+  { Icon: Package, title: 'Inventory that thinks', body: 'Multi-variant stock tracking with automatic low-stock SMS reminders.' },
+  { Icon: MessageCircle, title: 'WhatsApp commerce', body: 'Customers order straight from chat; receipts and fulfilment in one tap.' },
+  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with live theme editing.' },
+  { Icon: BarChart3, title: 'Insights that pay', body: 'Best sellers, cash flow and payout readiness without spreadsheets.' },
+];
+
+export const STEPS = [
+  { n: '01', title: 'Create your store', body: 'Register with just a shop name, email and phone number. Your 14-day trial starts instantly - no card needed.' },
+  { n: '02', title: 'Stock your catalog', body: 'Add products with prices, variants and stock counts. Share your storefront link or sell in person.' },
+  { n: '03', title: 'Sell & get paid', body: 'Accept Mobile Money or cash, reconcile rider deliveries and withdraw earnings whenever you like.' },
+];
+
+export const STATS = [
+  { v: '10k+', k: 'Active sellers' },
+  { v: 'GHS 2.4M', k: 'Processed monthly' },
+  { v: '<24h', k: 'Payout settlement' },
+  { v: '16', k: 'Regions covered' },
+];
+
+/** The headline numbers, reused by the features page and the home page. */
+export function StatsBand() {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {STATS.map((stat) => (
+        <div key={stat.k} className="rounded-2xl border border-slate-200 bg-white p-5 text-center">
+          <p className="text-2xl font-extrabold tracking-tight">{stat.v}</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{stat.k}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function FeaturesPage({ authed = false }) {
+  return (
+    <PublicShell authed={authed}>
+      <PageHero
+        eyebrow="Features"
+        title="Everything a Ghanaian shop needs, in one login."
+        sub="Built for merchants who sell across the counter, over the phone and online at the same time."
+      />
+      <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURE_CARDS.map(({ Icon, title, body }) => (
+            <div key={title} className="rounded-2xl border border-slate-200 bg-white p-6">
+              <span className="inline-flex rounded-xl bg-blue-50 p-2.5 text-blue-600">
+                <Icon size={22} aria-hidden="true" />
+              </span>
+              <h2 className="mt-4 text-base font-extrabold tracking-tight">{title}</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-12">
+          <StatsBand />
+        </div>
+      </section>
+    </PublicShell>
+  );
+}
+
+export function HowItWorksPage({ authed = false }) {
+  return (
+    <PublicShell authed={authed}>
+      <PageHero
+        eyebrow="How it works"
+        title="Live in three steps."
+        sub="No onboarding call, no paperwork. Most merchants are selling within an hour of registering."
+      />
+      <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
+        <ol className="space-y-5">
+          {STEPS.map((step) => (
+            <li key={step.n} className="flex gap-5 rounded-2xl border border-slate-200 bg-white p-6">
+              <span className="text-2xl font-extrabold text-blue-600">{step.n}</span>
+              <div>
+                <h2 className="text-base font-extrabold tracking-tight">{step.title}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="mt-12 text-center">
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700"
+          >
+            Start free trial <ArrowRight size={16} aria-hidden="true" />
+          </button>
+          <p className="mt-3 text-xs font-semibold text-slate-400">14-day free trial &middot; No card required</p>
+        </div>
+      </section>
+    </PublicShell>
+  );
+}
+
+/* -------------------------------- Pricing --------------------------------- */
+/**
+ * The public pricing page. Prices are FETCHED from the plan catalogue, so an
+ * admin price change appears here immediately - nothing on this page is
+ * hard-coded, and nothing shown here is what gets charged (the server resolves
+ * the amount again from the same catalogue when a seller subscribes).
+ *
+ * A signed-in seller is sent to the upgrade flow with their choice pre-selected;
+ * a visitor is sent to registration, because that is what "choosing" a plan means
+ * before a store exists.
+ */
+export function PricingPage({ authed = false }) {
+  const [cycle, setCycle] = useState('yearly');
+  const { plans, current, loading, error } = usePlans();
+
+  const choose = (plan, { free }) => {
+    // The free trial is not bought - it is granted at registration.
+    navigate(free ? '/login' : authed ? `/settings/plan?plan=${plan.id}&cycle=${cycle}` : '/login');
+  };
+
+  return (
+    <PublicShell authed={authed} wide>
+      <section className="relative overflow-hidden border-b border-slate-900/5 bg-mist/60 py-16 sm:py-20">
+        <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-blue-500/15 blur-3xl" aria-hidden="true" />
+        <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Pricing</span>
+          <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
+            One login. Every tool. Pay as you grow.
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-500">
+            Start free for 14 days with no card. When you are ready, pick a plan and pay by
+            Mobile Money - monthly or yearly. Nothing renews automatically, so you are never
+            surprised by a charge.
+          </p>
+          <div className="mt-8 flex justify-center">
+            <CycleToggle cycle={cycle} onChange={setCycle} />
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+        <PlanGrid
+          plans={plans}
+          cycle={cycle}
+          currentPlanId={current?.plan}
+          loading={loading}
+          error={error}
+          renderAction={(plan, meta) => (
+            <button
+              type="button"
+              onClick={() => choose(plan, meta)}
+              disabled={meta.isCurrent}
+              className={`w-full rounded-xl py-3 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                meta.isCurrent
+                  ? 'cursor-default border border-slate-200 bg-mist text-slate-400'
+                  : 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700'
+              }`}
+            >
+              {meta.isCurrent ? 'Current plan' : meta.free ? 'Start free trial' : `Choose ${plan.name}`}
+            </button>
+          )}
+        />
+
+        <ul className="mx-auto mt-12 grid max-w-3xl gap-3 sm:grid-cols-2">
+          {[
+            'No automatic renewal - you choose when to pay again',
+            'Pay by MTN, Telecel/Vodafone or AT Mobile Money',
+            'Switch plan or billing period whenever you like',
+            'Cancel any time by simply not renewing',
+          ].map((point) => (
+            <li key={point} className="flex items-start gap-2 text-sm text-slate-600">
+              <Check size={16} className="mt-0.5 shrink-0 text-emerald-brand" aria-hidden="true" />
+              <span>{point}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="border-t border-slate-900/5 bg-mist/60 py-12">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <h2 className="text-xl font-extrabold tracking-tight">Still deciding?</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            Start on the free trial and use the full platform for 14 days. You can pick a plan
+            later without losing anything you have set up.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700"
+          >
+            Start free trial <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+    </PublicShell>
+  );
+}
 

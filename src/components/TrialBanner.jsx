@@ -3,7 +3,7 @@
  * Amber during TRIAL / PAST_DUE (grace), crimson once SUSPENDED.
  */
 import { IconTimer, IconAlert, IconCheck } from './icons.jsx';
-import { api } from '../api.js';
+import { navigate } from '../router.js';
 
 function TimerRing({ pct, color }) {
   const r = 15;
@@ -24,7 +24,7 @@ function TimerRing({ pct, color }) {
   );
 }
 
-export default function TrialBanner({ billing, onActivated }) {
+export default function TrialBanner({ billing }) {
   if (!billing || billing.status === 'ACTIVE') return null;
 
   const daysLeft = Number(billing.days_left ?? 0);
@@ -39,13 +39,6 @@ export default function TrialBanner({ billing, onActivated }) {
   const ends = billing.trial_ends_at
     ? new Date(billing.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
-
-  async function activate() {
-    try {
-      await api.post('/api/billing/activate', { planId: 'growth' });
-      onActivated?.();
-    } catch { /* surfaced by caller toast */ }
-  }
 
   return (
     <div className={`flex items-center gap-4 rounded-xl px-4 py-3 ${tone}`}>
@@ -75,8 +68,15 @@ export default function TrialBanner({ billing, onActivated }) {
         </p>
       </div>
 
+      {/*
+        This navigates rather than charging inline. A subscription is a MoMo
+        collection with a plan choice, so it needs the Upgrade page - and the
+        old inline call hit POST /api/billing/activate, which is an ADMIN-only
+        override endpoint, so a seller tapping this always got a 403.
+      */}
       <button
-        onClick={activate}
+        type="button"
+        onClick={() => navigate('/settings/plan')}
         className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 transition"
       >
         {suspended || pastDue ? <IconCheck size={16} /> : <IconTimer size={16} />}

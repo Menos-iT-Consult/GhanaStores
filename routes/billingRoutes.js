@@ -6,23 +6,15 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool, query, withTransaction } from '../config/database.js';
-import { issueStoreToken, requireSeller, requireAdmin } from '../middleware/authMiddleware.js';
+import { issueStoreToken, requireSeller, requireAdmin, optionalSeller } from '../middleware/authMiddleware.js';
 import { sendWelcomeSms } from '../services/smsService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { routeCollection } from '../services/paymentRouter.js';
 import { billingCronHandler } from './billingCronRoute.js';
+import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
 
 const router = Router();
-
-const PLANS = [
-  { id: 'starter', name: 'Starter', priceGhs: 0, tagline: '14-day free trial',
-    features: ['Storefront', 'POS', 'WhatsApp orders'] },
-  { id: 'growth', name: 'Growth', priceGhs: 79, tagline: 'For growing shops',
-    features: ['Custom domain', 'Loyalty engine', 'Rider reconciliation'] },
-  { id: 'scale', name: 'Scale', priceGhs: 199, tagline: 'High-volume merchants',
-    features: ['Priority payouts', 'Advanced analytics', 'Dedicated support'] },
-];
 
 /** Ensure the generated slug is unique; append numeric suffix on collision. */
 async function uniqueSlug(base) {
@@ -145,12 +137,22 @@ router.post('/login', async (req, res, next) => {
 router.get('/status', requireSeller, async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT id, name, status, plan, trial_ends_at, grace_ends_at,
-              GREATEST(0, EXTRACT(EPOCH FROM (trial_ends_at - NOW())) / 86400)::numeric(6,2) AS days_left
+      `SELECT id, name, status, plan, plan_cycle, plan_period_end, trial_ends_at, grace_ends_at,
+              GREATEST(0, EXTRACT(EPOCH FROM (trial_ends_at - NOW())) / 86400)::numeric(6,2) AS days_left,
+              GREATEST(0, EXTRACT(EPOCH FROM (plan_period_end - NOW())) / 86400)::numeric(6,2) AS paid_days_left
          FROM stores WHERE id = $1`,
       [req.auth.sub],
     );
-    res.json({ billing: rows[0] });
+    const store = rows[0] || null;
+    // The plan's current price comes from the catalogue so the banner can say
+    // what the next renewal would cost without hard-coding it.
+    const { byId } = await loadPlanCatalog();
+    const plan = store ? byId.get(store.plan) || null : null;
+    res.json({
+      billing: store
+        ? { ...store, planName: plan?.name || store.plan, monthlyPriceGhs: plan?.monthlyPriceGhs ?? null, yearlyPriceGhs: plan?.yearlyPriceGhs ?? null }
+        : null,
+    });
   } catch (err) {
     next(err);
   }
@@ -168,8 +170,6 @@ router.get('/status', requireSeller, async (req, res, next) => {
 router.post('/subscribe', requireSeller, async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const planId = req.body?.planId || 'growth';
-    const plan = PLANS.find((p) => p.id === planId) || PLANS[1];
     const network = String(req.body?.network || 'MTN').toUpperCase();
     const momoNumber = normalizeGhPhone(req.body?.momoNumber || req.body?.destination);
 
@@ -181,10 +181,16 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
       client.release();
       return res.status(400).json({ error: 'Enter the MoMo number the subscription should be charged from.' });
     }
-    if (!plan || plan.priceGhs <= 0) {
+
+    // The amount is resolved HERE, on the server, from the catalogue - a price
+    // sent by the client is ignored entirely. This also rejects the free trial
+    // and any plan an admin has taken off sale.
+    const offer = await resolveOffer(req.body?.planId, req.body?.cycle);
+    if (!offer.ok) {
       client.release();
-      return res.status(400).json({ error: 'Choose a paid plan to subscribe (starter is the free trial).' });
+      return res.status(400).json({ error: offer.error });
     }
+    const { plan, cycle, amountGhs } = offer;
 
     await client.query('BEGIN');
     const lock = await client.query(
@@ -210,18 +216,18 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
     const reference = `GS-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const attempt = await query(
       `INSERT INTO subscription_payments
-          (store_id, plan_id, amount, momo_number, network, provider, reference, status)
-       VALUES ($1,$2,$3,$4,$5,'PENDING','PENDING',$6,'PENDING')
+          (store_id, plan_id, amount, momo_number, network, provider, reference, cycle, status)
+       VALUES ($1,$2,$3,$4,$5,'PENDING',$6,$7,'PENDING')
        RETURNING id`,
-      [req.auth.sub, plan.id, plan.priceGhs, momoNumber, network, reference],
+      [req.auth.sub, plan.id, amountGhs, momoNumber, network, reference, cycle],
     );
     const attemptId = attempt.rows[0].id;
 
     const collected = await routeCollection({
       customerMsisdn: momoNumber,
-      amount: plan.priceGhs,
+      amount: amountGhs,
       network,
-      description: `DiDwa ${plan.name} plan - ${reference}`,
+      description: `DiDwa ${plan.name} ${cycle} plan - ${reference}`,
       clientReference: reference,
     });
 
@@ -239,30 +245,35 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
     }
 
     // Provider confirmed: activate + close the payment row in one transaction.
+    // plan_period_end is computed server-side from the cycle; it is what the
+    // paid period actually bought, recorded on both the tenant and the payment.
     const done = await withTransaction(async (t) => {
       const activated = await t.query(
         `UPDATE stores
-            SET status = 'ACTIVE', plan = $2
+            SET status = 'ACTIVE', plan = $2, plan_cycle = $3,
+                plan_period_end = NOW() + $4::INTERVAL
           WHERE id = $1 AND status <> 'SUSPENDED'
-          RETURNING id, name, status, plan`,
-        [req.auth.sub, plan.id],
+          RETURNING id, name, status, plan, plan_cycle, plan_period_end`,
+        [req.auth.sub, plan.id, cycle, cycleInterval(cycle)],
       );
       if (!activated.rows[0]) {
         throw Object.assign(new Error('Store cannot be activated in its current state.'), { status: 400 });
       }
       await t.query(
         `UPDATE subscription_payments
-            SET status = 'PAID', provider = $2,
-                gateway_reference = $3, paid_at = NOW()
+            SET status = 'PAID', provider = $2, gateway_reference = $3, paid_at = NOW(),
+                period_start = NOW(), period_end = NOW() + $4::INTERVAL
           WHERE id = $1`,
-        [attemptId, collected.provider || 'HUBTEL', collected.reference || reference],
+        [attemptId, collected.provider || 'HUBTEL', collected.reference || reference, cycleInterval(cycle)],
       );
       return activated.rows[0];
     });
 
     res.json({
-      message: `${plan.name} plan activated for GHS ${plan.priceGhs.toFixed(2)} via ${collected.provider || 'HUBTEL'}. Your storefront stays live.`,
+      message: `${plan.name} (${cycle}) activated for GHS ${amountGhs.toFixed(2)} via ${collected.provider || 'HUBTEL'}. Your storefront stays live.`,
       store: done,
+      plan: { id: plan.id, name: plan.name, cycle, amountGhs },
+      periodEnd: done.plan_period_end,
       provider: collected.provider || 'HUBTEL',
       dryRun: Boolean(collected.dryRun),
     });
@@ -283,14 +294,23 @@ router.post('/activate', requireAdmin, async (req, res, next) => {
     if (!storeId) {
       return res.status(400).json({ error: 'storeId is required for manual activation.' });
     }
-    const planId = req.body?.planId || 'growth';
-    const plan = PLANS.find((p) => p.id === planId) || PLANS[1];
+    const planId = String(req.body?.planId || 'growth').toLowerCase();
+    // An override still has to name a plan that exists - the FK would reject an
+    // unknown slug anyway, but failing here returns a readable message.
+    const { byId } = await loadPlanCatalog();
+    const plan = byId.get(planId);
+    if (!plan) return res.status(400).json({ error: 'Unknown plan.' });
+    const cycle = String(req.body?.cycle || 'monthly').toLowerCase();
+    if (!['monthly', 'yearly'].includes(cycle)) {
+      return res.status(400).json({ error: 'Cycle must be monthly or yearly.' });
+    }
     const { rows } = await query(
       `UPDATE stores
-          SET status = 'ACTIVE', plan = $2
+          SET status = 'ACTIVE', plan = $2, plan_cycle = $3,
+              plan_period_end = NOW() + $4::INTERVAL
         WHERE id = $1 AND status <> 'SUSPENDED'
-        RETURNING id, name, status, plan`,
-      [storeId, plan.id],
+        RETURNING id, name, status, plan, plan_cycle, plan_period_end`,
+      [storeId, plan.id, cycle, cycleInterval(cycle)],
     );
     if (!rows[0]) {
       return res.status(400).json({ error: 'Store not found or suspended.' });
@@ -301,17 +321,38 @@ router.post('/activate', requireAdmin, async (req, res, next) => {
       action: 'billing.activate',
       targetType: 'store',
       targetId: rows[0].id,
-      detail: { name: rows[0].name, plan: rows[0].plan, status: rows[0].status, reason: req.body?.reason || null },
+      detail: { name: rows[0].name, plan: rows[0].plan, cycle, status: rows[0].status, reason: req.body?.reason || null },
     });
-    res.json({ message: `${plan.name} plan activated for ${rows[0].name}.`, store: rows[0] });
+    res.json({ message: `${plan.name} (${cycle}) activated for ${rows[0].name}.`, store: rows[0] });
   } catch (err) {
     next(err);
   }
 });
 
 /* ---------------------------------- Plans ----------------------------------- */
-router.get('/plans', (_req, res) => {
-  res.json({ plans: PLANS, currency: 'GHS' });
+// Public: the pricing page and the seller upgrade dialog both read this, so the
+// prices shown are whatever the admin last saved. No price is ever hard-coded on
+// the client, and a seller token (when present) also gets their current plan so
+// the UI can mark it without a second round trip.
+router.get('/plans', optionalSeller, async (req, res, next) => {
+  try {
+    const plans = await listPublicPlans();
+
+    // A signed-in seller also gets their current plan so the page can mark it
+    // without a second round trip. Visitors simply get null.
+    let current = null;
+    if (req.auth?.sub) {
+      const { rows } = await query(
+        'SELECT plan, plan_cycle, plan_period_end FROM stores WHERE id = $1',
+        [req.auth.sub],
+      );
+      current = rows[0] || null;
+    }
+
+    res.json({ plans, currency: 'GHS', cycles: ['monthly', 'yearly'], current });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

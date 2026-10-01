@@ -6,8 +6,15 @@
  * of a login wall or, worse, a dashboard page the visitor never asked for.
  */
 
-/** Public marketing pages: no dashboard chrome, open to everyone. */
-export const PUBLIC_ROUTES = ['/', '/about', '/contact', '/terms', '/privacy'];
+/**
+ * Public marketing pages: no dashboard chrome, open to everyone.
+ *
+ * These are real routes, not anchors into one long marketing page: a visitor
+ * (or a search engine) can link straight to pricing, features or how-it-works.
+ */
+export const PUBLIC_ROUTES = [
+  '/', '/pricing', '/features', '/how-it-works', '/about', '/contact', '/terms', '/privacy',
+];
 
 /** Seller PWA + platform admin pages (auth-gated in App.jsx). */
 export const PWA_ROUTES = [
@@ -21,6 +28,7 @@ export const PWA_ROUTES = [
   '/admin/logistics',
   '/admin/domains',
   '/admin/pricing',
+  '/admin/plans',
   '/admin/themes',
   '/admin/team',
   '/admin/system',
@@ -29,6 +37,7 @@ export const PWA_ROUTES = [
   '/dashboard',
   '/pos',
   '/settings/payments',
+  '/settings/plan',
   '/inventory',
   '/orders',
   '/themes',

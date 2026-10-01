@@ -13,38 +13,23 @@
  */
 import { useEffect, useState } from 'react';
 import {
-  ArrowRight, BarChart3, BellRing, Check, ChevronRight, Globe,
+  ArrowRight, BarChart3, BellRing, ChevronRight, Globe,
   Menu, MessageCircle, Package, ShieldCheck, Smartphone, Sparkles,
   Wallet, X, Zap,
 } from 'lucide-react';
 import { LogoLockup } from '../components/icons.jsx';
+import { FEATURE_CARDS, STEPS, STATS } from './PublicPages.jsx';
 import { buildLabel } from '../buildInfo.js';
 
-/** Smooth-scroll to an in-page section id. */
-function goTo(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-const FEATURE_CARDS = [
-  { Icon: Smartphone, title: 'Offline-first POS', body: 'Ring up sales with no internet - transactions sync the moment you are back online.' },
-  { Icon: Wallet, title: 'Instant MoMo payouts', body: 'Cash out to MTN, Telecel/Vodafone or AT Money the moment an order settles.' },
-  { Icon: Package, title: 'Inventory that thinks', body: 'Multi-variant stock tracking with automatic low-stock SMS reminders.' },
-  { Icon: MessageCircle, title: 'WhatsApp commerce', body: 'Customers order straight from chat; receipts and fulfilment in one tap.' },
-  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with live theme editing.' },
-  { Icon: BarChart3, title: 'Insights that pay', body: 'Best sellers, cash flow and payout readiness without spreadsheets.' },
-];
-
-const STEPS = [
-  { n: '01', title: 'Create your store', body: 'Register with just a shop name, email and phone number. Your 14-day trial starts instantly - no card needed.' },
-  { n: '02', title: 'Stock your catalog', body: 'Add products with prices, variants and stock counts. Share your storefront link or sell in person.' },
-  { n: '03', title: 'Sell & get paid', body: 'Accept Mobile Money or cash, reconcile rider deliveries and withdraw earnings whenever you like.' },
-];
-
-const STATS = [
-  { v: '10k+', k: 'Active sellers' },
-  { v: 'GHS 2.4M', k: 'Processed monthly' },
-  { v: '<24h', k: 'Payout settlement' },
-  { v: '16', k: 'Regions covered' },
+/**
+ * The nav used to scroll to #features / #how / #stats inside this one page.
+ * Those are real pages now (/features, /how-it-works), so a visitor can link
+ * straight to them - and the home page keeps a condensed version of each.
+ */
+const NAV_LINKS = [
+  ['/features', 'Features'],
+  ['/how-it-works', 'How it works'],
+  ['/pricing', 'Pricing'],
 ];
 
 export default function WelcomePage({ authed = false, onStart, onDashboard }) {
@@ -77,8 +62,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
             <LogoLockup onLight />
           </button>
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-500 lg:flex" aria-label="Sections">
-            {[['features', 'Features'], ['how', 'How it works'], ['stats', 'Why us']].map(([id, label]) => (
-              <button key={id} type="button" onClick={() => goTo(id)} className="transition hover:text-charcoal">{label}</button>
+            {NAV_LINKS.map(([path, label]) => (
+              <a key={path} href={path} className="transition hover:text-charcoal">{label}</a>
             ))}
             <span className="h-4 w-px bg-slate-200" aria-hidden="true" />
             <a href="/about" className="transition hover:text-charcoal">About Us</a>
@@ -139,9 +124,9 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
                   Start your free trial <ArrowRight size={16} aria-hidden="true" />
                 </button>
               )}
-              <button type="button" onClick={() => goTo('how')} className="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+              <a href="/how-it-works" className="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
                 See how it works
-              </button>
+              </a>
             </div>
 
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-semibold text-slate-400">
@@ -195,6 +180,12 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
           <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Everything included</span>
           <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">One login. Every tool your shop needs.</h2>
           <p className="mt-4 text-base text-slate-500">Stop stitching together notebooks, calculators and chat threads - DiDwa runs the whole sale, end to end.</p>
+          <p className="mt-3 text-sm font-semibold text-slate-600">
+            Every plan starts with a 14-day free trial.{' '}
+            <a href="/pricing" className="text-blue-600 underline-offset-2 transition hover:text-blue-700 hover:underline">
+              See pricing
+            </a>
+          </p>
         </div>
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -208,6 +199,12 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
             </article>
           ))}
         </div>
+
+        <p className="mt-10 text-center">
+          <a href="/features" className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-600 transition hover:text-blue-700">
+            See every feature <ChevronRight size={15} aria-hidden="true" />
+          </a>
+        </p>
       </section>
 
       {/* How it works */}
@@ -227,6 +224,12 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
               </li>
             ))}
           </ol>
+
+          <p className="mt-10 text-center">
+            <a href="/how-it-works" className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-600 transition hover:text-blue-700">
+              Read the full walkthrough <ChevronRight size={15} aria-hidden="true" />
+            </a>
+          </p>
         </div>
       </section>
 
@@ -293,8 +296,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
           <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Product links">
             <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Product</p>
-            {[['features', 'Features'], ['how', 'How it works'], ['stats', 'Why us']].map(([id, label]) => (
-              <button key={id} type="button" onClick={() => goTo(id)} className="block transition hover:text-charcoal">{label}</button>
+            {NAV_LINKS.map(([path, label]) => (
+              <a key={path} href={path} className="block transition hover:text-charcoal">{label}</a>
             ))}
             <a href="/login" className="block transition hover:text-charcoal">Seller login</a>
           </nav>
@@ -354,15 +357,15 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
           <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Site menu">
             <p className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Explore</p>
-            {[['features', 'Features'], ['how', 'How it works'], ['stats', 'Why us']].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => { setMenuOpen(false); goTo(id); }}
-                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            {NAV_LINKS.map(([path, label]) => (
+              <a
+                key={path}
+                href={path}
+                onClick={() => setMenuOpen(false)}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal"
               >
                 {label} <ChevronRight size={15} className="text-slate-300" aria-hidden="true" />
-              </button>
+              </a>
             ))}
 
             <p className="px-2 pb-1 pt-5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Company</p>

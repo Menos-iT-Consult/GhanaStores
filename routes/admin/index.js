@@ -15,6 +15,8 @@
  *   logistics  rider transits (read-only)
  *   domains    domain registry and verification retries
  *   themes     the template catalog and its adoption
+ *   pricing    the domain catalogue's wholesale/retail pricing
+ *   plans      the subscription plan catalogue and its monthly/yearly prices
  *   system     database health, integration presence, runtime
  *   audit      the append-only ledger of every admin write
  *
@@ -35,6 +37,7 @@ import themeRoutes from './themes.js';
 import systemRoutes from './system.js';
 import auditRoutes from './audit.js';
 import pricingRoutes from './pricing.js';
+import planRoutes from './plans.js';
 
 const router = Router();
 
@@ -51,6 +54,7 @@ router.use(themeRoutes);
 router.use(systemRoutes);
 router.use(auditRoutes);
 router.use(pricingRoutes);
+router.use(planRoutes);
 
 /**
  * Legacy alias kept for the pre-split client: PATCH /tenants/:id/status became

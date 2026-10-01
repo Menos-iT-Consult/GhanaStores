@@ -22,6 +22,7 @@
     "test:admin-host": "node scripts/adminHostTest.js",
     "test:uploads": "node scripts/uploadTest.js",
     "test:domain-pricing": "node scripts/domainPricingTest.js",
+    "test:plan-pricing": "node scripts/planPricingTest.js",
     "test:catalog": "node scripts/catalogSeedTest.js",
     "test:domain-dns": "node scripts/domainDnsTest.js",
     "test:domain-provisioning": "node scripts/domainProvisioningTest.js",

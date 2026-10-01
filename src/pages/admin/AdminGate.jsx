@@ -30,6 +30,7 @@ import AdminTeam from './AdminTeam.jsx';
 import AdminSystem from './AdminSystem.jsx';
 import AdminAudit from './AdminAudit.jsx';
 import AdminDomainPricing from './AdminDomainPricing.jsx';
+import AdminPlans from './AdminPlans.jsx';
 
 /** Static admin routes, longest-prefix match first (detail routes are dynamic). */
 const ADMIN_ROUTES = [
@@ -42,6 +43,7 @@ const ADMIN_ROUTES = [
   ['/admin/logistics', AdminLogistics],
   ['/admin/domains', AdminDomains],
   ['/admin/pricing', AdminDomainPricing],
+  ['/admin/plans', AdminPlans],
   ['/admin/themes', AdminThemes],
   ['/admin/team', AdminTeam],
   ['/admin/system', AdminSystem],

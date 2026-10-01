@@ -40,7 +40,8 @@ export const ADMIN_NAV = [
     group: 'Configuration',
     items: [
       { path: '/admin/domains', label: 'Domains', icon: Globe },
-  { path: '/admin/pricing', label: 'Domain pricing', icon: Tag },
+      { path: '/admin/pricing', label: 'Domain pricing', icon: Tag },
+      { path: '/admin/plans', label: 'Subscription plans', icon: CreditCard },
       { path: '/admin/themes', label: 'Themes', icon: Palette },
       { path: '/admin/team', label: 'Team', icon: Users },
       { path: '/admin/system', label: 'System', icon: Server },
