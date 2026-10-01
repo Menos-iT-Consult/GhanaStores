@@ -25,6 +25,7 @@
     "test:responsive": "node scripts/responsiveTest.js",
     "test:dashboard-refactor": "node scripts/dashboardRefactorTest.js",
     "test:customizer-render": "node scripts/customizerRenderTest.js",
+    "test:theme-market": "node scripts/themeMarketTest.js",
     "test:payments": "node scripts/paymentTest.js",
     "test:payments-db": "node scripts/paymentDbTest.js",
     "payments:repair-db": "node scripts/paymentDbRepair.js",

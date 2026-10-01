@@ -11,8 +11,9 @@ import { navigate } from '../router.js';
 import { IconCheck, IconAlert } from '../components/icons.jsx';
 import { templateToCustomizerTokens } from '../theme/config.js';
 import { themeGridState } from '../theme/catalogState.js';
+import { ThemeThumb, ThemePreview } from '../theme/preview.jsx';
 import {
-  BadgeCheck, Eye, Filter, LayoutGrid, Palette, Search, Star, X,
+  BadgeCheck, Eye, Filter, LayoutGrid, Maximize2, Palette, Search, X,
 } from 'lucide-react';
 
 const CATEGORY_LABELS = {
@@ -31,68 +32,10 @@ const FILTER_PILLS = [
   { key: 'supermarket', label: 'Supermarket' },
 ];
 
-/** Stable pseudo-rating derived from the template id (catalog cosmetics). */
-function themeRating(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return Math.round((4.3 + (h % 7) / 10) * 10) / 10;
-}
-
-function themeReviews(id) {
-  let h = 7;
-  for (let i = 0; i < id.length; i++) h = (h * 17 + id.charCodeAt(i)) >>> 0;
-  return 40 + (h % 260);
-}
-
-/** Abstract "screenshot" preview banner drawn purely from theme tokens. */
-function ThemeThumb({ palette: p, layout }) {
-  const cols = layout?.gridColumns || 3;
-  const radius = layout?.productCardRounded || '0.5rem';
-  const cells = Array.from({ length: Math.min(cols * 2, 8) });
-  return (
-    <div className="h-full w-full select-none" style={{ background: p.background || '#ffffff' }} aria-hidden="true">
-      <div className="flex h-5 items-center justify-between px-2" style={{ background: p.primary }}>
-        <span className="h-1 w-8 rounded-full" style={{ background: 'rgba(255,255,255,.85)' }} />
-        <span className="h-1 w-4 rounded-full" style={{ background: p.accent }} />
-      </div>
-      {layout?.heroBanner !== false && (
-        <div
-          className="mx-2 mt-1.5 flex h-10 flex-col items-start justify-center gap-1 rounded px-2"
-          style={{ background: `linear-gradient(120deg, ${p.primary} 0%, ${p.accent} 130%)` }}
-        >
-          <span className="h-1.5 w-14 rounded-full bg-white/85" />
-          <span className="h-1 w-9 rounded-full bg-white/50" />
-        </div>
-      )}
-      <div className="grid gap-1.5 p-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
-        {cells.map((_, i) => (
-          <div key={i} className="overflow-hidden border border-slate-200/60" style={{ borderRadius: radius }}>
-            <div className="h-7" style={{ background: i % 2 ? p.secondary : `${p.accent}26` }} />
-            <div className="space-y-1 p-1.5">
-              <span className="block h-1 w-4/5 rounded-full bg-slate-300" />
-              <span className="block h-1 w-2/5 rounded-full" style={{ background: p.accent }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Stars({ value }) {
-  const filled = Math.round(value);
-  return (
-    <span className="flex items-center gap-0.5" aria-label={`Rated ${value.toFixed(1)} out of 5`}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Star key={n} size={12} className={n <= filled ? 'fill-amber-400 text-amber-400' : 'text-slate-300'} />
-      ))}
-    </span>
-  );
-}
-
-function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomize, isSolo }) {
-  const pal = theme.config?.palette || {};
-  const rating = themeRating(theme.id);
+function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomize, onSolo, isSolo }) {
+  const cfg = theme.config || {};
+  const layout = cfg.layout || {};
+  const radius = cfg.borderRadius?.base || layout.productCardRounded || '0.5rem';
   return (
     <article
       className={`group relative overflow-hidden rounded-2xl border bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/70 ${
@@ -108,50 +51,102 @@ function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomiz
         </div>
       )}
 
-      <div className={`relative aspect-[16/10] overflow-hidden ${isActive ? '' : 'border-b border-slate-100'}`}>
-        <ThemeThumb palette={pal} layout={theme.config?.layout} />
-
-        {/* Hover quick-actions - keyboard reachable via focus-within */}
-        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2.5 bg-slate-900/55 opacity-0 backdrop-blur-[1.5px] transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+      {/* Expandable card: collapsed shows the top of the real storefront,
+          expanded (solo) reveals the whole theme at a readable scale. */}
+      {isSolo ? (
+        <div className="relative border-b border-slate-100">
+          <ThemePreview config={cfg} />
           <button
             type="button"
-            onClick={onPreview}
-            className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-charcoal shadow-sm transition hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            onClick={onSolo}
+            aria-label="Collapse theme preview"
+            className="absolute right-2.5 top-2.5 z-20 flex items-center gap-1 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-bold text-charcoal shadow-md transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            <Eye size={14} /> Live Preview
-          </button>
-          <button
-            type="button"
-            onClick={() => (isActive ? onCustomize(theme) : onApply(theme))}
-            disabled={!isActive && isApplying}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            {isApplying ? <LayoutGrid size={14} className="animate-spin" /> : isActive ? <Palette size={14} /> : <IconCheck size={14} />}
-            {isApplying ? 'Applying' : isActive ? 'Customize' : 'Apply Theme'}
+            <X size={13} /> Collapse
           </button>
         </div>
+      ) : (
+        <div className={`relative aspect-[16/10] overflow-hidden ${isActive ? '' : 'border-b border-slate-100'}`}>
+          <ThemeThumb config={cfg} />
 
-        {!isActive && isApplying && (
-          <span className="absolute left-2.5 top-2.5 z-20 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-md">
-            <LayoutGrid size={11} /> Applying
-          </span>
-        )}
-      </div>
+          {/* Hover quick-actions - keyboard reachable via focus-within */}
+          <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-slate-900/55 opacity-0 backdrop-blur-[1.5px] transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+              type="button"
+              onClick={onPreview}
+              className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-charcoal shadow-sm transition hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <Eye size={14} /> Live Preview
+            </button>
+            <button
+              type="button"
+              onClick={onSolo}
+              className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-charcoal shadow-sm transition hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <Maximize2 size={14} /> Expand
+            </button>
+            <button
+              type="button"
+              onClick={() => (isActive ? onCustomize(theme) : onApply(theme))}
+              disabled={!isActive && isApplying}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              {isApplying ? <LayoutGrid size={14} className="animate-spin" /> : isActive ? <Palette size={14} /> : <IconCheck size={14} />}
+              {isApplying ? 'Applying' : isActive ? 'Customize' : 'Apply Theme'}
+            </button>
+          </div>
+
+          {!isActive && isApplying && (
+            <span className="absolute left-2.5 top-2.5 z-20 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-md">
+              <LayoutGrid size={11} /> Applying
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="p-3.5">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-1 text-sm font-bold text-charcoal" title={theme.name}>{theme.name}</h3>
-          <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-slate-700">
-            <Stars value={rating} /> {rating.toFixed(1)}
-          </span>
-        </div>
+        <h3 className="line-clamp-1 text-sm font-bold text-charcoal" title={theme.name}>{theme.name}</h3>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
             {CATEGORY_LABELS[theme.category] || theme.category}
           </span>
-          <span className="ml-auto text-[10px] font-medium text-slate-400">{themeReviews(theme.id)} reviews</span>
+          {/* Real, checkable traits from the template config. The card used to
+              show a hashed fake star rating and a fake review count, which
+              implied social proof that does not exist. */}
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            {cfg.typography?.headingFont?.split(',')[0] || 'System'} font
+          </span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            {cfg.borderRadius?.name || 'Custom'} corners
+          </span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            {layout.gridColumns || 3}-col grid
+          </span>
         </div>
+
+        {/* Expanded view gets its actions inline; the collapsed card puts them
+            in the hover overlay, which is hidden while a preview is showing. */}
+        {isSolo && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => (isActive ? onCustomize(theme) : onApply(theme))}
+              disabled={!isActive && isApplying}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              {isApplying ? <LayoutGrid size={14} className="animate-spin" /> : isActive ? <Palette size={14} /> : <IconCheck size={14} />}
+              {isApplying ? 'Applying' : isActive ? 'Customize this theme' : 'Apply this theme'}
+            </button>
+            <button
+              type="button"
+              onClick={onPreview}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-charcoal transition hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <Eye size={14} /> Open interactive demo
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );
@@ -166,6 +161,8 @@ export default function SellerThemeMarketplace() {
   const [feedback, setFeedback] = useState(null);
   const [catalogError, setCatalogError] = useState('');
   const [loading, setLoading] = useState(true);
+  /* Which card is expanded to a full, readable preview. Null = all collapsed. */
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -184,6 +181,9 @@ export default function SellerThemeMarketplace() {
   }, []);
 
   const visible = useMemo(() => {
+    /* An expanded card is shown on its own, whatever the filters say - it is
+       the theme the seller asked to look at. */
+    if (expandedId) return themes.filter((t) => t.id === expandedId);
     const q = search.trim().toLowerCase();
     let list = themes.filter((t) => {
       if (!q) return true;
@@ -191,7 +191,16 @@ export default function SellerThemeMarketplace() {
     });
 
     if (pill === 'popular') {
-      list = [...list].sort((a, b) => themeRating(b.id) - themeRating(a.id));
+      /* Was sorted by themeRating(), a hash of the id - i.e. arbitrary. Now it
+         sorts on real template attributes: a hero-led layout reads as more
+         feature-rich than a bare product grid, then more product columns. */
+      list = [...list].sort((a, b) => {
+        const score = (t) => {
+          const l = t.config?.layout || {};
+          return (l.heroBanner !== false ? 100 : 0) + (l.gridColumns || 0) * 5;
+        };
+        return score(b) - score(a) || a.name.localeCompare(b.name);
+      });
     } else if (pill === 'minimal') {
       list = list.filter((t) => {
         const l = t.config?.layout || {};
@@ -245,7 +254,11 @@ export default function SellerThemeMarketplace() {
   }
 
   const activeTheme = themes.find((t) => t.id === activeId);
-  const soloActive = activeTheme && visible.length === 1 && visible[0].id === activeId;
+  /* Expanding one card shows that theme alone at a readable scale. Filters are
+     left untouched so collapsing restores the seller's exact previous view. */
+  const toggleSolo = (theme) => {
+    setExpandedId((cur) => (cur === theme.id ? null : theme.id));
+  };
 
   return (
     <div className="min-h-screen space-y-5 bg-slate-100/60 p-4 pb-16 sm:p-6">
@@ -328,8 +341,10 @@ export default function SellerThemeMarketplace() {
         <p className="text-xs font-medium text-slate-500" aria-live="polite">
           {gridState === 'no-catalog'
             ? 'No templates published'
-            : `Showing ${visible.length} of ${themes.length} templates`}
-          {pill !== 'popular' ? ` - ${FILTER_PILLS.find((p) => p.key === pill)?.label}` : ''}
+            : expandedId
+              ? `${visible[0]?.name || 'Theme'} — expanded preview`
+              : `Showing ${visible.length} of ${themes.length} templates`}
+          {!expandedId && pill !== 'popular' ? ` - ${FILTER_PILLS.find((p) => p.key === pill)?.label}` : ''}
         </p>
         {activeTheme && (
           <p className="hidden items-center gap-1.5 text-xs font-bold text-emerald-700 sm:flex">
@@ -373,14 +388,17 @@ export default function SellerThemeMarketplace() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        /* One expanded card takes the full width so the whole theme is legible;
+           otherwise fall back to the responsive grid. */
+        <div className={expandedId ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}>
           {visible.map((t) => (
             <ThemeCard
               key={t.id}
               theme={t}
               isActive={t.id === activeId}
               isApplying={applyingId === t.id}
-              isSolo={soloActive}
+              isSolo={expandedId === t.id}
+              onSolo={() => toggleSolo(t)}
               onApply={applyTheme}
               onPreview={() => openDemo(t)}
               onCustomize={openCustomizer}

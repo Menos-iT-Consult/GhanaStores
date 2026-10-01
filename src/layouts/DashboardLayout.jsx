@@ -29,6 +29,8 @@ import { navigate, usePathname } from '../router.js';
 import MainSidebar from './dashboard/MainSidebar.jsx';
 import CustomizerSidebar from './dashboard/customizer/CustomizerSidebar.jsx';
 import { useThemeDraft } from './dashboard/useThemeDraft.js';
+import { useUnsavedChanges } from './dashboard/useUnsavedChanges.js';
+import UnsavedChangesDialog from './dashboard/UnsavedChangesDialog.jsx';
 import { CUSTOMIZER_ROUTE } from './dashboard/constants.js';
 
 export default function DashboardLayout({ children }) {
@@ -43,7 +45,7 @@ export default function DashboardLayout({ children }) {
 
   const {
     customTheme, setCustomTheme, isPublishing, publishSuccess,
-    onPublish, onResetDefaults, seedFromThemeConfig,
+    onPublish, onResetDefaults, onDiscardChanges, isDirty, seedFromThemeConfig,
   } = useThemeDraft();
 
   /* '/dashboard' matches exactly only - theme sub-routes belong to
@@ -104,7 +106,16 @@ export default function DashboardLayout({ children }) {
   /* Leaving customizer mode: the target route is not CUSTOMIZER_ROUTE, which
      closes the drawer and restores the dark primary nav sidebar. */
   const onBack = () => onNavigate('/dashboard/themes');
-return (
+
+  /* Warn before unsaved theme edits are lost. Guarded on isCustomizerOpen so
+     the prompt only appears while the customizer is actually on screen - a
+     dirty draft must not block navigation everywhere else in the dashboard. */
+  const guard = useUnsavedChanges(isDirty && isCustomizerOpen, {
+    onSave: onPublish,
+    onDiscard: onDiscardChanges,
+  });
+
+  return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* Off-canvas scrim - tap to dismiss the drawer sheet (<768px) */}
       <button
@@ -178,6 +189,16 @@ return (
         </header>
         {children}
       </main>
+
+      {/* Unsaved-changes prompt. Rendered at the shell level so it covers the
+          customizer rail and the dashboard content alike. */}
+      <UnsavedChangesDialog
+        open={guard.pending}
+        leaving={guard.leaving}
+        onSave={() => guard.resolveLeave('save')}
+        onDiscard={() => guard.resolveLeave('discard')}
+        onStay={() => guard.resolveLeave('stay')}
+      />
     </div>
   );
 }
