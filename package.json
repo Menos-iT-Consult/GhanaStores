@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "test:routing": "node scripts/routeTest.js",
     "test:retired-schema": "node scripts/retiredSchemaTest.js",
+    "test:admin-sql": "node scripts/adminSqlTest.js",
     "test:developer-guide": "node scripts/developerGuideTest.js",
     "test:admin": "node scripts/adminApiTest.js",
     "test:admin-host": "node scripts/adminHostTest.js",
