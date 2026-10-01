@@ -37,12 +37,14 @@ router.get('/system', requireAdmin, async (_req, res, next) => {
       database = { ok: false, latencyMs: null, error: err.message };
     }
 
+    // The row counts deliberately exclude the retired payouts table: the schema
+    // renames it to payouts_retired, so counting it made this whole endpoint
+    // 503 with a schema_missing fault. scripts/retiredSchemaTest.js guards that.
     const [counts, growth, auditTrail] = await Promise.all([
       query(`SELECT (SELECT COUNT(*) FROM stores)::int     AS stores,
                     (SELECT COUNT(*) FROM products)::int    AS products,
                     (SELECT COUNT(*) FROM orders)::int      AS orders,
                     (SELECT COUNT(*) FROM customers)::int   AS customers,
-                    (SELECT COUNT(*) FROM payouts)::int     AS payouts,
                     (SELECT COUNT(*) FROM store_domains)::int AS domains,
                     (SELECT COUNT(*) FROM theme_templates)::int AS themes,
                     (SELECT COUNT(*) FROM platform_admins)::int AS admins,

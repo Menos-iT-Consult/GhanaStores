@@ -42,7 +42,6 @@ function GrowthBars({ rows }) {
 const ATTENTION_DOT = {
   merchant_suspended: 'bg-rose-500',
   merchant_past_due: 'bg-amber-500',
-  payout_review: 'bg-amber-500',
   domain_failed: 'bg-amber-500',
   payment_failed: 'bg-rose-500',
 };

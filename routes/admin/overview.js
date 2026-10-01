@@ -47,14 +47,25 @@ router.get('/overview', requireAdmin, async (_req, res, next) => {
               WHERE status IN ${PAID}
               GROUP BY day ORDER BY day`),
 
-      query(`SELECT s.id, s.name, s.slug, s.plan, s.status,
+      // The column is stores.subdomain_slug, aliased back to `slug` because that
+      // is the field name the client renders. Selecting a non-existent `s.slug`
+      // raised "column s.slug does not exist", which the error middleware also
+      // maps to a 503 schema_missing - so the whole overview page reported the
+      // service as not set up even on a correctly migrated database.
+      query(`SELECT s.id, s.name, s.subdomain_slug AS slug, s.plan, s.status,
                     COALESCE(SUM(o.total), 0) AS revenue, COUNT(o.id)::int AS orders
                FROM stores s
                JOIN orders o ON o.store_id = s.id AND o.status IN ${PAID}
-              GROUP BY s.id, s.name, s.slug, s.plan, s.status
+              GROUP BY s.id, s.name, s.subdomain_slug, s.plan, s.status
               ORDER BY revenue DESC LIMIT 10`),
 
       // One ranked list of "things a human should look at", worst first.
+      // NOTE: the instant-payout leg was removed with the payouts table itself.
+      // Customer money settles directly in each merchant's own gateway account,
+      // so DiDwa no longer holds a balance and there is no payout queue to
+      // review. Reading the retired table here threw "relation payouts does not
+      // exist", which the error middleware maps to a 503 and the whole
+      // overview page showed as "not fully set up yet".
       query(`SELECT * FROM (
           SELECT 'merchant_suspended' AS kind, s.name AS label, s.id AS ref,
                  'Merchant suspended' AS note, s.created_at AS at
@@ -62,11 +73,6 @@ router.get('/overview', requireAdmin, async (_req, res, next) => {
           UNION ALL
           SELECT 'merchant_past_due', s.name, s.id, 'Past due', s.created_at
             FROM stores s WHERE s.status = 'PAST_DUE'
-          UNION ALL
-          SELECT 'payout_review', s.name, p.id,
-                 'Payout awaiting approval: ' || p.amount, p.initiated_at
-            FROM payouts p JOIN stores s ON s.id = p.store_id
-           WHERE p.status = 'PENDING_REVIEW'
           UNION ALL
           SELECT 'domain_failed', d.domain_name, d.id,
                  'Domain ' || d.status, d.created_at
