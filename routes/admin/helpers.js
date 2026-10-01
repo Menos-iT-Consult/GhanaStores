@@ -49,11 +49,24 @@ export function readListQuery(req, { defaultLimit = 25, maxLimit = 100, sorts = 
 }
 
 /**
- * Run a count + page query built from the SAME params, so a row can never be
- * counted under one filter and returned under another.
+ * Run a count + page query built from the SAME filter params, so a row can
+ * never be counted under one filter and returned under another.
+ *
+ * `params` holds the FILTERS only. LIMIT/OFFSET are appended here, for the rows
+ * query alone.
+ *
+ * This split is deliberate: passing the full array to `countSql` as well - which
+ * has no placeholder for them - made Postgres reject the bind with "bind
+ * message supplies N parameters, but prepared statement requires M" (SQLSTATE
+ * 08P01), and every paginated admin list endpoint answered 500 with "Something
+ * went wrong on our side". Callers therefore pass filters, not row bindings.
  */
 export async function paged({ countSql, rowsSql, params = [], page, limit, offset }) {
-  const [count, rows] = await Promise.all([query(countSql, params), query(rowsSql, params)]);
+  const rowParams = [...params, limit, offset];
+  const [count, rows] = await Promise.all([
+    query(countSql, params),
+    query(rowsSql, rowParams),
+  ]);
   const total = Number(count.rows[0]?.total || 0);
   return {
     rows: rows.rows,

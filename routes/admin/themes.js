@@ -38,7 +38,7 @@ router.get('/themes', requireAdmin, async (req, res, next) => {
                   FROM theme_templates t ${where}
                  ORDER BY ${plan.orderBy} NULLS LAST
                  LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      params: [...params, plan.limit, plan.offset],
+      params,
       page: plan.page,
       limit: plan.limit,
       offset: plan.offset,
