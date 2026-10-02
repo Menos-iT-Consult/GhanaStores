@@ -17,7 +17,16 @@ router.get('/themes', requireAdmin, async (req, res, next) => {
   try {
     const plan = readListQuery(req, {
       defaultLimit: 25,
-      sorts: { name: 't.name', category: 't.category', adoption: 'stores_using', created: 't.created_at' },
+      sorts: {
+        /* Numeric, for the same reason as the catalogue query: a lexical sort
+        on "Theme NN" places "Theme 100" before "Theme 11". The CASE, not a
+        NULLIF, is what makes a non-numeric name safe - regexp_replace returns
+        its input unchanged on no-match, which would abort the cast. */
+        name: "CASE WHEN t.name ~ '^Theme [0-9]+$' THEN regexp_replace(t.name, '^Theme ([0-9]+)$', '\\1')::int END",
+        category: 't.category',
+        adoption: 'stores_using',
+        created: 't.created_at',
+      },
     });
     const category = String(req.query.category || '').trim();
     const filters = [];

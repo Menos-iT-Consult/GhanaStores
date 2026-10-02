@@ -211,7 +211,14 @@ export function buildPresets() {
         globalIndex++;
 
         const id = `${category.key}-${palette.key}-${layout.key}-${border.key}`;
-        const name = `${category.label} · ${palette.name} (${palette.tag}) · ${layout.key}`;
+        /* Sellers pick from a grid of 100 cards, so the name has to be short and
+           scannable. The descriptive form this replaced ("Fashion & Apparel ·
+           Golden Hour (Warm Amber) · wide_nohero_list") ran to three clauses and
+           leaked a raw machine key. Numbered in generation order instead, which
+           is stable because the id is derived from the same loop.
+           Padded to two digits so a lexical sort matches the numeric one for
+           01-99; the catalogue query sorts numerically to cover 100 itself. */
+        const name = `Theme ${String(globalIndex).padStart(2, '0')}`;
         const config = buildConfig(category, palette, layout, border);
 
         presets.push({ id, name, category: category.key, config });

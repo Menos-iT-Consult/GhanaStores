@@ -33,7 +33,19 @@ router.get('/themes', async (req, res, next) => {
     const { rows } = await query(
       `SELECT id, name, category, config, created_at
          FROM theme_templates
-        ORDER BY category ASC, name ASC`,
+        /* Sort on the numeric suffix, not the name. Names run "Theme 01" to
+           "Theme 100", and a lexical sort puts "Theme 100" before "Theme 11"
+           because '1' = '1' then '0' < '1'.
+           The CASE is load-bearing: regexp_replace returns its INPUT UNCHANGED
+           when the pattern does not match, so a NULLIF guard on it does nothing
+           and a hand-inserted name like "Handmade" aborts the whole query with
+           "invalid input syntax for type integer". CASE yields real NULL, which
+           NULLS LAST then sorts after the numbered rows within its category. */
+        ORDER BY category ASC,
+                 CASE WHEN name ~ '^Theme [0-9]+$'
+                      THEN regexp_replace(name, '^Theme ([0-9]+)$', '\\1')::int
+                 END ASC NULLS LAST,
+                 name ASC`,
     );
     res.json({
       themes: rows.map((r) => ({
