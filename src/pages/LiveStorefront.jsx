@@ -318,6 +318,9 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
           customer, setCustomer, onSubmit: checkout, busy, message,
           error: checkoutError, method: payMethod,
         }}
+        /* Lets the storefront contact form know which store to file the message
+           against; null in the customizer preview. */
+        storeSlug={tenant?.subdomainSlug || null}
       />
     </div>
   );

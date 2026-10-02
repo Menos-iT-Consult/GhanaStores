@@ -38,6 +38,7 @@ import systemRoutes from './system.js';
 import auditRoutes from './audit.js';
 import pricingRoutes from './pricing.js';
 import planRoutes from './plans.js';
+import contactRoutes from './contact.js';
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router.use(systemRoutes);
 router.use(auditRoutes);
 router.use(pricingRoutes);
 router.use(planRoutes);
+router.use(contactRoutes);
 
 /**
  * Legacy alias kept for the pre-split client: PATCH /tenants/:id/status became

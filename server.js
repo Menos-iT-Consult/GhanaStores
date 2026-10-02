@@ -41,6 +41,7 @@ import billingCronRoute from './routes/billingCronRoute.js';
 import themeRoutes from './routes/themeRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
 import { startBillingCron } from './jobs/billingCron.js';
 
 dotenv.config();
@@ -160,6 +161,7 @@ app.use('/api/webhooks', webhookRouter);
 app.use('/api', themeRoutes);
 // Order management: public checkout + seller fulfillment console.
 app.use('/api', orderRoutes);
+app.use('/api', contactRoutes);
 
 app.use('/api', apiNotFound);
 

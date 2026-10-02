@@ -24,6 +24,7 @@ import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
 import SellerPlan from './pages/SellerPlan.jsx';
+import SellerMessages from './pages/SellerMessages.jsx';
 import SellerInventory from './pages/SellerInventory.jsx';
 import SellerOrders from './pages/SellerOrders.jsx';
 import SellerThemeSelector from './pages/SellerThemeSelector.jsx';
@@ -198,6 +199,7 @@ export default function App() {
       case '/pos': return <SellerPOS />;
       case '/settings/payments': return <SellerPaymentSettings />;
       case '/settings/plan': return <SellerPlan />;
+case '/messages': return <SellerMessages />;
       case '/inventory': return <SellerInventory />;
       case '/orders': return <SellerOrders />;
       case '/themes': return <SellerThemeSelector />;

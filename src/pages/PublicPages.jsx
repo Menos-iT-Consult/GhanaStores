@@ -13,7 +13,8 @@ import {
   ArrowRight, BarChart3, Check, Globe, Mail, MapPin, MessageCircle,
   Package, Phone, Scale, Send, ShieldCheck, Smartphone, Wallet, Zap,
 } from 'lucide-react';
-import { LogoLockup } from '../components/icons.jsx';
+import { LogoLockup, IconSpinner } from '../components/icons.jsx';
+import { api } from '../api.js';
 import PlanGrid, { CycleToggle } from '../components/PlanGrid.jsx';
 import { usePlans } from '../lib/plans.js';
 import { getPlatformDomain } from '../config.js';
@@ -164,6 +165,32 @@ export function AboutPage({ authed = false }) {
 /* ------------------------------- Contact Us ------------------------------- */
 export function ContactPage({ authed = false }) {
   const [sent, setSent] = useState(false);
+  /* The form used to call preventDefault() and flip straight to "Message
+     received", which DISCARDED every submission while telling the visitor it
+     had arrived. It now posts to the API and only reports success once the
+     message is genuinely stored. */
+  const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', topic: 'Sales question', message: '' });
+  const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  async function submitContact(e) {
+    e.preventDefault();
+    if (sending) return;
+    setSending(true);
+    setFormError('');
+    try {
+      await api.post('/api/contact', form);
+      setSent(true);
+      setForm({ name: '', email: '', topic: 'Sales question', message: '' });
+    } catch (err) {
+      // Stay on the form and keep what they typed, so a failed send costs them
+      // nothing.
+      setFormError(err.message || 'Could not send your message. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  }
   const cards = [
     { Icon: Mail, label: 'Email us', value: contactEmail(), href: `mailto:${contactEmail()}` },
         { Icon: Phone, label: 'Call support', value: CONTACT_PHONE_RAW, href: `tel:${CONTACT_PHONE_E164}` },
@@ -208,28 +235,32 @@ export function ContactPage({ authed = false }) {
               <button type="button" onClick={() => setSent(false)} className="mt-5 text-xs font-bold text-blue-600 underline">Send another</button>
             </div>
           ) : (
-            <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} className="space-y-4">
+            <form onSubmit={submitContact} className="space-y-4">
               <h2 className="text-lg font-extrabold">Send a message</h2>
+              {formError && (
+                <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{formError}</p>
+              )}
               <label className="block space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full name</span>
-                <input required type="text" placeholder="Ama Mensah" className={inputCls} />
+                <input required type="text" name="name" value={form.name} onChange={setField('name')} placeholder="Ama Mensah" className={inputCls} />
               </label>
               <label className="block space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</span>
-                <input required type="email" placeholder="you@example.com" className={inputCls} />
+                <input required type="email" name="email" value={form.email} onChange={setField('email')} placeholder="you@example.com" className={inputCls} />
               </label>
               <label className="block space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Topic</span>
-                <select className={inputCls}>
+                <select name="topic" value={form.topic} onChange={setField('topic')} className={inputCls}>
                   <option>Sales question</option><option>Payouts &amp; MoMo</option><option>Technical support</option><option>Partnership</option>
                 </select>
               </label>
               <label className="block space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Message</span>
-                <textarea required rows={4} placeholder="Tell us what you need..." className={`${inputCls} resize-none`} />
+                <textarea required rows={4} name="message" value={form.message} onChange={setField('message')} placeholder="Tell us what you need..." className={`${inputCls} resize-none`} />
               </label>
-              <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:from-blue-700 hover:to-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-                <Send size={15} aria-hidden="true" /> Send message
+              <button type="submit" disabled={sending} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:from-blue-700 hover:to-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-60">
+                {sending ? <IconSpinner size={15} aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
+                {sending ? 'Sending...' : 'Send message'}
               </button>
             </form>
           )}

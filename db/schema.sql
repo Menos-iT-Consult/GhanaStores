@@ -223,6 +223,40 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX IF NOT EXISTS customers_store_idx ON customers (store_id);
 
+-- ------------------------------------------------------------ contact inbox
+-- Messages from the two public contact forms.
+--
+--   source = 'platform'   the /contact page on the marketing site -> super admin
+--   source = 'storefront' the "Contact seller" form on a tenant storefront
+--
+-- store_id is NULL for platform messages and set for storefront ones. That
+-- single column is what scopes the seller's inbox: the seller API filters on it,
+-- so a seller can only ever read their own store's leads. It is ON DELETE CASCADE
+-- so deleting a test store takes its messages with it rather than orphaning rows.
+--
+-- status is 'new' | 'read' | 'archived'. Kept as one column rather than two
+-- booleans because 'archived' and 'unread' are not independent: archiving an
+-- unread message should clear the badge, and with separate flags it would not.
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source       TEXT NOT NULL DEFAULT 'platform'
+                 CHECK (source IN ('platform', 'storefront')),
+  store_id     UUID REFERENCES stores(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  email        TEXT NOT NULL,
+  phone        TEXT,
+  topic        TEXT,
+  message      TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'new'
+                 CHECK (status IN ('new', 'read', 'archived')),
+  read_at      TIMESTAMPTZ,
+  archived_at  TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS contact_messages_store_idx   ON contact_messages (store_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS contact_messages_status_idx ON contact_messages (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS contact_messages_created_idx ON contact_messages (created_at DESC);
+
 -- ------------------------------------------------------------ orders
 CREATE TABLE IF NOT EXISTS orders (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import {
-  Activity, Boxes, CreditCard, Globe, LayoutDashboard, LogOut,
+  Activity, Boxes, CreditCard, Globe, LayoutDashboard, LogOut, Mail,
   Menu, Palette, Receipt, ScrollText, Server, ShieldAlert, Store, Tag, Truck, Users,
 } from 'lucide-react';
 import { navigate, usePathname } from '../router.js';
@@ -46,6 +46,7 @@ export const ADMIN_NAV = [
       { path: '/admin/team', label: 'Team', icon: Users },
       { path: '/admin/system', label: 'System', icon: Server },
       { path: '/admin/audit', label: 'Audit log', icon: ScrollText },
+    { path: '/admin/contact', label: 'Contact inbox', icon: Mail },
     ],
   },
 ];

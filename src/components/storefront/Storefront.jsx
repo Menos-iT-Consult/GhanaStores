@@ -71,6 +71,7 @@ export default function StorefrontRouter({
   onSetQty = null,
   onRemove = null,
   checkout = null,
+  storeSlug = null,
 }) {
   const t = useTokens(config, viewportWidth);
   const Body = PAGE_BODIES[page] || HomeBody;
@@ -91,6 +92,9 @@ export default function StorefrontRouter({
     onSetQty,
     onRemove,
     checkout,
+    /* Only set on the LIVE shop. Page bodies must gate any write on isLive as
+       well, so previewing a theme in the customizer cannot create real leads. */
+    storeSlug,
   };
 
   return (
