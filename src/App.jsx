@@ -232,7 +232,13 @@ export default function App() {
     /* Wait for the server before mounting the storefront: without this the
        apex renders a storefront for a moment and requests itself as a slug. */
     if (hostState.status === 'pending') {
-      return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading store...</div>;
+      /* Deliberately no splash and no logo here. This request is what RETURNS
+         the seller's logo, so any branded mark painted during this window would
+         be the platform's own - the visitor would see DiDwa and then watch it
+         swap to someone else's shop. A blank background for these few frames is
+         strictly better than showing the wrong brand; the real splash mounts in
+         LiveStorefront once the logo is in hand. */
+      return <div className="min-h-screen bg-white" aria-hidden="true" />;
     }
     /* No live store owns this host - mistyped, closed or suspended address.
        Render the branded Store Not Found page, not a bare error string. */

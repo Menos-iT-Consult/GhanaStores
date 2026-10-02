@@ -7,6 +7,7 @@ import {
   templateToCustomizerTokens,
 } from '../theme/config.js';
 import StorefrontRouter, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
+import StorefrontSplash from '../components/StorefrontSplash.jsx';
 import { useContainerTier } from '../lib/responsive.js';
 import { getPlatformDomain } from '../config.js';
 
@@ -68,6 +69,13 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   const [products, setProducts] = useState([]);
   const [theme, setTheme] = useState(null);
   const [cart, setCart] = useState([]);
+  /* Whether every boot request has settled. Distinct from `tenant`, which is
+     set as soon as the host resolves - before the catalogue, theme and payment
+     methods have arrived. */
+  const [booted, setBooted] = useState(false);
+  /* The splash has finished its minimum hold and faded out. Separate from
+     `booted` because the splash outlives the data by design. */
+  const [splashDone, setSplashDone] = useState(false);
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
   const [message, setMessage] = useState('');
   // Whether `message` is a failure, so the checkout form colours it red.
@@ -145,6 +153,11 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       const active = String(methods?.activeGateway || '').toUpperCase();
       const offered = Array.isArray(methods?.methods) ? methods.methods : [];
       if (offered.includes(active)) setPayMethod(active);
+      /* Every request has now settled (each one degrades to null rather than
+         throwing), so the storefront is genuinely paintable. The splash waits
+         for this instead of unmounting the moment `tenant` arrives, which used
+         to reveal the shop with an empty product grid that then filled in. */
+      if (live) setBooted(true);
     })();
     return () => { live = false; };
   }, []);
@@ -220,7 +233,33 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
     finally { setBusy(false); }
   }
 
-  if (!tenant && !message) return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading store...</div>;
+  /* The branded boot screen, held until the catalogue, theme and payment methods
+     have all settled and then released on the splash's own minimum-hold timer.
+     Replaces a bare "Loading store..." string. The message check keeps a real
+     failure (store not found, unreachable host) showing the error rather than an
+     eternal splash. */
+  if (!splashDone && !message) {
+    return (
+      <StorefrontSplash
+        /* tenant.logoUrl is the pre-sized rendition from the resolve payload;
+           the theme's branding.logo_url is the fallback for stores whose logo
+           only arrives with the theme. */
+        logoUrl={tenant?.logoUrl || config?.branding?.logo_url}
+        /* site_title is what the storefront header itself prints, and
+           resolveStorefrontTheme has already resolved it to the seller's typed
+           title or the real store name - so the two cannot disagree. */
+        storeName={config?.branding?.site_title || tenant?.name}
+        colors={config?.colors}
+        ready={booted}
+        onDone={() => setSplashDone(true)}
+      />
+    );
+  }
+  /* Keyed on `splashDone` alone, NOT on `!tenant`. The splash has a safety
+     timeout that releases it even when the tenant never arrives; were the
+     condition to keep re-arming on a missing tenant, that release would remount
+     the splash and start the whole cycle again, forever. Falling through to the
+     error branch instead terminates cleanly. */
   if (!tenant) return <div className="flex min-h-screen items-center justify-center text-red-600">{message}</div>;
 
   return (
