@@ -99,7 +99,8 @@ export function classifyHost(rawHost) {
  * stored value. See services/storage.js.
  */
 const TENANT_COLUMNS = `id, name, subdomain_slug, custom_domain, whatsapp_number,
-  phone, momo_number, status, currency, loyalty_points_per_ghs, loyalty_point_value, logo_url`;
+  phone, momo_number, status, currency, loyalty_points_per_ghs, loyalty_point_value, logo_url,
+  active_theme_id, custom_theme_config`;
 
 /** Normalises a Host header into a bare lowercase hostname (port stripped). */
 export function normalizeHost(rawHost) {

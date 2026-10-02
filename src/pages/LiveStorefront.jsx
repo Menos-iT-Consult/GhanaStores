@@ -173,10 +173,28 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
 
   const displayProducts = useMemo(() => (products || []).map(toDisplayProduct), [products]);
 
+  /* The theme to paint with RIGHT NOW, preferring the copy already inlined in the
+     resolve payload. That payload arrives in the same response as the logo, so
+     the splash can mount in the seller's real colours immediately instead of
+     waiting for /api/store/theme/public to finish - that wait was the blank
+     screen ahead of the splash. When the dedicated theme request does land it
+     supersedes this with the same data, so nothing repaints.
+     Null only when neither source has answered, which is the one case where a
+     neutral hold is correct: there is nothing to paint yet. */
+  const bootTheme = useMemo(() => {
+    if (theme) return theme;
+    const inline = resolvedHost?.tenant?.theme;
+    if (!inline) return null;
+    return resolveStorefrontTheme(
+      { templateConfig: inline.templateConfig, theme: { name: inline.name } },
+      resolvedHost.tenant,
+    );
+  }, [theme, resolvedHost]);
+
   /* Identity (store name, WhatsApp number) is already layered on by
      resolveStorefrontTheme, so this only supplies a default when no theme
      resolved at all. */
-  const config = useMemo(() => theme || normalizeCustomThemeConfig({}), [theme]);
+  const config = useMemo(() => bootTheme || normalizeCustomThemeConfig({}), [bootTheme]);
 
   function addToCart(product, variant, qty = 1) {
     const variants = product.variants || [];
@@ -248,13 +266,13 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
      failure (store not found, unreachable host) showing the error rather than an
      eternal splash. */
   if (!splashDone && !message) {
-    /* Hold a blank background until the real theme is in hand. The splash
-       paints the seller's palette, so mounting it before the theme arrives
-       would show the DEFAULT green and then repaint in the seller's colours -
-       the exact flash this is meant to prevent. Blank matches the blank the
-       host-resolve phase already painted in App.jsx, so nothing flickers
-       between the two. */
-    if (!theme) return <div className="min-h-screen bg-white" aria-hidden="true" />;
+    /* Hold a neutral background only if NEITHER theme source has answered.
+       Normally the resolve payload already carries the theme, so the splash
+       mounts in the same paint as the logo and this branch is never taken. If
+       it is, painting the default palette here would be the flash this is meant
+       to prevent, so a blank - matching the one App.jsx paints during host
+       resolve - is the correct thing to show. */
+    if (!bootTheme) return <div className="min-h-screen bg-white" aria-hidden="true" />;
     return (
       <StorefrontSplash
         /* tenant.logoUrl is the pre-sized rendition from the resolve payload;

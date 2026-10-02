@@ -117,6 +117,21 @@ router.get('/resolve', async (req, res, next) => {
       });
     }
     const s = req.tenantStore;
+    /* The active theme's template config, fetched HERE rather than left to the
+       client's separate /api/store/theme/public call. That call only finishes
+       after this response, so a storefront that waits for it has nothing to
+       paint in between - the browser showed a blank screen before the splash.
+       Returning the same two layers this endpoint already returns them in
+       (template tokens, seller overrides) means resolveStorefrontTheme consumes
+       them unchanged. Best-effort: a theme lookup failure must not fail host
+       resolution, it just falls back to the schema defaults.
+       A store with no active theme costs no query at all. */
+    const template = s.active_theme_id
+      ? await query(
+        'SELECT name, config FROM theme_templates WHERE id = $1 LIMIT 1',
+        [s.active_theme_id],
+      ).then((r) => ({ name: r.rows[0]?.name || '', config: r.rows[0]?.config || {} })).catch(() => ({ name: '', config: {} }))
+      : { name: '', config: {} };
     res.json({
       platformDomain: req.platformDomain,
       tenant: {
@@ -131,6 +146,13 @@ router.get('/resolve', async (req, res, next) => {
         // the theme (and therefore the storefront render) has finished loading.
         logoUrl: buildDeliveryUrl(s.logo_url, RENDITIONS.logo),
         faviconUrl: buildDeliveryUrl(s.logo_url, RENDITIONS.favicon),
+        /* Same shape as GET /api/store/theme/public, so the storefront can paint
+           its splash in the seller's colours the instant this lands. */
+        theme: {
+          name: template.name,
+          templateConfig: template.config || {},
+          overrides: s.custom_theme_config || {},
+        },
       },
       // A tenant host is never the admin host, but the client still needs the
       // canonical admin URL to redirect /admin to.
