@@ -143,9 +143,18 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       ]);
       if (!live) return;
       setProducts(catalog?.products || []);
-      if (themed?.theme?.config || themed?.templateConfig) {
-        setTheme(resolveStorefrontTheme(themed, resolved.tenant));
-      }
+      /* ALWAYS resolved, never conditionally. Two things depend on it.
+       resolveStorefrontTheme already handles an absent config (it falls back to
+       the schema defaults), so the old guard bought nothing and only made a
+       null `theme` ambiguous: it meant both "still loading" and "this store has
+       no theme". The boot splash needs those two states to be distinguishable,
+       because it must not paint the default palette and then repaint it in the
+       seller's colours. Setting it unconditionally makes a non-null `theme`
+       mean exactly one thing: the real theme is known.
+       It also fixes a store with no theme rendering the "My DiDwa Store"
+       placeholder as its header, since resolveStorefrontTheme falls back to
+       the real store name. */
+      setTheme(resolveStorefrontTheme(themed, resolved.tenant));
       /* Trust the server's activeGateway only if it is genuinely offered: it
          validates readiness, whereas a hand-edited response naming an
          unconfigured rail would send the customer to a gateway that cannot
@@ -239,6 +248,13 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
      failure (store not found, unreachable host) showing the error rather than an
      eternal splash. */
   if (!splashDone && !message) {
+    /* Hold a blank background until the real theme is in hand. The splash
+       paints the seller's palette, so mounting it before the theme arrives
+       would show the DEFAULT green and then repaint in the seller's colours -
+       the exact flash this is meant to prevent. Blank matches the blank the
+       host-resolve phase already painted in App.jsx, so nothing flickers
+       between the two. */
+    if (!theme) return <div className="min-h-screen bg-white" aria-hidden="true" />;
     return (
       <StorefrontSplash
         /* tenant.logoUrl is the pre-sized rendition from the resolve payload;
