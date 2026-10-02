@@ -9,9 +9,12 @@
  *
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, setSession } from '../api.js';
 import ErrorNotice from '../components/ErrorNotice.jsx';
+import SubdomainField from '../components/SubdomainField.jsx';
+import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../../services/subdomainSlug.js';
+import { getPlatformDomain } from '../config.js';
 import {
   AlertCircle, ArrowRight, Eye, EyeOff, Lock,
   LogIn, Mail, Phone, ShieldCheck, Store, UserPlus, Zap,
@@ -87,8 +90,20 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
   const [showPw, setShowPw] = useState(false);
   const [acceptsTerms, setAcceptsTerms] = useState(false);
   const [form, setForm] = useState({
-    name: '', ownerName: '', email: '', phone: '', password: '',
+    name: '', ownerName: '', email: '', phone: '', password: '', subdomain: '',
   });
+  /* Once the seller edits the address themselves, the shop name must stop
+     overwriting it. Derived slug, they can type; derived slug they never touch,
+     it stays in step with what they called their shop. */
+  const [slugTouched, setSlugTouched] = useState(false);
+
+  /* Keep the suggested address in step with the shop name until it is edited. */
+  useEffect(() => {
+    if (slugTouched) return;
+    setForm((f) => (f.subdomain === normalizeSubdomain(f.name)
+      ? f
+      : { ...f, subdomain: normalizeSubdomain(f.name) }));
+  }, [form.name, slugTouched]);
 
   function set(k) {
     return (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -109,6 +124,16 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
       return;
     }
     setError('');
+    /* Refuse locally on anything the server would reject anyway, so the seller
+       is told before the round trip. The server re-checks regardless - this is
+       convenience, never the authority. */
+    if (mode === 'register') {
+      const problem = subdomainProblem(form.subdomain);
+      if (problem) {
+        setError(SUBDOMAIN_MESSAGES[problem]);
+        return;
+      }
+    }
     setBusy(true);
     try {
       const path = mode === 'register' ? '/api/billing/register' : '/api/billing/login';
@@ -226,6 +251,13 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                       autoComplete="organization"
                     />
                   </Field>
+                  {/* The address they will actually be given. Sits directly under
+                      the shop name because it is derived from it until they edit it. */}
+                  <SubdomainField
+                    value={form.subdomain}
+                    onChange={(next) => { setSlugTouched(true); set('subdomain')(next); }}
+                    apex={getPlatformDomain()}
+                  />
                   <Field id="phone" label="Ghana mobile number" icon={Phone}>
                     <input
                       id="phone"

@@ -15,6 +15,7 @@ import { requireSeller } from '../middleware/authMiddleware.js';
 import { adminDomain, resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
 import { priceDomainForPurchase } from '../services/domainPricing.js';
+import { normalizeSubdomain, subdomainProblem } from '../services/subdomainSlug.js';
 import * as domainService from '../services/domainService.js';
 
 /** Lowercase, strip scheme/path/whitespace - the canonical form of a domain. */
@@ -159,6 +160,39 @@ router.get('/resolve', async (req, res, next) => {
       isAdminHost: Boolean(req.isAdminHost),
       adminDomain: adminDomain(),
       ...req.tenantInfo,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------- Subdomain availability (signup) ----------------- */
+/**
+ * GET /api/domains/subdomain-available?slug=acme
+ *
+ * Public by necessity: a seller picks their address on the signup form, before
+ * any session exists. It exposes only whether ONE slug is taken, which is the
+ * same information the registration attempt itself would reveal.
+ *
+ * Returns { available, reason, slug } where reason is 'ok' | 'invalid' |
+ * 'reserved' | 'taken'.
+ */
+router.get('/subdomain-available', async (req, res, next) => {
+  try {
+    const slug = normalizeSubdomain(req.query.slug);
+    if (!slug) return res.json({ available: false, reason: 'invalid', slug: '' });
+    /* Well-formedness and the reserved list are decided locally, so a nonsense
+       slug costs no query. */
+    const problem = subdomainProblem(slug);
+    if (problem) return res.json({ available: false, reason: problem, slug });
+    const { rows } = await query(
+      'SELECT 1 FROM stores WHERE subdomain_slug = $1 LIMIT 1',
+      [slug],
+    );
+    res.json({
+      available: rows.length === 0,
+      reason: rows.length === 0 ? 'ok' : 'taken',
+      slug,
     });
   } catch (err) {
     next(err);

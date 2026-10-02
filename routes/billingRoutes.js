@@ -10,6 +10,7 @@ import { issueStoreToken, requireSeller, requireAdmin, optionalSeller } from '..
 import { sendWelcomeSms } from '../services/smsService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
+import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../services/subdomainSlug.js';
 import { routeCollection } from '../services/paymentRouter.js';
 import { billingCronHandler } from './billingCronRoute.js';
 import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
@@ -35,7 +36,7 @@ router.get('/cron', billingCronHandler);
 /* --------------------------------- Register -------------------------------- */
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, ownerName, email, phone, password, whatsappNumber, momoNumber } = req.body || {};
+    const { name, ownerName, email, phone, password, whatsappNumber, momoNumber, subdomain } = req.body || {};
 
     if (!name || !email || !phone || !password) {
       return res.status(400).json({ error: 'Shop name, email, phone and password are required.' });
@@ -56,7 +57,31 @@ router.post('/register', async (req, res, next) => {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
 
-    const slug = await uniqueSlug(slugifyStoreName(name));
+    /* The seller's CHOSEN address, when the signup form supplied one. Taken
+       verbatim - never silently substituted with a generated one, because the
+       form promised them this exact URL. */
+    /* Whether the seller picked their own address. Decided once, because the insert
+       retry below has to know which collision policy applies. */
+    const sellerChoseSlug = Boolean(String(subdomain || '').trim());
+    let slug;
+    if (sellerChoseSlug) {
+      const wanted = normalizeSubdomain(subdomain);
+      /* Same validator the availability tick used, so a green tick and this
+         verdict can never disagree. */
+      const problem = subdomainProblem(wanted);
+      if (problem) {
+        return res.status(400).json({ error: SUBDOMAIN_MESSAGES[problem] });
+      }
+      const { rows } = await query('SELECT 1 FROM stores WHERE subdomain_slug = $1 LIMIT 1', [wanted]);
+      if (rows.length > 0) {
+        return res.status(409).json({ error: SUBDOMAIN_MESSAGES.taken });
+      }
+      slug = wanted;
+    } else {
+      /* No choice made: keep the historical behaviour of deriving one from the
+         shop name, so every existing signup flow is unaffected. */
+      slug = await uniqueSlug(slugifyStoreName(name));
+    }
     const hash = await bcrypt.hash(password, 12);
 
     // trial_ends_at / grace_ends_at are stamped by trg_stores_auto_trial trigger.
@@ -85,6 +110,13 @@ router.post('/register', async (req, res, next) => {
           const again = await query('SELECT 1 FROM stores WHERE LOWER(email) = $1 LIMIT 1', [emailLower]);
           if (again.rows.length > 0) {
             return res.status(409).json({ error: 'An account with this email already exists.' });
+          }
+          /* Someone else claimed the address between the availability tick and
+             this insert. Retrying with a random suffix would hand the seller a
+             URL they never chose, so report the collision instead and let them
+             pick again. The auto-generated path keeps its old retry behaviour. */
+          if (sellerChoseSlug) {
+            return res.status(409).json({ error: SUBDOMAIN_MESSAGES.taken });
           }
           continue;
         }
