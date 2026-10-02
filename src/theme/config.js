@@ -67,10 +67,14 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     show_social: true,
     show_payments: true,
   },
+  /* Social handles, NOT on/off flags. These used to be booleans, which made the
+     footer render three inert icons with nothing to link to. A handle is now the
+     only switch: blank means the icon does not appear at all, so there is no
+     separate "show" toggle to forget and no way to publish a dead icon. */
   social: {
-    instagram: true,
-    facebook: true,
-    tiktok: false,
+    instagram: '',
+    facebook: '',
+    tiktok: '',
   },
   product_page: {
     breadcrumbs: true,
@@ -132,8 +136,13 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     about_title: 'Our Story',
     about_body: 'We source authentic, high-quality goods directly from trusted makers and farmers across the country, so every purchase supports local families and communities.',
     contact_email: 'hello@didwaghana.com',
-    contact_phone: '+233 20 123 4567',
-    contact_address: '12 Oxford Street, Osu, Ghana',
+    /* Empty, NOT a sample number. This used to ship "+233 20 123 4567", which
+       is not a placeholder that degrades gracefully - it is a live-looking
+       number that a real store published as its own call button, because the
+       storefront layered the store's phone over this only when the value was
+       absent. See resolveStorefrontTheme in pages/LiveStorefront.jsx. */
+    contact_phone: '',
+    contact_address: '',
   },
   advanced: {
     custom_css: '',
@@ -141,7 +150,32 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
 };
 
 /**
- * Deep-merge two theme configs: nested objects merge, scalars (and nulls) from
+ * Build a profile URL from a seller's handle.
+ *
+ * Handles are what the seller types ("amashop"), not URLs, because a pasted URL
+ * is easy to get wrong and produces a dead link. Tolerates a pasted "@amashop" or
+ * a full profile URL anyway, so nobody is stuck if they paste the wrong thing.
+ *
+ * Returns '' for a blank handle - callers must treat that as "hide this icon",
+ * which is what keeps a dead social icon off the storefront.
+ */
+export function socialUrl(network, handle) {
+  /* Legacy guard. Stores saved before handles existed have booleans here
+     (instagram: true), and String(true) would otherwise build a real-looking
+     "instagram.com/true" link. A boolean can never be a handle, so treat it as
+     absent - those icons correctly disappear until the seller types a handle. */
+  if (typeof handle === 'boolean') return '';
+  const raw = String(handle || '').trim();
+  if (!raw) return '';
+  // Already a full URL: use it as-is.
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const clean = raw.replace(/^@+/, '').replace(/^\/+/, '').replace(/\/+$/, '').trim();
+  if (!clean) return '';
+  if (network === 'tiktok') return `https://tiktok.com/@${clean}`;
+  return `https://${network}.com/${clean}`;
+}
+
+/** Deep-merge two theme configs: nested objects merge, scalars (and nulls) from
  * `override` win. Shared by normalizeCustomThemeConfig and the storefront, so a
  * seller override and a stored config always layer the same way.
  *

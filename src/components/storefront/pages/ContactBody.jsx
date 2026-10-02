@@ -43,15 +43,20 @@ export default function ContactBody({ t, ctx }) {
     }
   }
   const pc = c.pages_content || {};
+  /* Kept for the form's placeholder/submit copy only - the contact CARDS below
+     read the single phone from pc.contact_phone, not from here. */
   const cc = c.contact_content || {};
-  /* The WhatsApp card used to point at a hard-coded demo number. It now uses
-     the store's own number, and the card drops out entirely when unset rather
-     than sending customers to someone else's business. */
-  const waDigits = String(cc.whatsapp_number || c.features.whatsapp_number || '').replace(/\D/g, '');
+  /* One number everywhere: the seller's signup phone, or their later customizer
+     override, resolved upstream in resolveStorefrontTheme. Both cards read it. */
+  const rawPhone = String(pc.contact_phone || c.features.whatsapp_number || '');
+  /* wa.me and tel: both need the country code. Ghana's local form starts 0, so
+     "0244123456" must become "233244123456" - linking wa.me/0244123456 silently
+     opens nothing, which is how the storefront shipped a dead WhatsApp button. */
+  const intlDigits = rawPhone.replace(/\D/g, '').replace(/^0/, '233');
   const cards = [
-    { Icon: Mail, label: 'Email', value: pc.contact_email, href: `mailto:${pc.contact_email}` },
-    { Icon: Phone, label: 'Phone', value: pc.contact_phone, href: `tel:${String(pc.contact_phone).replace(/\s/g, '')}` },
-    waDigits ? { Icon: MessageCircle, label: 'WhatsApp', value: 'Chat with support', href: `https://wa.me/${waDigits}` } : null,
+    pc.contact_email ? { Icon: Mail, label: 'Email', value: pc.contact_email, href: `mailto:${pc.contact_email}` } : null,
+    rawPhone ? { Icon: Phone, label: 'Phone', value: rawPhone, href: `tel:+${intlDigits}` } : null,
+    intlDigits ? { Icon: MessageCircle, label: 'WhatsApp', value: 'Chat with us', href: `https://wa.me/${intlDigits}` } : null,
   ].filter(Boolean);
   const inputCls = 'w-full rounded-lg border bg-white px-3 py-2 text-xs outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
 

@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { navigate } from '../router.js';
 import { IconCheck, IconAlert } from '../components/icons.jsx';
-import { templateToCustomizerTokens } from '../theme/config.js';
+import { templateToCustomizerTokens, mergeThemeConfig, normalizeCustomThemeConfig } from '../theme/config.js';
 import { themeGridState } from '../theme/catalogState.js';
 import { ThemeThumb, ThemePreview } from '../theme/preview.jsx';
 import {
@@ -157,6 +157,9 @@ export default function SellerThemeMarketplace() {
   const [search, setSearch] = useState('');
   const [pill, setPill] = useState('popular');
   const [activeId, setActiveId] = useState(null);
+  /* The seller's saved customisations, re-layered over the template when the
+     customizer opens so switching themes never discards their work. */
+  const [overrides, setOverrides] = useState({});
   const [applyingId, setApplyingId] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [catalogError, setCatalogError] = useState('');
@@ -175,7 +178,13 @@ export default function SellerThemeMarketplace() {
       .catch((e) => { if (alive) setCatalogError(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     api.get('/api/store/theme')
-      .then((mine) => { if (alive) setActiveId(mine.activeThemeId || null); })
+      .then((mine) => {
+        if (!alive) return;
+        setActiveId(mine.activeThemeId || null);
+        /* Kept so opening the customizer can re-layer the seller's own
+           customisations over whatever template is active. */
+        setOverrides(mine.overrides || {});
+      })
       .catch((e) => { if (alive) setFeedback({ ok: false, msg: `Could not read your active theme: ${e.message}` }); });
     return () => { alive = false; };
   }, []);
@@ -247,9 +256,16 @@ export default function SellerThemeMarketplace() {
   /* Open the customizer PRE-SEEDED with the given (active) theme's config
      so it never opens with the default token schema. */
   function openCustomizer(theme) {
-    window.dispatchEvent(
-      new CustomEvent('gs:open-customizer', { detail: templateToCustomizerTokens(theme) }),
+    /* Template tokens first, the seller's saved overrides ON TOP.
+       Seeding with the template alone used to throw their customisations away:
+       switching template then clicking "Customize" reset the draft to the new
+       template's defaults, so colours, logo, contact details and copy all
+       reverted with no warning and no undo. Same layering the storefront
+       resolver uses. */
+    const seeded = normalizeCustomThemeConfig(
+      mergeThemeConfig(templateToCustomizerTokens(theme), overrides),
     );
+    window.dispatchEvent(new CustomEvent('gs:open-customizer', { detail: seeded }));
     navigate('/dashboard/themes/customizer');
   }
 

@@ -4,6 +4,7 @@
  * accepted-payment badges. Rendered by both the live shop and the customizer.
  */
 import { Facebook, Instagram, MessageCircle, Music2, Send, CreditCard } from 'lucide-react';
+import { socialUrl } from '../../theme/config.js';
 
 /**
  * The footer link columns. Entries marked `page` navigate to a real storefront
@@ -29,12 +30,16 @@ const COMPANY_LINKS = [
 export default function StorefrontFooter({ t, onNavigate }) {
   const { c, footColumns } = t;
   const f = c.footer || {};
+  /* Every entry is [href, Icon, label]. A network appears ONLY when it has
+     something to link to - the icons used to be plain <span>s driven by
+     booleans, so they rendered on every storefront but went nowhere. */
+  const waDigits = String(c.features?.whatsapp_number || '').replace(/\D/g, '').replace(/^0/, '233');
   const socials = [
-    [c.social.instagram, Instagram, 'Instagram'],
-    [c.social.facebook, Facebook, 'Facebook'],
-    [c.social.tiktok, Music2, 'TikTok'],
-    [c.features.enable_whatsapp_buy, MessageCircle, 'WhatsApp'],
-  ].filter(([on]) => on);
+    [socialUrl('instagram', c.social?.instagram), Instagram, 'Instagram'],
+    [socialUrl('facebook', c.social?.facebook), Facebook, 'Facebook'],
+    [socialUrl('tiktok', c.social?.tiktok), Music2, 'TikTok'],
+    [c.features?.enable_whatsapp_buy && waDigits ? `https://wa.me/${waDigits}` : '', MessageCircle, 'WhatsApp'],
+  ].filter(([href]) => Boolean(href));
 
   const linkCls = 'block transition hover:underline';
 
@@ -44,12 +49,13 @@ export default function StorefrontFooter({ t, onNavigate }) {
         <div className="space-y-2">
           <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>{c.branding.site_title}</p>
           <p className="text-[11px] leading-relaxed opacity-70">{f.blurb}</p>
-          {f.show_social && (
+          {f.show_social && socials.length > 0 && (
             <div className="flex gap-2 pt-1">
-              {socials.map(([on, Icon, label]) => (
-                <span key={label} title={label} className="grid h-7 w-7 place-items-center rounded-md opacity-70 ring-1 ring-current transition hover:opacity-100">
+              {socials.map(([href, Icon, label]) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer" title={label} aria-label={label}
+                  className="grid h-7 w-7 place-items-center rounded-md opacity-70 ring-1 ring-current transition hover:opacity-100">
                   <Icon size={13} aria-hidden="true" />
-                </span>
+                </a>
               ))}
             </div>
           )}

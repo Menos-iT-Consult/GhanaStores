@@ -54,12 +54,30 @@ export function resolveStorefrontTheme(resolved, tenantMeta) {
     || merged.branding?.site_title
     || 'My DiDwa Store';
 
+  /* The number the seller gave at signup becomes the storefront's call number
+     and its WhatsApp. Ordering, and why:
+       1. the seller's own customizer override  - "unless changed later"
+       2. the store's signup phone
+       3. whatever the template/merged config already had
+     The signup phone had to be layered HERE rather than left to the template,
+     because pages_content.contact_phone defaults to '' and a store that never
+     edited it would otherwise publish no number at all. WhatsApp reads the same
+     value deliberately: one number everywhere, so a seller who gave only a
+     phone still gets a working WhatsApp card instead of none. */
+  const typedPhone = resolved?.overrides?.pages_content?.contact_phone;
+  const storePhone = tenantMeta?.phone;
+  const contactPhone = (typeof typedPhone === 'string' && typedPhone.trim())
+    || storePhone
+    || merged.pages_content?.contact_phone
+    || '';
+
   return {
     ...merged,
     branding: { ...merged.branding, site_title: siteTitle },
+    pages_content: { ...merged.pages_content, contact_phone: contactPhone },
     features: {
       ...merged.features,
-      ...(tenantMeta?.whatsappNumber ? { whatsapp_number: tenantMeta.whatsappNumber } : {}),
+      ...(contactPhone ? { whatsapp_number: contactPhone } : {}),
     },
   };
 }

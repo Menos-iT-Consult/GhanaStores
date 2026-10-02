@@ -56,9 +56,30 @@ export function FooterSection({ t, str, num, b }) {
         <ToggleRow label="Show social icons" value={t.footer.show_social} onChange={b('footer.show_social')} />
         {t.footer.show_social && (
           <ConditionalGroup>
-            <ToggleRow label="Instagram" value={t.social.instagram} onChange={b('social.instagram')} />
-            <ToggleRow label="Facebook" value={t.social.facebook} onChange={b('social.facebook')} />
-            <ToggleRow label="TikTok" value={t.social.tiktok} onChange={b('social.tiktok')} />
+            {/* Handles, not on/off switches. The icon appears exactly when a
+                handle is present, so there is no separate toggle to forget and
+                no way to publish an icon that links nowhere. */}
+            {[
+              ['Instagram', 'instagram', 'amashop'],
+              ['Facebook', 'facebook', 'amashop'],
+              ['TikTok', 'tiktok', 'amashop'],
+            ].map(([label, key, ph]) => (
+              <label key={key} className="block space-y-1">
+                <span className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                  <span>{label} handle</span>
+                  {typeof t.social[key] === 'string' && t.social[key]
+                    ? <span className="text-[10px] font-bold text-emerald-600">Linked</span>
+                    : <span className="text-[10px] font-semibold text-slate-400">Hidden</span>}
+                </span>
+                <input
+                  type="text"
+                  value={typeof t.social[key] === 'string' ? t.social[key] : ''}
+                  onChange={(e) => str(`social.${key}`)(e)}
+                  placeholder={ph}
+                  className={INPUT_CLS}
+                />
+              </label>
+            ))}
           </ConditionalGroup>
         )}
       </div>

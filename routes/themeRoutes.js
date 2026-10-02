@@ -295,6 +295,15 @@ router.get('/store/theme', requireSeller, async (req, res, next) => {
     const row = rows[0];
     res.json({
       activeThemeId: row?.theme_id || null,
+      /* The seller's overrides, UNMERGED, alongside the merged theme below.
+         theme.config is a union of the template's shape and the seller's
+         customizer tokens, which is ambiguous to read - the customizer would
+         fall back to schema defaults for every template key. Exposing the two
+         layers separately is what lets the customizer open on
+         "new template + my saved customisations" instead of overwriting the
+         customisations with the new template. Same contract the public endpoint
+         and the storefront resolver already use. */
+      overrides: row?.custom_theme_config || {},
       theme: row && row.theme_id
         ? {
             id: row.theme_id,

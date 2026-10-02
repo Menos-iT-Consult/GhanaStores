@@ -13,7 +13,7 @@ import {
 import {
   ArrowLeft, Monitor, Smartphone, Tablet, X, BadgeCheck, Star, Palette,
 } from 'lucide-react';
-import { templateToCustomizerTokens } from '../theme/config.js';
+import { templateToCustomizerTokens, mergeThemeConfig, normalizeCustomThemeConfig } from '../theme/config.js';
 
 const CATEGORY_BADGES = {
   fashion: 'Fashion & Apparel',
@@ -348,6 +348,9 @@ export default function ThemeDemoViewer({ templateId }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [applying, setApplying] = useState(false);
   const [published, setPublished] = useState(false);
+  /* The seller's saved overrides, layered back over the template when the
+     customizer opens from this preview. */
+  const [overrides, setOverrides] = useState({});
   const [toast, setToast] = useState(null);
   const [isActiveTheme, setIsActiveTheme] = useState(false);
 
@@ -364,6 +367,7 @@ export default function ThemeDemoViewer({ templateId }) {
       try {
         const mine = await api.get('/api/store/theme');
         setIsActiveTheme(Boolean(mine?.activeThemeId && mine.activeThemeId === res?.theme?.id));
+        setOverrides(mine?.overrides || {});
       } catch {
         setIsActiveTheme(false);
       }
@@ -410,11 +414,13 @@ export default function ThemeDemoViewer({ templateId }) {
       navigate('/dashboard/themes/customizer');
       return;
     }
-    window.dispatchEvent(
-      new CustomEvent('gs:open-customizer', {
-        detail: templateToCustomizerTokens({ name: theme.name, config: theme.config }),
-      }),
+    /* Same layering as the marketplace: template tokens first, the seller's
+       saved overrides on top, so opening the customizer from a preview never
+       discards their customisations. */
+    const seeded = normalizeCustomThemeConfig(
+      mergeThemeConfig(templateToCustomizerTokens({ name: theme.name, config: theme.config }), overrides),
     );
+    window.dispatchEvent(new CustomEvent('gs:open-customizer', { detail: seeded }));
     navigate('/dashboard/themes/customizer');
   }
 
