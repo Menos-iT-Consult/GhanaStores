@@ -25,6 +25,7 @@
     "test:domain-pricing": "node scripts/domainPricingTest.js",
     "test:plan-pricing": "node scripts/planPricingTest.js",
     "test:billing-lifecycle": "node scripts/billingLifecycleTest.js",
+    "test:sms": "node scripts/smsProviderTest.js",
     "test:catalog": "node scripts/catalogSeedTest.js",
     "test:domain-dns": "node scripts/domainDnsTest.js",
     "test:domain-provisioning": "node scripts/domainProvisioningTest.js",

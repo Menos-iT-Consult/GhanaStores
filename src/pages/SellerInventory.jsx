@@ -1,7 +1,7 @@
 /**
  * Product & Multi-Variant Inventory manager (Module 6).
  * Create products with size/colour variants, per-variant stock and custom
- * re-order thresholds that drive automatic Arkesel low-stock SMS alerts.
+ * re-order thresholds that drive automatic mNotify low-stock SMS alerts.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api, ghs } from '../api.js';

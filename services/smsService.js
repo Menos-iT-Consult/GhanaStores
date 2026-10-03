@@ -1,17 +1,28 @@
 /**
- * DiDwa - Arkesel Transactional SMS Service
- * https://developers.arkesel.com/
+ * DiDwa - mNotify Transactional SMS Service
+ * https://mnotify.com/ (API: https://api.mnotify.com/api)
  *
- * When ARKESEL_API_KEY is missing the service runs in DRY_RUN mode:
+ * When MNOTIFY_API_KEY is missing the service runs in DRY_RUN mode:
  * messages are logged to the console instead of being dispatched,
  * so local development never fails on integrations.
+ *
+ * mNotify contract (verified against the official TS + Laravel SDKs):
+ *   POST {base}/sms/quick?key={apiKey}
+ *   Headers: Authorization: {apiKey}, Content-Type: application/json
+ *   Body:    { recipient: string[], sender, message, is_schedule, schedule_date }
+ *
+ * Note the recipient field is SINGULAR but still an array. Sending a bare
+ * string here is the single most common integration mistake.
+ *
+ * The sender ID must be registered and approved on the mNotify account
+ * (`DiDwa`) before live delivery will succeed.
  */
 import axios from 'axios';
 import { formatGhs } from '../utils/helpers.js';
 
-const ARKESEL_BASE = process.env.ARKESEL_BASE_URL || 'https://sms.arkesel.com/api/v2';
-const API_KEY = process.env.ARKESEL_API_KEY || '';
-const SENDER_ID = process.env.ARKESEL_SENDER_ID || 'DiDwa';
+const MNOTIFY_BASE = process.env.MNOTIFY_BASE_URL || 'https://api.mnotify.com/api';
+const API_KEY = process.env.MNOTIFY_API_KEY || '';
+const SENDER_ID = process.env.MNOTIFY_SENDER_ID || 'DiDwa';
 
 /** Serverless safety: cap the HTTP attempt so it finishes inside Vercel's
  *  function time budget (Hobby maxDuration = 10s) instead of 504ing. */
@@ -20,9 +31,16 @@ const ON_VERCEL = Boolean(process.env.VERCEL);
 export const smsDryRun = !API_KEY;
 
 const client = axios.create({
-  baseURL: ARKESEL_BASE,
+  baseURL: MNOTIFY_BASE,
   timeout: ON_VERCEL ? 8_000 : 15_000,
-  headers: { 'api-key': API_KEY, 'Content-Type': 'application/json' },
+  headers: {
+    Authorization: API_KEY,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+  // mNotify accepts the key as a `key` query param as well as the header;
+  // send both so auth succeeds regardless of which one the account uses.
+  params: { key: API_KEY },
 });
 
 /** Low-level send. `recipients`: array of normalized 233XXXXXXXXX numbers. */
@@ -36,14 +54,20 @@ export async function sendSms(recipients, message) {
   }
 
   try {
-    const { data } = await client.post('/sms/send', {
+    const { data } = await client.post('/sms/quick', {
+      recipient: list,
       sender: SENDER_ID,
-      recipients: list,
       message,
+      is_schedule: false,
+      schedule_date: '',
     });
-    const ok = data?.status === 'success' || data?.code === 'ok' || data?.data;
-    if (!ok) console.error('[sms] unexpected Arkesel response:', JSON.stringify(data));
-    return { ok: Boolean(ok), raw: data };
+    // Success is signalled by `status`/`code`; `summary._id` is the campaign
+    // ID needed to poll the delivery report at /campaign/{id}.
+    const ok = data?.status === 'success' || data?.code === 'ok' || Boolean(data?.summary?._id);
+    const messageId = data?.summary?._id || null;
+    if (!ok) console.error('[sms] unexpected mNotify response:', JSON.stringify(data));
+    else console.log('[sms] accepted by mNotify', { campaignId: messageId, recipients: list.length });
+    return { ok: Boolean(ok), messageId, raw: data };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     console.error('[sms] dispatch failed:', detail);

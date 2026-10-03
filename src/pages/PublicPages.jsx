@@ -436,7 +436,7 @@ const PRIVACY_SECTIONS = [
   },
   {
     h: 'Sharing with third parties',
-    ps: ['We do not sell personal data. We share it only with providers who help us run the Service - currently Hubtel (payments), Arkesel (transactional SMS) and our cloud hosting providers - each bound to process data on our instructions. We may also disclose data where required by law or valid order of a competent authority in Ghana.'],
+    ps: ['We do not sell personal data. We share it only with providers who help us run the Service - currently Hubtel (payments), mNotify (transactional SMS) and our cloud hosting providers - each bound to process data on our instructions. We may also disclose data where required by law or valid order of a competent authority in Ghana.'],
   },
   {
     h: 'Storage, security and retention',

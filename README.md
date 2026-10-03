@@ -21,7 +21,7 @@ via MTN, Telecel/Vodafone or AT Money.
 | Frontend | React 18 + Vite PWA, Tailwind CSS, Recharts |
 | Icons | Pure inline SVG components + Lucide-style strokes (zero emojis) |
 | Payments | 2-way: MTN MoMo API first for MTN numbers (collections + disbursements, status polling), Hubtel for Telecel/AT + one-time fallback (dry-run fallback per provider) |
-| SMS | Arkesel API (transactional + alerts, dry-run fallback) |
+| SMS | mNotify API (transactional + alerts, dry-run fallback) |
 | PDF | PDFKit receipts with QR verification codes |
 | Scheduler | node-cron (Africa/Accra timezone) |
 
@@ -52,7 +52,7 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `PAYMENT_FALLBACK_ENABLED` | Retry failed MTN legs once via Hubtel | `true` |
 | `HUBTEL_CLIENT_ID` / `HUBTEL_CLIENT_SECRET` | Hubtel fallback + Telecel/AT traffic | Dry-run mode (simulated success) |
 | `HUBTEL_MOMO_DISBURSEMENT_MERCHANT_ACCOUNT` | Payout merchant account number | Required for live payouts |
-| `ARKESEL_API_KEY` | Arkesel transactional SMS | Dry-run mode (logged, not sent) |
+| `MNOTIFY_API_KEY` | mNotify transactional SMS | Dry-run mode (logged, not sent) |
 | `RISK_THRESHOLD_GHS` | Payouts at/above this need admin review | `5000` |
 | `PORT` | API port | `4000` |
 | `PLATFORM_DOMAIN` | Platform apex domain for subdomains | `didwaghana.com` (falls back to `ROOT_DOMAIN`, then `didwaghana.com`) |
@@ -117,7 +117,7 @@ services/
   mtnMomoService.js           MTN MoMo collections + disbursements (status polling)
   paymentRouter.js            2-way routing: MTN-first, one Hubtel retry on failure
   hubtelService.js            Telecel/AT traffic + Hubtel fallback leg
-  smsService.js               Arkesel templates (welcome, trial, payout, stock)
+  smsService.js               mNotify templates (welcome, trial, payout, stock)
   pdfService.js               PDFKit receipt with QR code
 jobs/billingCron.js           Day 11 reminder / Day 14 PAST_DUE / Day 17 suspend
 db/schema.sql                Single canonical schema, tables, indexes, trigger
@@ -134,7 +134,7 @@ public/                       manifest.webmanifest, sw.js, favicon.svg
 
 | # | Module | Where | Highlights |
 | --- | --- | --- | --- |
-| 1 | 14-day free trial | `routes/billingRoutes.js`, `jobs/billingCron.js`, DB trigger | Auto `trial_ends_at` on register, Arkesel welcome SMS, Day 11 reminder, Day 14 PAST_DUE, Day 17 suspend |
+| 1 | 14-day free trial | `routes/billingRoutes.js`, `jobs/billingCron.js`, DB trigger | Auto `trial_ends_at` on register, mNotify welcome SMS, Day 11 reminder, Day 14 PAST_DUE, Day 17 suspend |
 | 2 | Analytics & loyalty | `routes/analyticsRoutes.js`, `src/pages/SellerAnalytics.jsx`, `LoyaltyCheckout.jsx` | Revenue/AOV/paid-orders KPIs, 6-month Recharts trend, points per GHS with checkout redemption |
 | 3 | Instant payouts | `routes/payoutRoutes.js`, `paymentRouter.js`, `mtnMomoService.js`, `hubtelService.js` | `available_balance` vs `pending_balance`, `SELECT ... FOR UPDATE` locking, MTN-first disbursement under GHS 5,000 with one Hubtel retry on failure, `provider`/`fallback_used` recorded per payout, admin review above |
 | 4 | Offline POS & COD | `routes/posRoutes.js`, `SellerPOS.jsx`, `POSCart.jsx` | Cash/MoMo register sales (MoMo collections are MTN-first with Hubtel fallback), atomic stock decrement, Rider Transit Balance with one-click reconciliation |
@@ -235,7 +235,7 @@ and the output directory (`dist`). No code changes required.
 | `HUBTEL_CLIENT_ID` / `HUBTEL_CLIENT_SECRET` / `HUBTEL_MERCHANT_ACCOUNT` | Live MoMo keys (omit to stay in dry-run) |
 | `MTN_MOMO_SUBSCRIPTION_KEY` / `MTN_MOMO_COLLECTION_USER_ID` / `MTN_MOMO_COLLECTION_API_KEY` | Live MTN MoMo keys (omit to keep MTN in dry-run) |
 | `MTN_MOMO_TARGET_ENVIRONMENT` | `sandbox` for testing, `mtn-ghana` for live traffic |
-| `ARKESEL_API_KEY` | Live SMS key (omit to stay in dry-run) |
+| `MNOTIFY_API_KEY` | Live SMS key (omit to stay in dry-run) |
 | `PLATFORM_DOMAIN` | Platform apex domain, `didwaghana.com` (no protocol). Falls back to `ROOT_DOMAIN`, then to `didwaghana.com`, so a missing value never declassifies the apex |
 | `VITE_PLATFORM_DOMAIN` | Same value. Baked into the bundle at build time, so redeploy after changing it. It is only the fallback: the client adopts the apex reported by `GET /api/domains/resolve`, so a stale value here can no longer show a wrong storefront URL in the dashboard |
 | `VITE_PREVIEW_HOSTS` | Optional comma separated host suffixes treated as platform traffic (e.g. `vercel.app` on Preview deployments); those hosts render the marketing site instead of a storefront |
@@ -325,7 +325,7 @@ Notes:
 - **Balance safety** - wallet rows are locked with `SELECT ... FOR UPDATE`, and
   gateway failures are handled inside the same transaction, so double-spend is
   impossible even on concurrent invocations.
-- **Timeout budget** - live Hubtel and Arkesel calls get an 8s cap inside
+- **Timeout budget** - live Hubtel and mNotify calls get an 8s cap inside
   Vercel (Hobby functions die at 10s), while local runs keep the full 15-25s.
 - **Local manifest** - `public/sw.js` + `public/manifest.webmanifest` are
   copied verbatim into `dist/`, so the installed PWA works identically on the

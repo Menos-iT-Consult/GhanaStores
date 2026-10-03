@@ -1,7 +1,7 @@
 /**
  * DiDwa - Multi-Variant Inventory Routes
  * MODULE 6: Product + variant CRUD, custom re-order thresholds, stock
- * adjustments with automatic Arkesel low-stock SMS alerts.
+ * adjustments with automatic mNotify low-stock SMS alerts.
  */
 import { Router } from 'express';
 import { query, withTransaction } from '../config/database.js';
@@ -389,7 +389,7 @@ router.post('/variants', requireSeller, async (req, res, next) => {
 /* ----------------------- Deduct variant stock on a sale ---------------------- */
 // body: { items: [{ variantId, quantity }] }
 // Atomically decrements each variant (FOR UPDATE), rolls back the whole batch
-// when any line exceeds available stock, and dispatches a single Arkesel
+// when any line exceeds available stock, and dispatches a single mNotify
 // low-stock SMS when any variant crosses its re-order level.
 router.post('/deduct', requireSeller, async (req, res, next) => {
   try {

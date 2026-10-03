@@ -4,7 +4,7 @@
 
 /**
  * Normalize any Ghanaian phone input into international MSISDN format
- * accepted by Arkesel SMS and Hubtel MoMo APIs.
+ * accepted by mNotify SMS and Hubtel MoMo APIs.
  * Accepts: 0244123456 | 244123456 | +233244123456 | 00233244123456
  * Returns "233XXXXXXXXX" or null when invalid.
  */
