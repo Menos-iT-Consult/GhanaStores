@@ -230,6 +230,72 @@ check(
   'the provider swap must not have changed any exported notification function',
 );
 
+/* 11. Lifecycle email must mirror SMS WITHOUT inheriting its failure machinery.
+ * The low-stock SMS re-arms its delivery latch on failure so a dropped alert
+ * retries. If email were wired to that latch, a Gmail outage would re-arm it on
+ * every sale and bury the merchant in restock emails. */
+const email = read('services/emailService.js');
+const cronEmail = read('jobs/billingCron.js');
+const billingRoute = read('routes/billingRoutes.js');
+const stockRoutesForEmail = [
+  'routes/inventoryRoutes.js', 'routes/orderRoutes.js', 'routes/posRoutes.js',
+];
+
+check(
+  'nodemailer is actually a dependency, not just mentioned in a comment',
+  /"nodemailer":\s*"\^?\d/.test(read('package.json')),
+  'emailService.js imports nodemailer; without the dependency every send returns send-failed',
+);
+check(
+  'a lifecycle email helper exists with SMS-matching template names',
+  /export async function sendLifecycleEmail/.test(email)
+    && /'welcome'/.test(email)
+    && /'trial-reminder'/.test(email)
+    && /'renewal-reminder'/.test(email)
+    && /'past-due'/.test(email),
+  'expected sendLifecycleEmail covering the four billing events',
+);
+check(
+  'the billing cron sends email at every lifecycle transition',
+  // Anchored to an indented call site so the notifyEmail definition is not counted.
+  (cronEmail.match(/^\s+notifyEmail\(store, /gm) || []).length === 5,
+  'expected 5 notifyEmail calls: trial reminder, renewal reminder, 2x past-due, suspension',
+);
+check(
+  'the suspension email is flagged as suspended, not just past-due',
+  /notifyEmail\(store, 'past-due', \{ suspended: true \}\)/.test(cronEmail),
+  'a suspended merchant must not be told they are merely past due',
+);
+check(
+  'every cron query selects stores.email',
+  /SELECT id, name, phone, email/.test(cronEmail) && /RETURNING id, name, phone, email/.test(cronEmail),
+  'the cron returned only name/phone while SMS was the sole channel; email needs stores.email',
+);
+check(
+  'registration sends the welcome email alongside the welcome SMS',
+  /sendWelcomeSms\(store\)/.test(billingRoute)
+    && /sendLifecycleEmail\(store, 'welcome'\)/.test(billingRoute),
+  'expected both channels to fire at signup',
+);
+check(
+  'low-stock email is NOT wired up - email must never touch the SMS delivery latch',
+  !stockRoutesForEmail.some((f) => /sendLifecycleEmail/.test(read(f)))
+    && !/emailService/.test(read('routes/inventoryRoutes.js')),
+  'emailing every low-stock alert would spam the merchant on each sale',
+);
+check(
+  'lifecycle email is fire-and-forget and never awaited into a transition total',
+  /function notifyEmail\(store, template, extra\) \{\s*sendLifecycleEmail\(store, template, extra\)\.catch/.test(cronEmail)
+    && !/const\s+\w+\s*=\s*await sendLifecycleEmail/.test(cronEmail),
+  'a Gmail outage must not be reported as a failed billing transition',
+);
+check(
+  'lifecycle email never mutates low_stock_alert_sent',
+  // CODE only: the module comment explains why that flag must stay untouched.
+  !/low_stock_alert_sent/.test(email.replace(/\/\*[\s\S]*?\*\//g, '')),
+  'email must not re-arm the SMS alert latch',
+);
+
 console.log(`\n${pass} passed, ${failures.length} failed`);
 if (failures.length) {
   console.log(`Failed: ${failures.join(', ')}`);

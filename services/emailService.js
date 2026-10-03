@@ -10,10 +10,12 @@
  * Gmail requires an APP PASSWORD (Google Account > Security > 2-Step
  * Verification > App passwords), not the account password, and 2FA must be on.
  *
- * nodemailer is imported lazily and dynamically. It is listed in package.json,
- * but importing it at module scope would make the whole server fail to boot in
- * any environment where `npm install` has not yet run, rather than degrading to
- * dry-run the way the rest of this service is designed to.
+ * nodemailer is imported lazily and dynamically. Importing it at module scope
+ * would make the whole server fail to boot in any environment where
+ * `npm install` has not yet run, rather than degrading to dry-run the way the
+ * rest of this service is designed to. It WAS declared as a dependency and had
+ * never actually been installed, so every send failed at the import and returned
+ * `send-failed` - this service has never once delivered a message.
  */
 const SMTP_HOST = process.env.GMAIL_SMTP_HOST || 'smtp.gmail.com';
 const SMTP_PORT = Number(process.env.GMAIL_SMTP_PORT || 465);
@@ -131,5 +133,130 @@ export async function notifyNewMessage(msg, to, storeName) {
     subject: `[DiDwa] ${label}`,
     text,
     html,
+  });
+}
+
+/* ---------------------- Lifecycle email (mirrors SMS) ----------------------- */
+/*
+ * Same four billing events that SMS covers: welcome, trial reminder, renewal
+ * reminder, past-due (covering suspension).
+ *
+ * Deliberately NOT mirrored: the low-stock alert. That fires on every POS sale
+ * and storefront order that drops a variant below threshold, so emailing it
+ * would bury the merchant. It is also the one SMS with a delivery latch
+ * (low_stock_alert_sent) - see routes/inventoryRoutes.js dispatchLowStockAlerts -
+ * and email must never touch that flag, or a Gmail outage would re-arm the
+ * latch on every sale and spray restock emails at the merchant.
+ *
+ * Lifecycle email is fire-and-forget. It has no retry, no latch and no coupling
+ * to whether the SMS succeeded: the two channels are independent, and if one
+ * gateway is down the other should still deliver.
+ */
+
+/** Storefront URL, preferring the custom domain over the subdomain. */
+function storefrontUrl(store) {
+  const platformDomain = (process.env.PLATFORM_DOMAIN || '')
+    .replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  if (store.custom_domain) {
+    return `https://${String(store.custom_domain).replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
+  }
+  if (store.subdomain_slug && platformDomain) {
+    return `https://${store.subdomain_slug}.${platformDomain}`;
+  }
+  return null;
+}
+
+function formatDate(value) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+
+/** Shared shell so every lifecycle email looks like it came from one place. */
+function lifecycleEmail(store, heading, lines, cta) {
+  const greeting = `Hi ${store.name || 'there'},`;
+  const text = [greeting, '', heading, ...lines, cta ? `\n${cta.label}: ${cta.url}` : null]
+    .filter(Boolean)
+    .join('\n');
+
+  const row = (k, v) => `<tr><td style="color:#64748b;padding-right:12px">${esc(k)}</td>`
+    + `<td style="font-weight:600">${esc(v)}</td></tr>`;
+
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.5;color:#0f172a;max-width:560px">
+      <p>${esc(greeting)}</p>
+      <h2 style="font-size:18px;margin:16px 0 8px">${esc(heading)}</h2>
+      <table cellpadding="4" style="border-collapse:collapse;font-size:14px;margin:12px 0">
+        ${lines.map(([k, v]) => row(k, v)).join('')}
+      </table>
+      ${cta ? `<p><a href="${esc(cta.url)}" style="display:inline-block;background:#f97316;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">${esc(cta.label)}</a></p>` : ''}
+      <p style="color:#64748b;font-size:12px;margin-top:24px">
+        Reply to this email and it reaches a human on the DiDwa team.
+      </p>
+    </div>`;
+
+  return { subject: `[DiDwa] ${heading}`, text, html };
+}
+
+/**
+ * Send the lifecycle email matching `template`.
+ *
+ * Template names deliberately mirror the smsService.js exports so a reader can
+ * compare the two side by side: 'welcome' | 'trial-reminder' |
+ * 'renewal-reminder' | 'past-due'.
+ *
+ * Never throws and returns the underlying sendEmail() result, so callers can
+ * `await` without a try/catch and without risking the request that triggered it.
+ */
+export async function sendLifecycleEmail(store, template, extra = {}) {
+  const to = String(store?.email || '').trim();
+  if (!to) return { sent: false, reason: 'no-recipient' };
+
+  let mail;
+  switch (template) {
+    case 'welcome': {
+      const url = storefrontUrl(store);
+      mail = lifecycleEmail(store, 'Your free trial is live',
+        [['Trial ends', formatDate(store.trial_ends_at)]],
+        url ? { label: 'Open your storefront', url } : null);
+      break;
+    }
+    case 'trial-reminder': {
+      mail = lifecycleEmail(store, 'Your free trial ends soon',
+        [['Trial ends', formatDate(store.trial_ends_at)]],
+        { label: 'Renew now', url: storefrontUrl(store) || 'https://didwaghana.com' });
+      break;
+    }
+    case 'renewal-reminder': {
+      mail = lifecycleEmail(store, 'Your plan is up for renewal',
+        [
+          ['Plan', store.plan || 'current'],
+          ['Renews', formatDate(store.plan_period_end)],
+        ],
+        { label: 'Manage billing', url: storefrontUrl(store) || 'https://didwaghana.com' });
+      break;
+    }
+    case 'past-due': {
+      const suspended = extra.suspended === true;
+      mail = lifecycleEmail(store,
+        suspended ? 'Your storefront has been suspended' : 'Your account is past due',
+        suspended
+          ? [['Status', 'SUSPENDED']]
+          : [
+            ['Status', 'PAST DUE'],
+            ['Grace ends', formatDate(store.grace_ends_at)],
+          ],
+        { label: 'Subscribe to restore your store', url: storefrontUrl(store) || 'https://didwaghana.com' });
+      break;
+    }
+    default:
+      return { sent: false, reason: `unknown-template:${template}` };
+  }
+
+  return sendEmail({
+    to,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
   });
 }

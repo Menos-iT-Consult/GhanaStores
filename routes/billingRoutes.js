@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import { pool, query, withTransaction } from '../config/database.js';
 import { issueStoreToken, requireSeller, requireAdmin, optionalSeller } from '../middleware/authMiddleware.js';
 import { sendWelcomeSms } from '../services/smsService.js';
+import { sendLifecycleEmail } from '../services/emailService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../services/subdomainSlug.js';
@@ -125,8 +126,11 @@ router.post('/register', async (req, res, next) => {
     }
     const token = issueStoreToken(store);
 
-    // Welcome SMS (Module 1) - never blocks registration on gateway hiccups.
+    // Welcome SMS + email (Module 1) - never blocks registration on gateway hiccups.
+    // Email is fire-and-forget and independent of the SMS: if one gateway is
+    // down the other still delivers.
     sendWelcomeSms(store).catch(() => {});
+    sendLifecycleEmail(store, 'welcome').catch(() => {});
 
     res.status(201).json({
       message: 'Store created. Your 14-day free trial has started.',

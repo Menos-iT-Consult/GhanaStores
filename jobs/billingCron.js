@@ -21,17 +21,35 @@ import {
   sendSuspensionSms,
   sendRenewalReminderSms,
 } from '../services/smsService.js';
+import { sendLifecycleEmail } from '../services/emailService.js';
+
+/**
+ * Fire the matching lifecycle email alongside each SMS.
+ *
+ * Deliberately NOT awaited and NOT counted in the sent totals: email is a
+ * second, independent channel, and a Gmail outage must not be reported as a
+ * failed billing transition. `stores.email` is selected by every query below
+ * for exactly this - the cron previously returned only name/phone, because
+ * SMS was the sole channel.
+ *
+ * There is no retry and no latch here. If email fails the merchant still has
+ * the SMS, and the next transition will try again anyway.
+ */
+function notifyEmail(store, template, extra) {
+  sendLifecycleEmail(store, template, extra).catch(() => {});
+}
 
 /** Day 11: nudge merchants before expiry. */
 export async function runRenewalReminders() {
   const { rows } = await query(
-    `SELECT id, name, phone, trial_ends_at
+    `SELECT id, name, phone, email, subdomain_slug, custom_domain, trial_ends_at
        FROM stores
       WHERE status = 'TRIAL'
         AND trial_ends_at::date - CURRENT_DATE = 11`,
   );
   let sent = 0;
   for (const store of rows) {
+    notifyEmail(store, 'trial-reminder');
     const res = await sendTrialReminderSms(store);
     if (res?.ok) sent += 1;
   }
@@ -46,9 +64,11 @@ export async function runExpireTrials() {
         SET status = 'PAST_DUE'
       WHERE status = 'TRIAL'
         AND trial_ends_at <= NOW()
-      RETURNING id, name, phone, trial_ends_at, grace_ends_at`,
+      RETURNING id, name, phone, email, subdomain_slug, custom_domain,
+                trial_ends_at, grace_ends_at`,
   );
   for (const store of rows) {
+    notifyEmail(store, 'past-due');
     await sendPastDueSms(store);
   }
   console.log(`[cron] trials moved to PAST_DUE: ${rows.length}`);
@@ -64,7 +84,7 @@ export async function runExpireTrials() {
  */
 export async function runSendRenewalReminders() {
   const { rows } = await query(
-    `SELECT id, name, phone, plan, plan_period_end
+    `SELECT id, name, phone, email, subdomain_slug, custom_domain, plan, plan_period_end
        FROM stores
       WHERE status = 'ACTIVE'
         AND plan_period_end IS NOT NULL
@@ -72,6 +92,7 @@ export async function runSendRenewalReminders() {
   );
   let sent = 0;
   for (const store of rows) {
+    notifyEmail(store, 'renewal-reminder');
     const res = await sendRenewalReminderSms(store);
     if (res?.ok) sent += 1;
   }
@@ -98,9 +119,11 @@ export async function runExpireRenewals() {
       WHERE s.status = 'ACTIVE'
         AND s.plan_period_end IS NOT NULL
         AND s.plan_period_end <= NOW()
-      RETURNING s.id, s.name, s.phone, s.plan, s.plan_period_end, s.grace_ends_at`,
+      RETURNING s.id, s.name, s.phone, s.email, s.subdomain_slug, s.custom_domain,
+                s.plan, s.plan_period_end, s.grace_ends_at`,
   );
   for (const store of rows) {
+    notifyEmail(store, 'past-due');
     await sendPastDueSms(store);
   }
   console.log(`[cron] paid plans moved to PAST_DUE: ${rows.length}`);
@@ -114,9 +137,10 @@ export async function runSuspendOverdue() {
         SET status = 'SUSPENDED'
       WHERE status = 'PAST_DUE'
         AND COALESCE(grace_ends_at, trial_ends_at + INTERVAL '3 days') <= NOW()
-      RETURNING id, name, phone`,
+      RETURNING id, name, phone, email, subdomain_slug, custom_domain`,
   );
   for (const store of rows) {
+    notifyEmail(store, 'past-due', { suspended: true });
     await sendSuspensionSms(store);
   }
   console.log(`[cron] stores suspended after grace period: ${rows.length}`);

@@ -112,7 +112,7 @@ export async function sendWelcomeSms(store) {
     `Welcome to DiDwa, ${store.name}!\n` +
     `Your 14-day FREE trial is live until ${expires}.\n` +
     `Storefront: ${storefront}\n` +
-    `No upfront payment needed. Sell smarter today.`;
+    `Renew subscription before time to avoid your store being suspended. Sell smarter today.`;
   return sendSms([store.phone], message);
 }
 
@@ -145,7 +145,7 @@ export async function sendRenewalReminderSms(store) {
 export async function sendPastDueSms(store) {
   const graceEnds = formatDate(store.grace_ends_at || new Date(Date.now() + 3 * 86_400_000));
   const message =
-    `DiDwa: your free trial has ended. Your account is PAST DUE.\n` +
+    `${store.name}, your free trial has ended. Your account is PAST DUE.\n` +
     `Grace period runs until ${graceEnds} - subscribe before then to keep selling.`;
   return sendSms([store.phone], message);
 }
