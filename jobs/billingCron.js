@@ -1,10 +1,14 @@
 /**
  * DiDwa - Billing Cron Engine
  *
- * Daily lifecycle automation for the 14-day free trial:
- *   Day 11  -> SMS renewal reminder to TRIAL stores
- *   Day 14+ -> TRIAL stores flip to PAST_DUE + SMS
- *   Day 17+ -> PAST_DUE stores past the 3-day grace period -> SUSPENDED + SMS
+ * Daily lifecycle automation for free trials AND paid plans:
+ *   Trial:  Day 11 reminder -> Day 14 TRIAL->PAST_DUE -> Day 17 SUSPENDED
+ *   Paid:   Day -3 reminder -> plan_period_end ACTIVE->PAST_DUE
+ *          -> +3d grace SUSPENDED
+ *
+ * Billing is pay-upfront with no auto-renew, so the paid path is the one that
+ * actually keeps a storefront online over time. Both paths use the same 3-day
+ * grace before suspension.
  *
  * Runs at 08:00 Africa/Accra when ENABLE_CRON=true, and every exported
  * function is callable directly for tests/manual triggers.
@@ -15,6 +19,7 @@ import {
   sendTrialReminderSms,
   sendPastDueSms,
   sendSuspensionSms,
+  sendRenewalReminderSms,
 } from '../services/smsService.js';
 
 /** Day 11: nudge merchants before expiry. */
@@ -50,6 +55,58 @@ export async function runExpireTrials() {
   return rows.length;
 }
 
+/**
+ * Warn paying merchants 3 days before `plan_period_end`.
+ *
+ * Mirrors the trial reminder's Day-11 shape, but keyed on plan_period_end and
+ * scoped to ACTIVE stores, so a lapsing subscriber is warned before the
+ * storefront goes dark rather than after.
+ */
+export async function runSendRenewalReminders() {
+  const { rows } = await query(
+    `SELECT id, name, phone, plan, plan_period_end
+       FROM stores
+      WHERE status = 'ACTIVE'
+        AND plan_period_end IS NOT NULL
+        AND plan_period_end::date - CURRENT_DATE = 3`,
+  );
+  let sent = 0;
+  for (const store of rows) {
+    const res = await sendRenewalReminderSms(store);
+    if (res?.ok) sent += 1;
+  }
+  console.log(`[cron] paid-plan renewal reminders sent: ${sent}/${rows.length}`);
+  return sent;
+}
+
+/**
+ * A paid plan that ran out moves to PAST_DUE, with a FRESH 3-day grace window.
+ *
+ * The grace reset is the important part. `grace_ends_at` is stamped once by the
+ * INSERT trigger (trial_ends_at + 3 days) and is never cleared on subscribe, so
+ * without this a merchant who subscribed and later let their plan lapse would
+ * arrive here still carrying a grace date from trial time - long past - and
+ * `runSuspendOverdue` would suspend them on the very next run with no grace at
+ * all. Anchoring to plan_period_end (not NOW()) keeps the window predictable and
+ * gives the same 3 days a trialling merchant gets.
+ */
+export async function runExpireRenewals() {
+  const { rows } = await query(
+    `UPDATE stores s
+        SET status = 'PAST_DUE',
+            grace_ends_at = s.plan_period_end + INTERVAL '3 days'
+      WHERE s.status = 'ACTIVE'
+        AND s.plan_period_end IS NOT NULL
+        AND s.plan_period_end <= NOW()
+      RETURNING s.id, s.name, s.phone, s.plan, s.plan_period_end, s.grace_ends_at`,
+  );
+  for (const store of rows) {
+    await sendPastDueSms(store);
+  }
+  console.log(`[cron] paid plans moved to PAST_DUE: ${rows.length}`);
+  return rows.length;
+}
+
 /** Trial end + 3-day grace elapsed -> hard suspension. */
 export async function runSuspendOverdue() {
   const { rows } = await query(
@@ -66,11 +123,21 @@ export async function runSuspendOverdue() {
   return rows.length;
 }
 
-/** Full daily cycle in dependency order. */
+/**
+ * Full daily cycle in dependency order.
+ *
+ * Expiry must run before suspension: a store whose paid plan just lapsed is
+ * moved to PAST_DUE here, and `runSuspendOverdue` may legitimately suspend it
+ * in the same pass only if the fresh grace window is already over (a plan that
+ * ran out more than 3 days ago and was never renewed). Running them in the other
+ * order would leave it untouched until tomorrow.
+ */
 export async function runBillingCycle() {
   try {
     await runRenewalReminders();
+    await runSendRenewalReminders();
     await runExpireTrials();
+    await runExpireRenewals();
     await runSuspendOverdue();
   } catch (err) {
     console.error('[cron] billing cycle failed:', err.message);

@@ -3,10 +3,13 @@
  *
  *   GET /api/cron/billing
  *
- * Runs the full 14-day-trial lifecycle automation every day:
- *   Day 11  -> Arkesel SMS renewal reminders to TRIAL stores
- *   Day 14  -> expired TRIAL stores flip to PAST_DUE (grace starts) + SMS
- *   Day 17  -> PAST_DUE past the 3-day grace -> SUSPENDED + SMS
+ * Runs the full billing lifecycle every day:
+ *   Trial:  Day 11 reminder -> Day 14 TRIAL->PAST_DUE -> Day 17 SUSPENDED
+ *   Paid:   3 days before plan_period_end reminder -> lapse -> +3d SUSPENDED
+ *
+ * Ordering matters: both expiry steps run before suspension, so a store that
+ * lapses today is PAST_DUE (with a fresh grace window) before the suspension
+ * step evaluates it.
  *
  * Secured with `Authorization: Bearer $CRON_SECRET`. Vercel attaches that
  * header automatically when CRON_SECRET exists in Project Environment
@@ -16,7 +19,9 @@
 import { Router } from 'express';
 import {
   runRenewalReminders,
+  runSendRenewalReminders,
   runExpireTrials,
+  runExpireRenewals,
   runSuspendOverdue,
 } from '../jobs/billingCron.js';
 
@@ -35,13 +40,23 @@ export async function billingCronHandler(req, res, next) {
     }
 
     const renewalRemindersSent = await runRenewalReminders();
+    const renewalRemindersSentPaid = await runSendRenewalReminders();
     const trialsMovedToPastDue = await runExpireTrials();
+    // Must precede suspension: a store that lapsed today is PAST_DUE before
+    // runSuspendOverdue evaluates its grace window.
+    const renewalsMovedToPastDue = await runExpireRenewals();
     const storesSuspended = await runSuspendOverdue();
 
     return res.json({
       ok: true,
       ranAt: new Date().toISOString(),
-      result: { renewalRemindersSent, trialsMovedToPastDue, storesSuspended },
+      result: {
+        renewalRemindersSent,
+        renewalRemindersSentPaid,
+        trialsMovedToPastDue,
+        renewalsMovedToPastDue,
+        storesSuspended,
+      },
     });
   } catch (err) {
     return next(err);

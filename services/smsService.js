@@ -85,6 +85,22 @@ export async function sendTrialReminderSms(store) {
   return sendSms([store.phone], message);
 }
 
+/**
+ * Paid-plan renewal warning: `plan_period_end` is 3 days out.
+ *
+ * Deliberately NOT worded as a trial - these merchants already pay, so telling
+ * them their free trial is ending would read as spam or a billing error. Lead
+ * with the date the plan actually lapses and the consequence.
+ */
+export async function sendRenewalReminderSms(store) {
+  const ends = formatDate(store.plan_period_end);
+  const message =
+    `Hi ${store.name}, your DiDwa ${store.plan || 'current'} plan ends ${ends}.\n` +
+    `Renew in Settings > Payments to keep your storefront online. Your products, ` +
+    `orders and history stay exactly as they are.`;
+  return sendSms([store.phone], message);
+}
+
 /** Day 14: trial over, moved to PAST_DUE (grace active). */
 export async function sendPastDueSms(store) {
   const graceEnds = formatDate(store.grace_ends_at || new Date(Date.now() + 3 * 86_400_000));
