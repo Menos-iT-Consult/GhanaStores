@@ -108,7 +108,7 @@ check(
 /* 5. Failure handling stays non-fatal for the billing cron. */
 check(
   'dispatch errors are caught and returned, not thrown',
-  /catch \(err\)[\s\S]{0,300}return \{ ok: false, error: detail \}/.test(sms),
+  /catch \(err\)[\s\S]{0,600}return \{ ok: false, error: detail \}/.test(sms),
   'a failed SMS must not reject into the billing cron',
 );
 
@@ -124,7 +124,36 @@ check(
   leaked.length === 0,
   leaked.length ? `still present in: ${leaked.join(', ')}` : '',
 );
-/* 7. Live behaviour: with no key set, a real call must dry-run, not throw. */
+
+/* 7. The admin health panel must not drift from the SMS provider again.
+ * Assert against CODE ONLY: the file's comment block deliberately names the old
+ * invented keys to explain why they were removed. */
+const adminSystem = read('routes/admin/system.js')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+const adminSystemView = read('src/pages/admin/AdminSystem.jsx');
+check(
+  'the admin health panel checks MNOTIFY_API_KEY, not the invented SMS_API_KEY',
+  /MNOTIFY_API_KEY/.test(adminSystem) && !/SMS_API_KEY/.test(adminSystem),
+  'a healthy SMS provider must not read as unconfigured on the health screen',
+);
+check(
+  'no invented integration keys remain on the health panel',
+  !/HUBTEL_API_KEY|MTN_MOMO_CLIENT_KEY|WHATSAPP_TOKEN/.test(adminSystem),
+  'these keys exist nowhere in the codebase, so those rows were always false',
+);
+check(
+  'a capability lists every env var it needs (ALL, not any)',
+  /keys\.every\(/.test(adminSystem),
+  'expected keys.every(...) so a partial credential set cannot read as configured',
+);
+check(
+  'the health panel renders every key a capability needs',
+  /row\.keys\.join/.test(adminSystemView) && !/row\.key\b/.test(adminSystemView),
+  'a multi-key capability must not render an undefined row.key',
+);
+
+/* 8. Live behaviour: with no key set, a real call must dry-run, not throw. */
 const { smsDryRun, sendSms, sendWelcomeSms } = await import('../services/smsService.js');
 check(
   'smsDryRun is true in this test environment (MNOTIFY_API_KEY unset)',
@@ -148,7 +177,51 @@ check(
   `got ${JSON.stringify(welcome)}`,
 );
 
-/* 8. Callers still funnel through the unchanged sendSms signature. */
+/* 8. A failed low-stock send must NOT leave the merchant silently unalerted.
+ * The latch is set inside the stock transaction (for de-duplication), so a
+ * failure that leaves it set loses the alert permanently until restock. */
+const inventory = read('routes/inventoryRoutes.js');
+
+check(
+  'a failed low-stock send re-arms the alert latch',
+  /low_stock_alert_sent = FALSE/.test(inventory),
+  'expected the failed-send path to clear low_stock_alert_sent so it retries',
+);
+check(
+  'the restock audit row is written only on confirmed success',
+  /if \(res\?\.ok\) \{\s*await recordLowStockAlerts/.test(inventory),
+  'expected recordLowStockAlerts to run only inside the success branch',
+);
+check(
+  'every stock route dispatches through the shared failure-aware helper',
+  // inventoryRoutes.js may call the template only inside dispatchLowStockAlerts;
+  // orderRoutes.js and posRoutes.js must not call it at all.
+  /dispatchLowStockAlerts\(/.test(read('routes/orderRoutes.js'))
+    && /dispatchLowStockAlerts\(/.test(read('routes/posRoutes.js'))
+    && !/sendLowStockAlertSms\(/.test(read('routes/orderRoutes.js'))
+    && !/sendLowStockAlertSms\(/.test(read('routes/posRoutes.js')),
+  'these routes must call dispatchLowStockAlerts, not sendLowStockAlertSms, which skips the re-arm',
+);
+check(
+  'dispatch de-duplicates candidates by variant id',
+  /new Map\(list\.map\(\(c\) => \[c\.id, c\]\)\)/.test(inventory),
+  'several lines moving one variant must not produce duplicate alerts',
+);
+
+/* 9. The 8s cap discarded live alerts. All sendSms callers are post-commit and
+ * fire-and-forget, so no seller is waiting on the gateway. */
+check(
+  'the send timeout is no longer capped for serverless',
+  !/ON_VERCEL \? 8_000/.test(sms) && /TIMEOUT_MS = 20_000/.test(sms),
+  'expected a single 20s timeout, not a serverless-capped one',
+);
+check(
+  'a failed dispatch logs enough context to diagnose',
+  /timedOut:/.test(sms) && /timeoutMs:/.test(sms),
+  'a bare "timeout exceeded" gives no way to tell which alert died',
+);
+
+/* 10. Callers still funnel through the unchanged sendSms signature. */
 const cron = read('jobs/billingCron.js');
 check(
   'billingCron still imports the notification functions by name',

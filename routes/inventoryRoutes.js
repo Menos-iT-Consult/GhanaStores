@@ -34,6 +34,67 @@ export async function persistAlertFlag(t, variantId, sent) {
   );
 }
 
+/**
+ * Dispatch a low-stock alert after COMMIT, and re-arm the latch on failure.
+ *
+ * The latch (`low_stock_alert_sent`) is deliberately set INSIDE the stock
+ * transaction, before the gateway is ever contacted. That ordering is load
+ * bearing twice over:
+ *   - it de-duplicates concurrent sales touching the same variant, and
+ *   - it stops a burst of sales from each firing their own alert.
+ * But it also means a variant is marked "alerted" even when nothing was
+ * delivered. When mNotify timed out (unregistered sender ID, gateway stall) the
+ * merchant was silently never told, and the latch stayed set until someone
+ * restocked. That is the bug this function exists to undo.
+ *
+ * So on failure we clear the latch again: the variant re-arms, and the NEXT
+ * stock change retries the alert. Silence is the one unacceptable outcome for a
+ * restock warning.
+ *
+ * The audit row is written only on confirmed success, so `product_restock_alerts`
+ * stops claiming deliveries that never happened.
+ *
+ * Never throws: a gateway problem must not affect the seller's response, since
+ * the stock write has already committed by the time this runs.
+ */
+export async function dispatchLowStockAlerts(storeId, candidates) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  if (list.length === 0) return;
+
+  // One alert per variant, even if several lines moved the same one.
+  const unique = [...new Map(list.map((c) => [c.id, c])).values()];
+
+  let res;
+  try {
+    const { rows } = await query('SELECT name, phone FROM stores WHERE id = $1', [storeId]);
+    if (!rows[0]) {
+      console.warn(`[inventory] low-stock alert skipped: store ${storeId} not found`);
+      return;
+    }
+    res = await sendLowStockAlertSms(rows[0], unique);
+  } catch (err) {
+    console.error('[inventory] low-stock SMS threw:', err.message);
+    res = { ok: false, error: err.message };
+  }
+
+  if (res?.ok) {
+    await recordLowStockAlerts(storeId, unique);
+    return;
+  }
+
+  console.error(
+    '[inventory] low-stock SMS not delivered - re-arming alert so it retries:',
+    res?.reason || res?.error || 'unknown',
+  );
+  for (const c of unique) {
+    if (c?.id == null) continue;
+    query(
+      'UPDATE product_variants SET low_stock_alert_sent = FALSE WHERE id = $1',
+      [c.id],
+    ).catch((e) => console.warn('[inventory] could not re-arm alert flag:', e.message));
+  }
+}
+
 /* ------------------------------ Products listing ----------------------------- */
 router.get('/products', requireSeller, async (req, res, next) => {
   try {
@@ -128,13 +189,10 @@ router.post('/products', requireSeller, async (req, res, next) => {
       return prod.rows[0];
     });
 
-    // Dispatch alerts AFTER commit so SMS never rolls back catalog writes.
-    // Each dispatch is also written to the audit trail, exactly like the
-    // POS/storefront and adjustment paths do.
+    // Dispatch AFTER commit: dispatchLowStockAlerts re-arms the latch if the
+    // gateway fails, so a timeout cannot leave the merchant silently unalerted.
     if (alertCandidates.length > 0) {
-      const storeRes = await query('SELECT name, phone FROM stores WHERE id = $1', [req.auth.sub]);
-      sendLowStockAlertSms(storeRes.rows[0], alertCandidates).catch(() => {});
-      recordLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
+      dispatchLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
     }
 
     res.status(201).json({ message: 'Product added to catalog.', product: result });
@@ -266,13 +324,11 @@ router.patch('/variants/:id/stock', requireSeller, async (req, res, next) => {
       return row;
     });
 
-    // Dispatch alert AFTER commit so SMS never rolls back paid stock writes.
+    // Dispatch AFTER commit: the latch is re-armed if the gateway fails.
     if (smsCandidate) {
-      const storeRes = await query('SELECT name, phone FROM stores WHERE id = $1', [req.auth.sub]);
-      sendLowStockAlertSms(storeRes.rows[0], [
+      dispatchLowStockAlerts(req.auth.sub, [
         { ...smsCandidate, product_name: productName },
       ]).catch(() => {});
-      recordLowStockAlerts(req.auth.sub, [smsCandidate]).catch(() => {});
     }
 
     res.json({
@@ -451,11 +507,9 @@ router.post('/deduct', requireSeller, async (req, res, next) => {
       }));
     });
 
-    // Post-commit dispatch: SMS + audit trail never roll back with the stock.
+    // Post-commit dispatch: the latch is re-armed if the gateway fails.
     if (alertCandidates.length > 0) {
-      const storeRes = await query('SELECT name, phone FROM stores WHERE id = $1', [req.auth.sub]);
-      sendLowStockAlertSms(storeRes.rows[0], alertCandidates).catch(() => {});
-      recordLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
+      dispatchLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
     }
 
     res.json({

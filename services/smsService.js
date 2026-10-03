@@ -24,15 +24,23 @@ const MNOTIFY_BASE = process.env.MNOTIFY_BASE_URL || 'https://api.mnotify.com/ap
 const API_KEY = process.env.MNOTIFY_API_KEY || '';
 const SENDER_ID = process.env.MNOTIFY_SENDER_ID || 'DiDwa';
 
-/** Serverless safety: cap the HTTP attempt so it finishes inside Vercel's
- *  function time budget (Hobby maxDuration = 10s) instead of 504ing. */
-const ON_VERCEL = Boolean(process.env.VERCEL);
-
+/**
+ * Send timeout.
+ *
+ * Deliberately NOT capped at Vercel's 10s function budget the way the previous
+ * gateway client was: every caller of sendSms() is fire-and-forget AFTER a
+ * commit, so this request never sits in front of a seller waiting on a
+ * response. The 504 the old cap was avoiding cannot happen on these paths, and
+ * capping it only caused real alerts to be discarded - mNotify's quick-SMS
+ * endpoint negotiates with carriers and can exceed 8s on its own.
+ */
 export const smsDryRun = !API_KEY;
+
+const TIMEOUT_MS = 20_000;
 
 const client = axios.create({
   baseURL: MNOTIFY_BASE,
-  timeout: ON_VERCEL ? 8_000 : 15_000,
+  timeout: TIMEOUT_MS,
   headers: {
     Authorization: API_KEY,
     'Content-Type': 'application/json',
@@ -69,8 +77,16 @@ export async function sendSms(recipients, message) {
     else console.log('[sms] accepted by mNotify', { campaignId: messageId, recipients: list.length });
     return { ok: Boolean(ok), messageId, raw: data };
   } catch (err) {
+    // Logged with enough context to diagnose without exposing the message body:
+    // a bare "timeout of 8000ms exceeded" says nothing about which alert died.
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error('[sms] dispatch failed:', detail);
+    console.error('[sms] dispatch failed', {
+      recipients: list.length,
+      sender: SENDER_ID,
+      timeoutMs: TIMEOUT_MS,
+      timedOut: err.code === 'ECONNABORTED' || /timeout/i.test(err.message),
+      detail,
+    });
     return { ok: false, error: detail };
   }
 }

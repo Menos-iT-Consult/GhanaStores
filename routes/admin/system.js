@@ -12,19 +12,46 @@ import { requireAdmin } from './helpers.js';
 
 const router = Router();
 
-/** Env var -> the capability it powers. Presence only, never the value. */
+/**
+ * Capability -> the env vars that must ALL be present for it to work.
+ *
+ * These keys used to be invented (SMS_API_KEY, HUBTEL_API_KEY,
+ * MTN_MOMO_CLIENT_KEY, WHATSAPP_TOKEN) and matched nothing in the codebase, so
+ * a healthy Hubtel or MTN read as `configured: false`. Worse, the SMS row
+ * outlived the Arkesel -> mNotify migration and never got renamed.
+ *
+ * Two rules keep this from rotting again:
+ *   1. A capability lists every env var it needs; presence means ALL of them.
+ *      A single-key check hid missing disbursement credentials.
+ *   2. Only env-backed capabilities belong here. Paystack/Hubtel credentials
+ *      are PER STORE and encrypted in payment_settings (see
+ *      services/storePayments.js isPaystackReady/isHubtelReady), so there is no
+ *      env var to check - only the encryption key that protects them.
+ *
+ * scripts/adminSqlTest.js asserts every key below actually exists in source,
+ * so a rename or removal cannot silently turn a healthy row red again.
+ */
 const INTEGRATIONS = [
-  { key: 'DATABASE_URL', label: 'PostgreSQL database' },
-  { key: 'JWT_SECRET', label: 'Session signing' },
-  { key: 'MTN_MOMO_CLIENT_KEY', label: 'MTN MoMo collections' },
-  { key: 'MTN_MOMO_SUBSCRIPTION_KEY', label: 'MTN MoMo subscriptions' },
-  { key: 'HUBTEL_API_KEY', label: 'Hubtel disbursements' },
-  { key: 'CLOUDFLARE_API_TOKEN', label: 'Cloudflare custom domains' },
-  { key: 'SMS_API_KEY', label: 'SMS notifications' },
-  { key: 'WHATSAPP_TOKEN', label: 'WhatsApp receipts' },
+  { keys: ['DATABASE_URL'], label: 'PostgreSQL database' },
+  { keys: ['JWT_SECRET'], label: 'Session signing' },
+  { keys: ['MTN_MOMO_SUBSCRIPTION_KEY'], label: 'MTN MoMo subscriptions' },
+  {
+    keys: ['MTN_MOMO_COLLECTION_API_KEY', 'MTN_MOMO_COLLECTION_USER_ID'],
+    label: 'MTN MoMo collections',
+  },
+  {
+    keys: ['MTN_MOMO_DISBURSEMENT_API_KEY', 'MTN_MOMO_DISBURSEMENT_USER_ID'],
+    label: 'MTN MoMo disbursements',
+  },
+  { keys: ['CLOUDFLARE_API_TOKEN'], label: 'Cloudflare custom domains' },
+  { keys: ['MNOTIFY_API_KEY'], label: 'mNotify transactional SMS' },
+  {
+    keys: ['PAYMENT_KEYS_ENCRYPTION_SECRET'],
+    label: 'Per-store payment keys (Paystack/Hubtel, encrypted at rest)',
+  },
 ];
 
-const has = (key) => Boolean(String(process.env[key] || '').trim());
+const configured = ({ keys }) => keys.every((k) => Boolean(String(process.env[k] || '').trim()));
 
 router.get('/system', requireAdmin, async (_req, res, next) => {
   try {
@@ -61,7 +88,8 @@ router.get('/system', requireAdmin, async (_req, res, next) => {
       counts: counts.rows[0],
       payments30d: growth.rows[0],
       audit24h: Number(auditTrail.rows[0]?.recent || 0),
-      integrations: INTEGRATIONS.map(({ key, label }) => ({ key, label, configured: has(key) })),
+      // Keys, not values: a health endpoint is not a place to print credentials.
+      integrations: INTEGRATIONS.map((c) => ({ ...c, configured: configured(c) })),
       runtime: {
         node: process.version,
         platform: process.platform,

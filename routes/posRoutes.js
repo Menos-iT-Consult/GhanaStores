@@ -8,12 +8,11 @@ import { Router } from 'express';
 import { pool, query, withTransaction } from '../config/database.js';
 import { requireActiveSeller } from '../middleware/authMiddleware.js';
 import { routeCollection } from '../services/paymentRouter.js';
-import { sendLowStockAlertSms } from '../services/smsService.js';
 import {
   normalizeGhPhone, generateOrderNumber, pointsForSpend,
   redeemValue, toIntOr, money,
 } from '../utils/helpers.js';
-import { collectLowStockCandidate, persistAlertFlag, recordLowStockAlerts } from './inventoryRoutes.js';
+import { collectLowStockCandidate, persistAlertFlag, dispatchLowStockAlerts } from './inventoryRoutes.js';
 
 const router = Router();
 
@@ -292,10 +291,10 @@ async function finishPosSale(req, res, client, ctx) {
     client.release();
 
     /* ---- Post-commit low-stock SMS dispatch (Module 6) ---- */
+    // dispatchLowStockAlerts re-arms the latch if the gateway fails, so a
+    // timeout re-alerts on the next sale instead of silently dropping it.
     if (alertCandidates.length > 0) {
-      const storeRes = await query('SELECT name, phone FROM stores WHERE id = $1', [req.auth.sub]);
-      sendLowStockAlertSms(storeRes.rows[0], alertCandidates).catch(() => {});
-      recordLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
+      dispatchLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
     }
 
     return res.status(201).json({

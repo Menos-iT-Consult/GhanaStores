@@ -24,9 +24,8 @@ import {
 import {
   collectLowStockCandidate,
   persistAlertFlag,
-  recordLowStockAlerts,
+  dispatchLowStockAlerts,
 } from './inventoryRoutes.js';
-import { sendLowStockAlertSms } from '../services/smsService.js';
 import { canonicalDomain } from '../services/domainService.js';
 import {
   getSettings as getStoreSettings,
@@ -271,11 +270,10 @@ router.post('/public/orders', async (req, res, next) => {
       return { ...order, totalAmount };
     });
 
-    // Post-commit side effects - an SMS hiccup must never roll back stock.
+    // Post-commit side effects - dispatchLowStockAlerts re-arms the latch on
+    // failure, so an SMS hiccup never rolls back stock NOR silently drops the alert.
     if (alertCandidates.length > 0) {
-      const storeRes = await query('SELECT name, phone FROM stores WHERE id = $1', [storeId]);
-      sendLowStockAlertSms(storeRes.rows[0], alertCandidates).catch(() => {});
-      recordLowStockAlerts(storeId, alertCandidates).catch(() => {});
+      dispatchLowStockAlerts(storeId, alertCandidates).catch(() => {});
     }
 
     // The order now exists, so the gateway can be initialised against a real

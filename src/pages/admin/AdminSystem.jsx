@@ -70,10 +70,11 @@ export default function AdminSystem() {
           />
           <ul className="divide-y divide-slate-100">
             {integrations.map((row) => (
-              <li key={row.key} className="flex items-center justify-between gap-3 px-5 py-3">
+              <li key={row.keys.join('|')} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-charcoal">{row.label}</p>
-                  <p className="truncate font-mono text-[11px] text-slate-400">{row.key}</p>
+                  {/* A capability can need several vars; show them all, never values. */}
+                  <p className="truncate font-mono text-[11px] text-slate-400">{row.keys.join(', ')}</p>
                 </div>
                 {row.configured
                   ? <StatusPill status="ACTIVE" label="Configured" />
