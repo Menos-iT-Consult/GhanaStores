@@ -62,9 +62,112 @@ const pool = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+/**
+ * Read-only probe: run the WHOLE schema.sql in a transaction and roll it back.
+ *
+ * applySchema.js applies db/schema.sql inside one transaction, so a single bad
+ * statement means NO schema is applied at all and every request fails. This
+ * proves the file applies end to end without leaving anything behind.
+ */
+async function verifyFullSchemaApplies() {
+  const raw = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
+  const { splitSql } = await import('../db/applySchema.js');
+  const statements = splitSql(raw);
+  console.log(`[sms-db] schema.sql splits into ${statements.length} statements`);
+
+  await pool.query('BEGIN');
+  try {
+    for (const [i, stmt] of statements.entries()) {
+      try {
+        await pool.query(stmt);
+      } catch (e) {
+        const head = stmt.slice(0, 120).replace(/\s+/g, ' ');
+        throw new Error(`statement ${i + 1}/${statements.length} failed: ${e.message}\n      SQL: ${head}...`);
+      }
+    }
+    console.log('[sms-db] verified: the whole schema.sql applies without error');
+  } finally {
+    await pool.query('ROLLBACK');
+  }
+}
+
+/**
+ * How long does a FULL schema re-apply take, and does the checksum actually
+ * short-circuit a second run?
+ *
+ * `/health` reports `appliedNow: true` on every single request in production,
+ * which means the stored checksum never matches the file and every cold start
+ * replays all ~83 statements inside the request path. That is slow enough to be
+ * a plausible cause of intermittent 500s: the request is doing DDL work, not
+ * just serving. This measures the real cost and confirms the no-op path works.
+ */
+async function measureSchemaApplyCost() {
+  const { splitSql, schemaChecksum } = await import('../db/applySchema.js');
+  const raw = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
+  const sum = schemaChecksum(raw);
+
+  const { rows } = await pool.query('SELECT checksum, applied_at FROM schema_state WHERE id = 1');
+  const stored = rows[0]?.checksum || '(no marker row)';
+  console.log(`[sms-db] schema_state checksum: ${stored === sum ? 'MATCHES the file' : 'DIFFERS from the file'}`);
+  if (stored !== sum) {
+    console.log('[sms-db]   file:  ' + sum);
+    console.log('[sms-db]   stored:' + stored);
+    console.log('[sms-db]   => every cold start replays the whole DDL inside a request');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const t0 = Date.now();
+    for (const stmt of splitSql(raw)) await client.query(stmt);
+    const ms = Date.now() - t0;
+    console.log(`[sms-db] a full schema apply takes ${ms}ms`);
+    if (ms > 3000) {
+      console.warn(`[sms-db] WARNING: ${ms}ms of DDL inside the request path is a 500 risk on a cold start`);
+    }
+    await client.query('ROLLBACK');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* noop */ }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 try {
   await pool.query(ddl);
+  await measureSchemaApplyCost();
   console.log('[sms-db] store_sms_settings + readiness constraint applied');
+  await verifyFullSchemaApplies();
+
+  /* ------------------------ Deployment state probe ------------------------- */
+  // Which build is actually live? A 404 on a route this file adds means the
+  // deployed bundle predates it, which is the difference between "my change is
+  // broken in production" and "production has not received my change yet".
+  console.log('[sms-db] deployment probe:');
+  for (const [name, path] of [
+    ['store_sms_settings (BYOK, shipped earlier)', '/api/sms-settings'],
+    ['/api/sms-packs (new, this change)', '/api/sms-packs'],
+  ]) {
+    const base = process.env.SMOKE_BASE_URL || '';
+    if (!base) {
+      console.log(`[sms-db]   ${name}: skipped (set SMOKE_BASE_URL to probe a live host)`);
+      continue;
+    }
+    try {
+      const res = await fetch(new URL(path, base), { signal: AbortSignal.timeout(15_000) });
+      const body = await res.text();
+      const hint = res.status === 404
+        ? 'NOT DEPLOYED (route missing on the live host)'
+        : res.status === 401 || res.status === 403
+          ? 'deployed (auth required, as expected)'
+          : `status ${res.status}`;
+      console.log(`[sms-db]   ${name}: ${hint}`);
+      if (res.status >= 500) console.log(`[sms-db]     body: ${body.slice(0, 200)}`);
+    } catch (e) {
+      console.log(`[sms-db]   ${name}: probe failed - ${e.message}`);
+    }
+  }
 
   const { rows: cols } = await pool.query(`
     SELECT column_name FROM information_schema.columns
