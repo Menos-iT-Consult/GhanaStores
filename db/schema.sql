@@ -28,6 +28,13 @@ CREATE TABLE IF NOT EXISTS plans (
   yearly_price_ghs   NUMERIC(12,2) NOT NULL CHECK (yearly_price_ghs >= 0),
   features           TEXT[] NOT NULL DEFAULT '{}',
   max_products       INTEGER NOT NULL DEFAULT 500 CHECK (max_products >= 0),
+  -- Free platform SMS segments included with the plan, reset every billing
+  -- period. The unit is SEGMENTS, not messages: providers bill per 140-char
+  -- part, so a 5-item receipt costs the platform 3-4 units. Metering messages
+  -- would understate real cost by roughly that multiple. Starter is 0, which
+  -- does not lock the plan out of platform SMS - Starter may still buy prepaid
+  -- segments (see store_sms_balance); it simply gets no free allowance.
+  sms_monthly_segments INTEGER NOT NULL DEFAULT 0 CHECK (sms_monthly_segments >= 0),
   is_enabled         BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order         INTEGER NOT NULL DEFAULT 100,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -43,16 +50,16 @@ CREATE INDEX IF NOT EXISTS plans_enabled_sort_idx ON plans (is_enabled, sort_ord
 -- routes/billingRoutes.js, so every existing store keeps resolving to a plan.
 -- Yearly is priced at 10x monthly (two months free). ON CONFLICT DO NOTHING:
 -- an admin edit must survive a re-run of the schema.
-INSERT INTO plans (id, name, tagline, monthly_price_ghs, yearly_price_ghs, features, max_products, sort_order) VALUES
+INSERT INTO plans (id, name, tagline, monthly_price_ghs, yearly_price_ghs, features, max_products, sms_monthly_segments, sort_order) VALUES
   ('starter', 'Starter', '14-day free trial', 0, 0,
    ARRAY['Up to 20 products','Mobile money payments','Order tracking','Email support'],
-   20, 1),
+   20, 0, 1),
   ('growth', 'Growth', 'For growing shops', 79, 790,
    ARRAY['Up to 500 products','Mobile money payments','Domain name included','Theme marketplace','Priority support'],
-   500, 2),
+   500, 50, 2),
   ('scale', 'Scale', 'High-volume merchants', 199, 1990,
    ARRAY['Unlimited products','Multi-currency pricing','Team seats','Dedicated account manager'],
-   100000, 3)
+   100000, 100, 3)
 ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------ stores (tenants)
@@ -421,6 +428,144 @@ ALTER TABLE payment_settings ADD CONSTRAINT payment_settings_gateway_ready_check
 -- reference, so this lookup is on the hot path of every payment callback.
 CREATE INDEX IF NOT EXISTS payment_settings_gateway_idx
   ON payment_settings (active_gateway) WHERE active_gateway <> 'COD';
+
+
+-- ---------------------------------------------------------------------------
+-- Per-store SMS provider credentials (BYOK), used for ORDER messages only.
+-- ---------------------------------------------------------------------------
+-- Merchant keys are scoped to customer-facing order notifications and are
+-- NEVER used for the billing lifecycle or low-stock alerts. That separation is
+-- deliberate and load-bearing: when a store is SUSPENDED its own credentials
+-- are exactly what cannot be relied on, and a suspension notice sent on them
+-- would never arrive. Those platform-level messages always use the DiDwa key.
+--
+-- Secrets use the same v1:<iv>:<authTag>:<ciphertext> envelope as
+-- payment_settings, sealed by services/secretBox.js.
+CREATE TABLE IF NOT EXISTS store_sms_settings (
+  store_id          UUID PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE,
+  -- Which provider the ORDER path should prefer. 'PLATFORM' means "use the
+  -- DiDwa mNotify key", which is the default so nothing changes until a
+  -- merchant deliberately connects their own account.
+  provider          TEXT NOT NULL DEFAULT 'PLATFORM'
+                      CHECK (provider IN ('MNOTIFY','ARKESEL','HUBTEL','PLATFORM')),
+  -- A merchant may disable order SMS entirely without deleting their keys.
+  enable_order_sms  BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Credential columns are nullable because each provider needs a different
+  -- subset; which columns MUST be present is enforced per provider below.
+  api_key           TEXT,
+  sender_id         TEXT,
+  client_id         TEXT,
+  client_secret     TEXT,
+  merchant_account_id TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Order SMS can only be enabled for a provider whose credentials are actually
+-- present, so a half-saved form cannot leave a store advertising a rail that
+-- would fail on every order. 'PLATFORM' needs no credentials by definition.
+ALTER TABLE store_sms_settings DROP CONSTRAINT IF EXISTS store_sms_settings_provider_ready_check;
+ALTER TABLE store_sms_settings ADD CONSTRAINT store_sms_settings_provider_ready_check CHECK (
+  NOT enable_order_sms
+  OR provider = 'PLATFORM'
+  OR (provider = 'MNOTIFY' AND api_key IS NOT NULL AND sender_id IS NOT NULL)
+  OR (provider = 'ARKESEL' AND api_key IS NOT NULL AND sender_id IS NOT NULL)
+  OR (provider = 'HUBTEL' AND client_id IS NOT NULL
+      AND client_secret IS NOT NULL AND merchant_account_id IS NOT NULL)
+);
+
+-- =========================================================== platform SMS quota
+--
+-- Order SMS sent on the DiDwa key is DiDwa's own cost, so it is metered. A
+-- merchant sending on THEIR key is never metered: they pay their own provider
+-- from their own balance, and charging them quota too would be double-billing.
+--
+-- Balance = this period's free allowance + whatever they have prepaid. Both are
+-- counted in SEGMENTS, never messages: providers bill per 140-char part, so one
+-- order receipt can cost 3-4 segments. Metering messages would understate real
+-- cost by that multiple.
+
+-- One row per store: the plan allowance consumed THIS period. Keyed by period
+-- so a new billing period starts a fresh allowance automatically - no cron, and
+-- no chance of a reset job silently failing and locking a merchant out.
+-- Created lazily on the first order SMS of a period.
+CREATE TABLE IF NOT EXISTS store_sms_usage (
+  store_id        UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  period_start    TIMESTAMPTZ NOT NULL,
+  period_end      TIMESTAMPTZ NOT NULL,
+  plan_segments_used INTEGER NOT NULL DEFAULT 0 CHECK (plan_segments_used >= 0),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (store_id, period_start)
+);
+
+-- One row per store: PREPAID segments, which deliberately carry over forever.
+-- Kept apart from store_sms_usage on purpose. A period-keyed row is discarded
+-- at the boundary, which would silently wipe money a merchant has already paid
+-- for; this row is never reset. That is also why consumption spends the free
+-- allowance first (see services/smsQuota.js) - the free remainder is what lapses
+-- at period end, which is the honest outcome since nobody paid for it.
+CREATE TABLE IF NOT EXISTS store_sms_balance (
+  store_id   UUID PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE,
+  segments   INTEGER NOT NULL DEFAULT 0 CHECK (segments >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Global switches for prepaid purchases. Single-row, mirroring domain_settings.
+--
+-- price_per_segment is NULLABLE ON PURPOSE: it ships unset and an admin sets it
+-- in the dashboard. A seeded default would become a real charged price that
+-- nobody deliberately chose. NULL means "not configured" and purchases fail
+-- closed rather than charging a placeholder. Six decimals because a per-segment
+-- price in pesewas is small - NUMERIC(10,2) would round it to zero.
+CREATE TABLE IF NOT EXISTS sms_settings (
+  id                    INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  price_per_segment     NUMERIC(10,6) CHECK (price_per_segment IS NULL OR price_per_segment > 0),
+  min_purchase          INTEGER NOT NULL DEFAULT 100 CHECK (min_purchase > 0),
+  -- Global kill switch: stops NEW purchases platform-wide without touching the
+  -- quota logic or balances already bought. The lever to pull if the mNotify
+  -- account needs protecting.
+  is_purchases_enabled  BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Payment audit for prepaid segments. Deliberately mirrors subscription_payments:
+-- a PENDING row is written BEFORE the gateway call so a crash mid-collection
+-- leaves an auditable row, and ACTIVE/credit only ever follows a confirmed
+-- charge. Never a silent balance increase.
+CREATE TABLE IF NOT EXISTS sms_pack_payments (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id         UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  segments         INTEGER NOT NULL CHECK (segments > 0),
+  amount           NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  momo_number      TEXT NOT NULL,
+  network          TEXT NOT NULL CHECK (network IN ('MTN','VODAFONE','AT')),
+  provider         TEXT NOT NULL DEFAULT 'PENDING' CHECK (provider IN ('MTN','HUBTEL','PENDING')),
+  reference        TEXT,
+  gateway_reference TEXT,
+  -- The per-segment price at purchase time. Recorded rather than re-read later:
+  -- an admin price change must never alter what a past payment was worth.
+  price_per_segment NUMERIC(10,6) NOT NULL CHECK (price_per_segment > 0),
+  status           TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','PAID','FAILED')),
+  failure_reason   TEXT,
+  initiated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  paid_at          TIMESTAMPTZ
+);
+-- One row per gateway attempt reference, so a replayed idempotency key cannot
+-- insert a second payment row for the same tap.
+CREATE UNIQUE INDEX IF NOT EXISTS sms_pack_payments_reference_idx
+  ON sms_pack_payments (reference);
+
+-- Widen plans for the SMS allowance. CREATE TABLE IF NOT EXISTS is a no-op on an
+-- existing database, so the column has to be added separately. Idempotent.
+ALTER TABLE plans DROP CONSTRAINT IF EXISTS plans_sms_monthly_segments_check;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS sms_monthly_segments INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE plans ADD CONSTRAINT plans_sms_monthly_segments_check
+  CHECK (sms_monthly_segments >= 0);
+
+-- Backfill the allowance for the three seeded plans. Only where the column is
+-- still 0: this must never overwrite an admin's configured figure on a re-run.
+UPDATE plans SET sms_monthly_segments = 50 WHERE id = 'growth'   AND sms_monthly_segments = 0;
+UPDATE plans SET sms_monthly_segments = 100 WHERE id = 'scale'  AND sms_monthly_segments = 0;
 
 
 -- Widen orders.payment_method to name the gateway that actually charged.

@@ -10,13 +10,14 @@ import {
   IconDashboard, IconCart, IconBox, IconReceipt,
   IconWallet, IconLogout, IconX, IconLogo,
 } from '../../components/icons.jsx';
-import { Palette, Globe, FileText, Mail } from 'lucide-react';
+import { Palette, Globe, FileText, Mail, MessageSquare } from 'lucide-react';
 
 /** Primary seller navigation, shown whenever the customizer is closed. */
 export const DASHBOARD_NAV = [
   { path: '/dashboard',        label: 'Analytics',     icon: IconDashboard },
   { path: '/pos',              label: 'POS Terminal',  icon: IconCart },
   { path: '/settings/payments',label: 'Payments',      icon: IconWallet },
+  { path: '/settings/notifications', label: 'Order SMS', icon: MessageSquare },
   { path: '/inventory',        label: 'Inventory',     icon: IconBox },
   { path: '/orders',           label: 'Orders',        icon: IconReceipt },
   { path: '/messages',         label: 'Messages',      icon: Mail },

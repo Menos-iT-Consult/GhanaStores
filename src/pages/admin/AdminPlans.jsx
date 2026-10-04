@@ -8,7 +8,7 @@ import {
 
 const emptyDraft = {
   name: '', tagline: '', monthlyPriceGhs: '', yearlyPriceGhs: '',
-  maxProducts: '', features: '', isEnabled: true, sortOrder: '',
+  maxProducts: '', features: '', isEnabled: true, sortOrder: '', smsMonthlySegments: '',
 };
 
 export default function AdminPlans() {
@@ -47,6 +47,7 @@ export default function AdminPlans() {
       monthlyPriceGhs: String(plan.monthlyPriceGhs),
       yearlyPriceGhs: String(plan.yearlyPriceGhs),
       maxProducts: String(plan.maxProducts),
+      smsMonthlySegments: String(plan.smsMonthlySegments ?? 0),
       features: (plan.features || []).join('\n'),
       isEnabled: plan.isEnabled,
       sortOrder: String(plan.sortOrder),
@@ -69,6 +70,7 @@ export default function AdminPlans() {
         monthlyPriceGhs: draft.monthlyPriceGhs === '' ? undefined : Number(draft.monthlyPriceGhs),
         yearlyPriceGhs: draft.yearlyPriceGhs === '' ? undefined : Number(draft.yearlyPriceGhs),
         maxProducts: draft.maxProducts === '' ? undefined : Number(draft.maxProducts),
+        smsMonthlySegments: draft.smsMonthlySegments === '' ? undefined : Number(draft.smsMonthlySegments),
         features: draft.features.split('\n').map((line) => line.trim()).filter(Boolean),
         isEnabled: draft.isEnabled,
         sortOrder: draft.sortOrder === '' ? undefined : Number(draft.sortOrder),
@@ -259,6 +261,19 @@ export default function AdminPlans() {
               className={inputClass}
               value={draft.maxProducts}
               onChange={(e) => setDraft({ ...draft, maxProducts: e.target.value })}
+            />
+          </Field>
+
+          <Field
+            label="Free SMS segments per period"
+            hint="Platform order SMS included each billing period, counted in 140-character segments (a typical receipt costs 3-4). 0 means no free allowance - the plan can still buy prepaid segments, it just gets nothing included."
+          >
+            <input
+              type="number"
+              min="0"
+              className={inputClass}
+              value={draft.smsMonthlySegments}
+              onChange={(e) => setDraft({ ...draft, smsMonthlySegments: e.target.value })}
             />
           </Field>
 

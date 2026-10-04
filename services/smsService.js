@@ -19,6 +19,13 @@
  */
 import axios from 'axios';
 import { formatGhs } from '../utils/helpers.js';
+import { dispatch as dispatchSms } from './smsProviders.js';
+import { consumeSegments } from './smsQuota.js';
+import {
+  getSettings as loadStoreSmsSettings,
+  toProviderCreds,
+  usesMerchantKey,
+} from './storeSms.js';
 
 const MNOTIFY_BASE = process.env.MNOTIFY_BASE_URL || 'https://api.mnotify.com/api';
 const API_KEY = process.env.MNOTIFY_API_KEY || '';
@@ -176,7 +183,116 @@ export async function sendLowStockAlertSms(store, lowVariants) {
   return sendSms([store.phone], message);
 }
 
-/* --------------------------- payout confirmation --------------------------- */
+/* --------------------- Module 7: customer order SMS (BYOK) ---------------- */
+
+/**
+ * Order confirmation sent TO THE CUSTOMER (not the merchant).
+ *
+ * This is the only path in this file that may use a merchant's own SMS
+ * credentials. Every other export above is platform infrastructure and must
+ * keep using the DiDwa key - see the reasoning at the top of storeSms.js.
+ *
+ * Routing:
+ *   merchant has order SMS on with working keys -> send on THEIR account
+ *   otherwise                                      -> check the quota, then
+ *                                                    send on the DiDwa key
+ *
+ * THE QUOTA IS A HARD STOP, not a soft one. A store with no allowance and no
+ * prepaid segments gets no platform SMS. There is deliberately no unbounded
+ * fallback any more: platform sends are DiDwa's own mNotify bill, and metering
+ * that only works if exhaustion actually stops the send. The customer's order is
+ * unaffected - it is already committed by the time this runs - so they simply
+ * miss the text, and the seller dashboard says the quota is spent.
+ *
+ * Note what is NOT metered: a merchant sending on their own key. They pay their
+ * own provider from their own balance, so charging them quota for it would be
+ * double-billing, and their own account's limits already apply.
+ */
+export async function sendOrderSms({ store, customerPhone, order, items = [] }) {
+  const storeName = store?.name || 'the store';
+  const reference = order?.order_number || order?.reference || '';
+  const lines = (Array.isArray(items) ? items : [])
+    .slice(0, 5)
+    .map((i) => `- ${i.name || i.product_name} x${Number(i.quantity || 1)}`)
+    .join('\n');
+  const more = items.length > 5 ? `\n+${items.length - 5} more item(s)` : '';
+
+  const message =
+    `Order confirmed - ${storeName}\n`
+    + `${reference ? `Ref: ${reference}\n` : ''}`
+    + (lines ? `${lines}${more}\n` : '')
+    + `Total: ${formatGhs(order?.total ?? 0)}\n`
+    // Pay-upfront gateways are redirected; COD and pending rails are collected
+    // on delivery, so only name one when there is something to actually pay.
+    + (order?.payment_method === 'COD' || !order?.payment_method
+      ? 'We will call you to arrange delivery. Pay on delivery.'
+      : `Pay online: ${order?.payment_url || 'follow the link in your confirmation email'}`);
+
+  // 1. Merchant's own account, when they have opted in and it is usable.
+  if (store?.id) {
+    const settings = await loadStoreSmsSettings(store.id);
+    if (usesMerchantKey(settings)) {
+      const result = await dispatchSms(settings.provider, toProviderCreds(settings), {
+        to: customerPhone,
+        message,
+      });
+      if (result.ok) {
+        console.log('[sms] order confirmation on merchant key', {
+          store: store.id,
+          provider: settings.provider,
+          messageId: result.messageId,
+        });
+        return { ...result, channel: settings.provider };
+      }
+      // Merchant provider failed. We do NOT fall back to the DiDwa key any more:
+      // that would spend the platform's own mNotify balance for a message the
+      // merchant is paying for on their own account, and outside their quota.
+      // Logged loudly, but it must not fail the order.
+      console.error('[sms] merchant SMS provider failed, no platform fallback', {
+        store: store.id,
+        provider: settings.provider,
+        reason: result.error,
+      });
+      return { ok: false, channel: settings.provider, reason: 'merchant-provider-failed' };
+    }
+  }
+
+  // 2. DiDwa platform key, metered against the store's quota.
+  // The message length is measured HERE, after the final text is built, because
+  // segments are what providers bill - a 5-item receipt is 3-4 of them.
+  const needed = estimateSegments(message);
+  const quota = await consumeSegments(store.id, needed);
+
+  if (!quota.ok) {
+    console.warn('[sms] platform SMS skipped, quota unavailable', {
+      store: store.id,
+      segments: needed,
+      reason: quota.reason,
+    });
+    return { ok: false, channel: 'PLATFORM', reason: quota.reason };
+  }
+
+  const sent = await sendSms([customerPhone], message);
+  return {
+    ...sent,
+    channel: 'PLATFORM',
+    segments: needed,
+    ...(sent.ok ? {} : { reason: sent.reason || 'send-failed' }),
+  };
+}
+
+/**
+ * Rough segment count for a message, so the merchant UI can warn before they
+ * enable order SMS. Providers bill per 140-character segment (160 for GSM-7),
+ * so a six-item receipt is 3-4 segments and burns balance fast at volume.
+ */
+export function estimateSegments(message) {
+  const text = String(message || '');
+  if (!text) return 0;
+  return Math.max(1, Math.ceil(text.length / 140));
+}
+
+
 
 export async function sendPayoutSms(store, payout) {
   const message =
@@ -193,5 +309,7 @@ export default {
   sendSuspensionSms,
   sendLowStockAlertSms,
   sendPayoutSms,
+  sendOrderSms,
+  estimateSegments,
   get dryRun() { return smsDryRun; },
 };

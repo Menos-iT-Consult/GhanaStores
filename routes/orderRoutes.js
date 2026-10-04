@@ -27,6 +27,7 @@ import {
   dispatchLowStockAlerts,
 } from './inventoryRoutes.js';
 import { canonicalDomain } from '../services/domainService.js';
+import { sendOrderSms } from '../services/smsService.js';
 import {
   getSettings as getStoreSettings,
   resolveMethod,
@@ -177,6 +178,7 @@ router.post('/public/orders', async (req, res, next) => {
     const paymentMethod = resolveMethod(paymentSettings, methodRaw);
 
     const alertCandidates = [];
+const orderLines = [];
     const created = await withTransaction(async (t) => {
       // Single canonical ledger: status/total/subtotal are the source of
       // truth for analytics, wallet credit, receipts and rider dispatch.
@@ -234,6 +236,8 @@ router.post('/public/orders', async (req, res, next) => {
         const unitPrice = money(row.unit_price);
         const lineTotal = money(unitPrice * it.quantity);
         totalAmount = money(totalAmount + Number(lineTotal));
+        // Captured for the customer's order SMS below; `items` only carries ids.
+        orderLines.push({ name: row.product_name, quantity: it.quantity });
 
         await t.query(
           `INSERT INTO order_items
@@ -310,6 +314,33 @@ router.post('/public/orders', async (req, res, next) => {
         payment = { method: paymentMethod, requiresCharge: true, success: false, error: 'Payment could not be started.' };
       }
     }
+
+    // Customer order SMS, AFTER the order is committed. Fire-and-forget: a
+    // gateway that is down, a merchant with an empty balance, or an unreachable
+    // provider must never turn a successful purchase into a 500. sendOrderSms
+    // never throws, and a store whose SMS quota is spent simply gets no text -
+    // the order itself is already committed and must never become a 500 because
+    // of a messaging quota.
+    //
+    // POS sales deliberately do NOT trigger this: a busy shop would pay per SMS
+    // per sale, and the rider already notifies the customer.
+    //
+    // The store name is fetched inside the async IIFE rather than inline so this
+    // extra round trip never sits in front of the shopper's response.
+    (async () => {
+      const { rows: storeRows } = await query('SELECT id, name FROM stores WHERE id = $1', [storeId]);
+      await sendOrderSms({
+        store: storeRows[0],
+        customerPhone,
+        order: {
+          order_number: created.order_number,
+          total: created.totalAmount,
+          payment_method: paymentMethod,
+          payment_url: payment.authorizationUrl || null,
+        },
+        items: orderLines,
+      });
+    })().catch((err) => console.error('[checkout] order SMS failed:', err.message));
 
     res.status(201).json({
       message: `Order ${created.order_number} placed successfully.`,

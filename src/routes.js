@@ -39,6 +39,7 @@ export const PWA_ROUTES = [
   '/pos',
   '/messages',
   '/settings/payments',
+  '/settings/notifications',
   '/settings/plan',
   '/inventory',
   '/orders',

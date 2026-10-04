@@ -32,6 +32,8 @@ import billingRoutes from './routes/billingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import posRoutes from './routes/posRoutes.js';
 import paymentSettingsRoutes from './routes/paymentSettingsRoutes.js';
+import smsSettingsRoutes from './routes/smsSettingsRoutes.js';
+import smsPacksRoutes from './routes/smsPacksRoutes.js';
 import whatsappInvoiceRoutes, { whatsappRouter } from './routes/whatsappInvoiceRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 import domainRoutes from './routes/domainRoutes.js';
@@ -142,6 +144,8 @@ app.get('/health', async (_req, res) => {
 
 app.use('/api/billing', billingRoutes);
 app.use('/api/payment-settings', paymentSettingsRoutes);
+app.use('/api/sms-settings', smsSettingsRoutes);
+app.use('/api/sms-packs', smsPacksRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/pos', posRoutes);
 // Seller payouts were removed with the escrow model: customer money now settles

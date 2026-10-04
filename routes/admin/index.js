@@ -17,6 +17,7 @@
  *   themes     the template catalog and its adoption
  *   pricing    the domain catalogue's wholesale/retail pricing
  *   plans      the subscription plan catalogue and its monthly/yearly prices
+ *   smsPricing the platform SMS segment price and the purchase switches
  *   system     database health, integration presence, runtime
  *   audit      the append-only ledger of every admin write
  *
@@ -39,6 +40,7 @@ import auditRoutes from './audit.js';
 import pricingRoutes from './pricing.js';
 import planRoutes from './plans.js';
 import contactRoutes from './contact.js';
+import smsPricingRoutes from './smsPricing.js';
 
 const router = Router();
 
@@ -57,6 +59,7 @@ router.use(auditRoutes);
 router.use(pricingRoutes);
 router.use(planRoutes);
 router.use(contactRoutes);
+router.use(smsPricingRoutes);
 
 /**
  * Legacy alias kept for the pre-split client: PATCH /tenants/:id/status became

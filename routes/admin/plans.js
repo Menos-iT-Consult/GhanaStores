@@ -122,6 +122,20 @@ router.patch('/plans/:id', requireAdmin, async (req, res, next) => {
       detail.maxProducts = max;
     }
 
+    // Free platform SMS segments per period. 0 is legal and meaningful: it
+    // means "no free allowance", not "no platform SMS" - a Starter store may
+    // still buy prepaid segments (see services/smsQuota.js).
+    if (req.body?.smsMonthlySegments !== undefined) {
+      const segments = Number.parseInt(req.body.smsMonthlySegments, 10);
+      if (!Number.isFinite(segments) || segments < 0 || segments > 1_000_000) {
+        return res.status(400).json({ error: 'The SMS allowance must be a whole number of segments between 0 and 1,000,000.' });
+      }
+      params.push(segments);
+      updates.push(`sms_monthly_segments = $${params.length}`);
+      detail.from.smsMonthlySegments = current.smsMonthlySegments;
+      detail.smsMonthlySegments = segments;
+    }
+
     if (req.body?.features !== undefined) {
       if (!Array.isArray(req.body.features)) {
         return res.status(400).json({ error: 'Features must be a list of strings.' });

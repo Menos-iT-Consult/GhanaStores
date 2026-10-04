@@ -22,11 +22,15 @@ const CACHE_MS = 60_000;
  * Last-resort catalogue used only if `plans` has not been seeded at all, so a
  * missing migration degrades to the previous hard-coded behaviour instead of a
  * broken page or a 503. These figures are NOT a pricing source of truth.
+ *
+ * smsMonthlySegments IS present here for the same reason: it is an entitlement
+ * that gates whether a store can send platform SMS at all. Leaving it out would
+ * let a missing `plans` table silently change what merchants can actually do.
  */
 const FALLBACK_PLANS = [
-  { id: 'starter', name: 'Starter', tagline: '14-day free trial', monthly_price_ghs: 0, yearly_price_ghs: 0, features: ['Up to 20 products', 'Mobile money payments', 'Order tracking', 'Email support'], max_products: 20, is_enabled: true, sort_order: 1 },
-  { id: 'growth', name: 'Growth', tagline: 'For growing shops', monthly_price_ghs: 79, yearly_price_ghs: 790, features: ['Up to 500 products', 'Mobile money payments', 'Domain name included', 'Theme marketplace', 'Priority support'], max_products: 500, is_enabled: true, sort_order: 2 },
-  { id: 'scale', name: 'Scale', tagline: 'High-volume merchants', monthly_price_ghs: 199, yearly_price_ghs: 1990, features: ['Unlimited products', 'Multi-currency pricing', 'Team seats', 'Dedicated account manager'], max_products: 100000, is_enabled: true, sort_order: 3 },
+  { id: 'starter', name: 'Starter', tagline: '14-day free trial', monthly_price_ghs: 0, yearly_price_ghs: 0, features: ['Up to 20 products', 'Mobile money payments', 'Order tracking', 'Email support'], max_products: 20, smsMonthlySegments: 0, is_enabled: true, sort_order: 1 },
+  { id: 'growth', name: 'Growth', tagline: 'For growing shops', monthly_price_ghs: 79, yearly_price_ghs: 790, features: ['Up to 500 products', 'Mobile money payments', 'Domain name included', 'Theme marketplace', 'Priority support'], max_products: 500, smsMonthlySegments: 50, is_enabled: true, sort_order: 2 },
+  { id: 'scale', name: 'Scale', tagline: 'High-volume merchants', monthly_price_ghs: 199, yearly_price_ghs: 1990, features: ['Unlimited products', 'Multi-currency pricing', 'Team seats', 'Dedicated account manager'], max_products: 100000, smsMonthlySegments: 100, is_enabled: true, sort_order: 3 },
 ];
 
 /** Billing cycles a seller may choose. */
@@ -50,6 +54,9 @@ const toPlan = (row) => ({
   yearlyPriceGhs: Number(row.yearly_price_ghs),
   features: Array.isArray(row.features) ? row.features : [],
   maxProducts: Number(row.max_products ?? 0),
+  // Free platform SMS segments per period. 0 (Starter) means no free allowance -
+  // NOT a lockout: Starter may still buy prepaid segments.
+  smsMonthlySegments: Number(row.sms_monthly_segments ?? 0),
   isEnabled: Boolean(row.is_enabled),
   sortOrder: Number(row.sort_order ?? 100),
 });
@@ -65,7 +72,7 @@ export async function loadPlanCatalog({ force = false } = {}) {
   try {
     const { rows } = await query(
       `SELECT id, name, tagline, monthly_price_ghs, yearly_price_ghs, features,
-              max_products, is_enabled, sort_order
+              max_products, sms_monthly_segments, is_enabled, sort_order
          FROM plans ORDER BY sort_order, id`,
     );
     data = {

@@ -23,6 +23,7 @@ import { AboutPage, ContactPage, FeaturesPage, HowItWorksPage, PrivacyPage, Pric
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
+import SellerSmsSettings from './pages/SellerSmsSettings.jsx';
 import SellerPlan from './pages/SellerPlan.jsx';
 import SellerMessages from './pages/SellerMessages.jsx';
 import SellerInventory from './pages/SellerInventory.jsx';
@@ -198,6 +199,7 @@ export default function App() {
       case '/login': return null; // redirected by the effect above
       case '/pos': return <SellerPOS />;
       case '/settings/payments': return <SellerPaymentSettings />;
+    case '/settings/notifications': return <SellerSmsSettings />;
       case '/settings/plan': return <SellerPlan />;
 case '/messages': return <SellerMessages />;
       case '/inventory': return <SellerInventory />;
