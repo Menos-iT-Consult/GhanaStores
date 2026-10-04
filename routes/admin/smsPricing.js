@@ -34,9 +34,12 @@ router.get('/sms-pricing', requireAdmin, async (_req, res, next) => {
       // How much prepaid liability is outstanding. Prepaid segments carry over
       // forever, so this total never fully drains - it is the number to watch if
       // the mNotify wholesale price ever rises.
+      // Aliases are QUOTED on purpose: pg lowercases an unquoted identifier, so
+      // `AS storesWithBalance` arrives as `storeswithbalance` and any other
+      // spelling read here yields undefined. Quoting pins the exact key.
       query(
         `SELECT COALESCE(SUM(segments), 0)::int AS outstanding,
-                COUNT(*) FILTER (WHERE segments > 0)::int AS storesWithBalance
+                COUNT(*) FILTER (WHERE segments > 0)::int AS "storesWithBalance"
            FROM store_sms_balance`,
       ),
       query(
@@ -50,7 +53,7 @@ router.get('/sms-pricing', requireAdmin, async (_req, res, next) => {
       settings,
       volume: {
         outstanding: volume[0].rows[0]?.outstanding ?? 0,
-        storesWithBalance: volume[0].rows[0]?.stores_with_balance ?? 0,
+        storesWithBalance: volume[0].rows[0]?.storesWithBalance ?? 0,
         payments: {
           pending: byStatus.PENDING?.count ?? 0,
           paid: byStatus.PAID?.count ?? 0,

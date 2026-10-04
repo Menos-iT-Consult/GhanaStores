@@ -74,9 +74,20 @@ export default function AdminSmsPricing() {
     }
   };
 
-  if (loading) return <LoadingBlock />;
+  // A failed load must render the error, never crash the page. `data` is null
+  // whenever load() threw, so it is guarded here and read defensively below -
+  // destructuring it directly is what produced "Cannot destructure property
+  // 'settings' of null" and took down the whole admin shell.
+  if (loading) return <LoadingBlock label="Loading SMS pricing..." />;
+  if (error && !data) return <ErrorBanner error={error} onRetry={load} />;
 
-  const { settings, volume } = data;
+  const settings = data?.settings || {
+    pricePerSegment: null, minPurchase: 100, isPurchasesEnabled: false,
+  };
+  const volume = data?.volume || {
+    outstanding: 0, storesWithBalance: 0, segmentsSold: 0,
+    payments: { pending: 0, paid: 0, failed: 0 },
+  };
   const priced = settings.pricePerSegment != null;
 
   return (

@@ -62,6 +62,84 @@ const pool = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+/* -------------------- Live GET /sms-pricing query check -------------------- */
+// Reproduces the admin endpoint's exact queries. A 500 on that page is a
+// schema/query mismatch, and the cheapest way to catch it is to run the SQL.
+async function verifyPricingQueries() {
+  const { query } = await import('../config/database.js');
+  const { getSmsSettings } = await import('../services/smsQuota.js');
+  // Aliases are QUOTED because pg lowercases an unquoted identifier, so
+    // `AS storesWithBalance` arrives as `storeswithbalance` and reading
+    // `stores_with_balance` (or the camelCase name) silently yields undefined.
+    const checks = [
+    ['sms_settings row', 'SELECT price_per_segment, min_purchase, is_purchases_enabled FROM sms_settings WHERE id = 1'],
+    ['outstanding liability',
+      `SELECT COALESCE(SUM(segments), 0)::int AS outstanding,
+              COUNT(*) FILTER (WHERE segments > 0)::int AS "storesWithBalance"
+         FROM store_sms_balance`],
+    ['payments by status',
+      `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(segments), 0)::int AS segments
+         FROM sms_pack_payments GROUP BY status`],
+  ];
+  for (const [label, sql] of checks) {
+    try {
+      const { rows } = await pool.query(sql);
+      console.log(`[sms-db] query ok: ${label} (${rows.length} row(s))`);
+    } catch (e) {
+      throw new Error(`admin sms-pricing query failed - ${label}: ${e.message}`);
+    }
+  }
+
+  // Run the endpoint's exact Promise.all chain and build the exact response, so
+  // a shape mismatch surfaces here instead of as a 500 in production.
+  const [settings, bal, pay] = await Promise.all([
+    getSmsSettings(),
+    query(
+      `SELECT COALESCE(SUM(segments), 0)::int AS outstanding,
+              COUNT(*) FILTER (WHERE segments > 0)::int AS "storesWithBalance"
+         FROM store_sms_balance`,
+    ),
+    query(
+      `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(segments), 0)::int AS segments
+         FROM sms_pack_payments GROUP BY status`,
+    ),
+  ]);
+  const byStatus = Object.fromEntries(pay.rows.map((r) => [r.status, r]));
+  const response = {
+    settings,
+    volume: {
+      outstanding: bal.rows[0]?.outstanding ?? 0,
+      storesWithBalance: bal.rows[0]?.storesWithBalance ?? 0,
+      payments: {
+        pending: byStatus.PENDING?.count ?? 0,
+        paid: byStatus.PAID?.count ?? 0,
+        failed: byStatus.FAILED?.count ?? 0,
+      },
+      segmentsSold: byStatus.PAID?.segments ?? 0,
+    },
+  };
+  console.log('[sms-db] endpoint response shape: ' + JSON.stringify(response));
+
+  // The page destructures these two fields; if either is missing the component
+  // throws "Cannot destructure property" and the whole admin page white-screens.
+  for (const key of ['settings', 'volume']) {
+    if (!(key in response) || response[key] == null) {
+      throw new Error(`the GET /sms-pricing response has no usable '${key}'`);
+    }
+  }
+  for (const key of ['pricePerSegment', 'minPurchase', 'isPurchasesEnabled']) {
+    if (!(key in response.settings)) {
+      throw new Error(`settings.${key} is missing from the response`);
+    }
+  }
+  for (const key of ['outstanding', 'storesWithBalance', 'payments', 'segmentsSold']) {
+    if (!(key in response.volume)) {
+      throw new Error(`volume.${key} is missing from the response`);
+    }
+  }
+  console.log('[sms-db] verified: the admin endpoint response has every field the page reads');
+}
+
 /**
  * Read-only probe: run the WHOLE schema.sql in a transaction and roll it back.
  *
@@ -136,6 +214,7 @@ async function measureSchemaApplyCost() {
 
 try {
   await pool.query(ddl);
+  await verifyPricingQueries();
   await measureSchemaApplyCost();
   console.log('[sms-db] store_sms_settings + readiness constraint applied');
   await verifyFullSchemaApplies();

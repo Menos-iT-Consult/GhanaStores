@@ -311,6 +311,132 @@ const serverSrc = read('server.js');
 ok(serverSrc.includes("'/api/sms-packs'"), 'the prepaid segments router is mounted');
 ok(serverSrc.includes('smsPacksRoutes'), 'the prepaid segments router is imported');
 
+/* ----------------------- Admin page survives a failed load ----------------- */
+section('the SMS pricing page renders without data');
+
+// A 500 from /api/admin/sms-pricing leaves `data` null. The page used to
+// destructure it directly, so the admin shell white-screened with
+// "Cannot destructure property 'settings' of null" instead of showing the
+// error. This renders the REAL component with the network stubbed out, once
+// healthy and once failed, and asserts each produces markup instead of
+// throwing. Rendering is the only way to catch this - a static read of the
+// source cannot tell you the destructuring actually ran.
+const { build } = await import('esbuild');
+const { pathToFileURL } = await import('node:url');
+const tmpDir = path.join(ROOT, 'tmp');
+fs.mkdirSync(tmpDir, { recursive: true });
+
+// The component pulls its initial state from adminApi.get(). Stub that module
+// so the render is deterministic and never touches the network.
+fs.writeFileSync(path.join(tmpDir, 'apiStub.mjs'), `
+const noop = () => {};
+export const adminApi = {
+  get: async () => {
+    if (globalThis.__SMS_LOAD_FAILS__) throw new Error('Server error (500)');
+    return globalThis.__SMS_RESPONSE__;
+  },
+  patch: async () => ({}),
+};
+export const ghs = (n) => 'GHS ' + Number(n ?? 0).toFixed(2);
+`);
+
+// The shim must live in the SAME directory as the real page, or its relative
+// imports ("../../components/admin/ui.jsx") no longer resolve. Written to a
+// uniquely named sibling file and removed afterwards.
+const pageDir = path.join(ROOT, 'src', 'pages', 'admin');
+const realPage = path.join(pageDir, 'AdminSmsPricing.jsx');
+const shimmedPage = path.join(pageDir, '__AdminSmsPricing.testshim.jsx');
+const builtPage = path.join(ROOT, 'tmp', 'AdminSmsPricing.built.mjs');
+
+const cleanup = () => {
+  try { fs.rmSync(shimmedPage, { force: true }); } catch { /* noop */ }
+  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* noop */ }
+};
+
+const pageSrc = fs.readFileSync(realPage, 'utf8');
+fs.writeFileSync(shimmedPage, pageSrc.replace(
+  /from '\.\.\/\.\.\/api\.js'/,
+  "from './__apiStub.testshim.mjs'",
+));
+const apiStubPath = path.join(pageDir, '__apiStub.testshim.mjs');
+fs.writeFileSync(apiStubPath, `
+const noop = () => {};
+export const adminApi = {
+  get: async () => {
+    if (globalThis.__SMS_LOAD_FAILS__) throw new Error('Server error (500)');
+    return globalThis.__SMS_RESPONSE__;
+  },
+  patch: async () => ({}),
+};
+export const ghs = (n) => 'GHS ' + Number(n ?? 0).toFixed(2);
+`);
+
+await build({
+  entryPoints: [shimmedPage],
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  jsx: 'automatic',
+  outfile: builtPage,
+  // react/react-dom resolve from node_modules at runtime; lucide-react is
+  // stubbed because only its icon components are used and they render nothing
+  // meaningful in static markup.
+  external: ['react', 'react-dom', 'react-dom/server', 'lucide-react'],
+  logLevel: 'error',
+});
+try { fs.rmSync(apiStubPath, { force: true }); } catch { /* noop */ }
+
+const React = (await import('react')).default;
+const { renderToStaticMarkup } = await import('react-dom/server');
+
+const renderPage = async (response, { fail = false } = {}) => {
+  globalThis.__SMS_RESPONSE__ = response;
+  globalThis.__SMS_LOAD_FAILS__ = fail;
+  // Fresh module instance so useState re-initialises and load() re-runs.
+  const mod = await import(pathToFileURL(builtPage).href + `?v=${Math.random()}`);
+  const el = React.createElement(mod.default);
+  return renderToStaticMarkup(el);
+};
+
+// 1. Healthy response: the page must render the pricing UI.
+try {
+  const html = await renderPage({
+    settings: { pricePerSegment: 0.05, minPurchase: 100, isPurchasesEnabled: true },
+    volume: {
+      outstanding: 0, storesWithBalance: 0, segmentsSold: 0,
+      payments: { pending: 0, paid: 0, failed: 0 },
+    },
+  });
+  ok(html.includes('SMS pricing'), 'the SMS pricing page renders with a healthy response');
+} catch (e) {
+  ok(false, `the SMS pricing page renders with a healthy response (${e.message})`);
+}
+
+// 2. The failure that white-screened the admin shell.
+try {
+  const html = await renderPage(undefined, { fail: true });
+  ok(html.length > 0, 'the SMS pricing page SURVIVES a failed load instead of throwing');
+} catch (e) {
+  ok(false, `the SMS pricing page survives a failed load (${e.message})`);
+}
+
+// 3. An empty/undefined response must not crash either.
+try {
+  const html = await renderPage(undefined, { fail: false });
+  ok(html.length > 0, 'the page tolerates an undefined response body');
+} catch (e) {
+  ok(false, `the page tolerates an undefined response body (${e.message})`);
+}
+
+cleanup();
+
+// Static guard for the same class of bug: never destructure the load result
+// unguarded, because data is null whenever load() throws.
+const smsPage = read('src/pages/admin/AdminSmsPricing.jsx');
+ok(!/const \{[^}]*\} = data;/.test(smsPage),
+  'no unguarded destructuring of the loaded data');
+ok(/data\?\.settings/.test(smsPage), 'the page reads settings defensively');
+
 const files = [
   'services/smsQuota.js', 'services/smsService.js', 'services/planCatalog.js',
   'services/storeSms.js', 'services/smsProviders.js',
@@ -331,6 +457,9 @@ for (const file of files) {
   const src = fs.readFileSync(abs, 'utf8');
   for (const m of src.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
     const spec = m[1];
+    // Skip the harness's own temporary shims, which only exist while this
+    // test runs and are deleted before it finishes.
+    if (spec.includes('testshim')) continue;
     const target = path.resolve(dir, spec);
     const found = fs.existsSync(target)
       || fs.existsSync(`${target}.js`)
