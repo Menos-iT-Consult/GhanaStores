@@ -27,7 +27,7 @@ import { Router } from 'express';
 import { pool, query, withTransaction } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { routeCollection } from '../services/paymentRouter.js';
-import { normalizeGhPhone } from '../utils/phone.js';
+import { normalizeGhPhone } from '../utils/helpers.js';
 import {
   creditPurchase,
   getQuota,

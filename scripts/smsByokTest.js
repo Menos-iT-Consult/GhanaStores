@@ -285,5 +285,68 @@ ok(smsSvcSrc.indexOf('consumeSegments(store.id, needed)')
 ok(smsSvcSrc.indexOf('dispatchSms') < smsSvcSrc.indexOf('consumeSegments(store.id, needed)'),
   'the merchant key is tried first, unmetered');
 
+/* ------------------------- Server actually boots -------------------------- */
+section('the server boots with these routes mounted');
+
+// A bad import path (or a top-level throw) only shows up when Node resolves the
+// real module graph, which `node --check` does not do: it parses one file at a
+// time and never follows an import. Importing server.js is the closest thing to
+// what the Vercel runtime does, so it is the check that would have caught a
+// mis-spelled relative path before deploy.
+let serverBoots = true;
+let bootError = null;
+try {
+  await import('../server.js');
+} catch (e) {
+  serverBoots = false;
+  bootError = e;
+}
+ok(serverBoots, 'server.js imports cleanly (module graph resolves)');
+if (!serverBoots) {
+  console.log(`      ${bootError?.code || ''} ${bootError?.message}`);
+  console.log('      ^ this fails at deploy time; fix it before pushing');
+}
+
+const serverSrc = read('server.js');
+ok(serverSrc.includes("'/api/sms-packs'"), 'the prepaid segments router is mounted');
+ok(serverSrc.includes('smsPacksRoutes'), 'the prepaid segments router is imported');
+
+const files = [
+  'services/smsQuota.js', 'services/smsService.js', 'services/planCatalog.js',
+  'services/storeSms.js', 'services/smsProviders.js',
+  'routes/smsPacksRoutes.js', 'routes/smsSettingsRoutes.js',
+  'routes/admin/smsPricing.js', 'routes/admin/index.js', 'routes/admin/plans.js',
+  'routes/orderRoutes.js', 'server.js',
+  'scripts/smsSettingsDbRepair.js', 'scripts/smsByokTest.js',
+  'src/pages/SellerSmsSettings.jsx', 'src/pages/admin/AdminSmsPricing.jsx',
+  'src/pages/admin/AdminGate.jsx', 'src/pages/admin/AdminPlans.jsx',
+  'src/layouts/AdminLayout.jsx',
+];
+
+const bad = [];
+for (const file of files) {
+  const abs = path.join(ROOT, file);
+  if (!fs.existsSync(abs)) { bad.push(`${file}: the file itself is missing`); continue; }
+  const dir = path.dirname(abs);
+  const src = fs.readFileSync(abs, 'utf8');
+  for (const m of src.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
+    const spec = m[1];
+    const target = path.resolve(dir, spec);
+    const found = fs.existsSync(target)
+      || fs.existsSync(`${target}.js`)
+      || fs.existsSync(`${target}.jsx`)
+      || fs.existsSync(`${target}.json`)
+      || fs.existsSync(path.join(target, 'index.js'));
+    if (!found) bad.push(`${file}: cannot resolve '${spec}'`);
+  }
+}
+
+if (bad.length) {
+  console.log('FAIL  every relative import resolves to a real file');
+  bad.forEach((b) => console.log(`      ${b}`));
+  process.exit(1);
+}
+console.log('PASS  every relative import in the SMS feature resolves to a real file');
+
 console.log(`\n===== ${passed} passed, ${failed} failed =====`);
 process.exit(failed ? 1 : 0);
