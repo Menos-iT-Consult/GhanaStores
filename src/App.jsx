@@ -41,6 +41,7 @@ import AdminGate from './pages/admin/AdminGate.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import StoreNotFoundPage from './pages/StoreNotFoundPage.jsx';
 import { isKnownRoute } from './routes.js';
+import StoreUrlWelcome, { welcomeSuppressed } from './components/StoreUrlWelcome.jsx';
 import { setPlatformDomain } from './config.js';
 
 export default function App() {
@@ -63,6 +64,11 @@ export default function App() {
   /* Host reported by the storefront as having no store; only set when that
      differs from the server answer App already holds. */
   const [storeMissing, setStoreMissing] = useState('');
+  /* The new store, held only while the post-signup welcome popup is showing.
+     This lives in App rather than AuthScreen because registering flips `authed`
+     on and unmounts AuthScreen immediately - a popup rendered there would flash
+     for a single frame and vanish before it could be read. Null means closed. */
+  const [welcomeStore, setWelcomeStore] = useState(null);
   const host = window.location.hostname.toLowerCase();
   const platform = String(import.meta.env.VITE_PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0];
   const platformHost = platform.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
@@ -151,12 +157,16 @@ export default function App() {
   };
 
   /* Post-auth landing: always inside the PWA, never back on marketing. */
-  function handleAuthed(nextStore) {
+  function handleAuthed(nextStore, { fromSignup = false } = {}) {
     setStore(nextStore);
     setAuthed(true);
     if (route !== '/dashboard') {
       navigate('/dashboard');
     }
+    /* Registration only - a returning seller already knows their shop URL.
+       welcomeSuppressed() is read at signup time, not module load, so ticking
+       the box and reloading does exactly what it says. */
+    if (fromSignup && !welcomeSuppressed()) setWelcomeStore(nextStore);
   }
 
   /* ------------------ The super admin lives on its own subdomain ----------
@@ -300,6 +310,17 @@ case '/messages': return <SellerMessages />;
         }} />
         {page ?? <SellerAnalytics />}
       </div>
+      {/* Post-signup welcome: the store URL and a way into the guide. Rendered
+          here, as a sibling of the layout, so it survives AuthScreen being
+          unmounted the moment `authed` flips. The guide link navigates without
+          closing first, which reads better than dismissing and re-entering. */}
+      {welcomeStore && (
+        <StoreUrlWelcome
+          store={welcomeStore}
+          onClose={() => setWelcomeStore(null)}
+          onOpenGuide={() => { setWelcomeStore(null); navigate('/developer-guide'); }}
+        />
+      )}
     </DashboardLayout>
   );
 }

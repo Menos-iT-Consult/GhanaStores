@@ -4,6 +4,7 @@
  * closed: brand, primary nav, and a footer linking out to the live storefront.
  */
 import { storefrontUrl } from '../../config.js';
+import CopyButton from '../../components/CopyButton.jsx';
 import { DASHBOARD_NAV, DRAWER_POSITION, IconX, IconLogo, IconLogout } from './constants.js';
 
 /**
@@ -71,14 +72,22 @@ export default function MainSidebar({ open, store, onNavClose, onNavigate, isAct
         >
           {store?.name || 'My Store'}
         </a>
-        <a
-          href={storefrontUrl(store)}
-          target="_blank"
-          rel="noreferrer"
-          className="block truncate text-xs text-blue-400 hover:text-blue-300"
-        >
-          {storefrontUrl(store).replace(/^https?:\/\//, '')}
-        </a>
+        {/* Hostname shown without the scheme; the copy button puts the FULL url
+            (with https://) on the clipboard, because that is what gets pasted
+            into a message to a customer. Displayed and copied strings are
+            deliberately different. */}
+        <div className="flex items-center gap-1.5">
+          <a
+            href={storefrontUrl(store)}
+            target="_blank"
+            rel="noreferrer"
+            className="block min-w-0 flex-1 truncate text-xs text-blue-400 hover:text-blue-300"
+          >
+            {storefrontUrl(store).replace(/^https?:\/\//, '')}
+          </a>
+          {/* Renders nothing when there is no url to copy, rather than a dead control. */}
+          <CopyButton value={storefrontUrl(store)} label="Copy store url" size="xs" iconOnly />
+        </div>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event('gs:logout'))}

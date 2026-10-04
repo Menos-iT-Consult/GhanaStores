@@ -144,7 +144,9 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
         : form;
       const data = await api.post(path, payload);
       setSession(data.token, data.store);
-      onAuthed(data.store);
+      /* `fromSignup` tells App this was a registration - the only path that shows
+         the welcome popup. Logging in deliberately does not. */
+      onAuthed(data.store, { fromSignup: mode === 'register' });
     } catch (err) {
       setError(err.message);
     } finally {
