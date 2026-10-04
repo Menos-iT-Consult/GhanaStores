@@ -27,43 +27,74 @@ const reasonProblem = (reason) =>
 
 /* --------------------------------- Read ----------------------------------- */
 
+// Injected dependencies. Defaults to the real implementations, so production
+// behaves identically, but a test can swap `deps.query` to drive the REAL
+// handler against fake rows. The alternative - patching the exported `query`
+// on config/database.js - is impossible, because an ES module namespace is
+// frozen and `Object.defineProperty` throws "Cannot redefine property".
+const deps = { query, withTransaction, getSmsSettings };
+
+// Split from the route so the tests can execute the REAL logic against a
+// stubbed database. An earlier version of this file was verified by
+// re-implementing its queries inside the test script, and that passed while
+// this handler was throwing a 500 on every request: a copy proves nothing about
+// the code that ships.
+async function pricingPayload() {
+  const { query: runQuery, getSmsSettings: readSettings } = deps;
+
+  // THREE promises, so destructure three names. This previously bound only
+  // [settings, volume], which made `volume` the first query's RESULT OBJECT
+  // rather than an array of results - so `volume[1]` was undefined and the
+  // `.rows` read threw a 500 on every load. Named bindings, one per promise,
+  // so a count or order mistake is impossible to miss here.
+  const [settings, liability, payments] = await Promise.all([
+    readSettings(),
+    // How much prepaid liability is outstanding. Prepaid segments carry over
+    // forever, so this total never fully drains - it is the number to watch if
+    // the mNotify wholesale price ever rises.
+    // Aliases are QUOTED on purpose: pg lowercases an unquoted identifier, so
+    // `AS storesWithBalance` arrives as `storeswithbalance` and any other
+    // spelling read here yields undefined. Quoting pins the exact key.
+    runQuery(
+      `SELECT COALESCE(SUM(segments), 0)::int AS outstanding,
+              COUNT(*) FILTER (WHERE segments > 0)::int AS "storesWithBalance"
+         FROM store_sms_balance`,
+    ),
+    runQuery(
+      `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(segments), 0)::int AS segments
+         FROM sms_pack_payments GROUP BY status`,
+    ),
+  ]);
+  const byStatus = Object.fromEntries(payments.rows.map((r) => [r.status, r]));
+
+  return {
+    settings,
+    volume: {
+      outstanding: liability.rows[0]?.outstanding ?? 0,
+      storesWithBalance: liability.rows[0]?.storesWithBalance ?? 0,
+      payments: {
+        pending: byStatus.PENDING?.count ?? 0,
+        paid: byStatus.PAID?.count ?? 0,
+        failed: byStatus.FAILED?.count ?? 0,
+      },
+      segmentsSold: byStatus.PAID?.segments ?? 0,
+    },
+  };
+}
+
 router.get('/sms-pricing', requireAdmin, async (_req, res, next) => {
   try {
-    const [settings, volume] = await Promise.all([
-      getSmsSettings(),
-      // How much prepaid liability is outstanding. Prepaid segments carry over
-      // forever, so this total never fully drains - it is the number to watch if
-      // the mNotify wholesale price ever rises.
-      // Aliases are QUOTED on purpose: pg lowercases an unquoted identifier, so
-      // `AS storesWithBalance` arrives as `storeswithbalance` and any other
-      // spelling read here yields undefined. Quoting pins the exact key.
-      query(
-        `SELECT COALESCE(SUM(segments), 0)::int AS outstanding,
-                COUNT(*) FILTER (WHERE segments > 0)::int AS "storesWithBalance"
-           FROM store_sms_balance`,
-      ),
-      query(
-        `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(segments), 0)::int AS segments
-           FROM sms_pack_payments GROUP BY status`,
-      ),
-    ]);
-    const byStatus = Object.fromEntries(volume[1].rows.map((r) => [r.status, r]));
-
-    res.json({
-      settings,
-      volume: {
-        outstanding: volume[0].rows[0]?.outstanding ?? 0,
-        storesWithBalance: volume[0].rows[0]?.storesWithBalance ?? 0,
-        payments: {
-          pending: byStatus.PENDING?.count ?? 0,
-          paid: byStatus.PAID?.count ?? 0,
-          failed: byStatus.FAILED?.count ?? 0,
-        },
-        segmentsSold: byStatus.PAID?.segments ?? 0,
-      },
-    });
+    res.json(await pricingPayload());
   } catch (err) { next(err); }
 });
+
+/* ------------------------------- Test seam -------------------------------- */
+// Exported so the suite can run the REAL payload builder against a stubbed
+// database, rather than a re-implementation of it in the test script.
+export const __payloadForTests = pricingPayload;
+// The dependency seam the test swaps. Kept next to the payload builder so the
+// two are obviously a pair.
+export const __depsForTests = deps;
 
 /* --------------------------------- Write ---------------------------------- */
 

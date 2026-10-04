@@ -437,6 +437,98 @@ ok(!/const \{[^}]*\} = data;/.test(smsPage),
   'no unguarded destructuring of the loaded data');
 ok(/data\?\.settings/.test(smsPage), 'the page reads settings defensively');
 
+/* --------------------- The endpoint's own code, executed -------------------- */
+section('GET /sms-pricing runs without throwing');
+
+// The previous verification re-implemented the endpoint's queries inside this
+// script and asserted on THAT. It passed while the real route was broken: the
+// route destructured 3 Promise.all results into 2 names, so `volume` was a
+// result object rather than an array and `volume[1].rows` was a 500.
+//
+// This executes the ROUTE'S ACTUAL HANDLER with a stubbed database, so the code
+// that ships is the code under test. A shape/arity mistake cannot hide here.
+const routeMod = await import('../routes/admin/smsPricing.js');
+
+/**
+ * Run the route's REAL payload builder against fake rows.
+ *
+ * Swaps the route's own dependency seam (`deps`) rather than patching
+ * config/database.js: an ES module namespace is frozen, so redefining its
+ * exported `query` throws "Cannot redefine property".
+ */
+async function callPricingEndpoint(rows) {
+  const deps = routeMod.__depsForTests;
+  const saved = { ...deps };
+
+  deps.query = async (sql) => {
+    if (/store_sms_balance/.test(sql)) return { rows: rows.liability };
+    if (/sms_pack_payments/.test(sql)) return { rows: rows.payments };
+    if (/sms_settings/.test(sql)) return { rows: rows.settings };
+    return { rows: [] };
+  };
+  deps.getSmsSettings = async () => ({
+    pricePerSegment: rows.settings[0]?.price_per_segment == null
+      ? null : Number(rows.settings[0].price_per_segment),
+    minPurchase: Number(rows.settings[0]?.min_purchase ?? 100),
+    isPurchasesEnabled: Boolean(rows.settings[0]?.is_purchases_enabled),
+  });
+
+  try {
+    return await routeMod.__payloadForTests();
+  } finally {
+    Object.assign(deps, saved);
+  }
+}
+
+ok(typeof routeMod.__payloadForTests === 'function',
+  'the pricing route exposes its payload builder for direct testing');
+
+if (typeof routeMod.__payloadForTests === 'function') {
+  // A populated database: one store holding a balance, one paid purchase.
+  let body = await callPricingEndpoint({
+    settings: [{ price_per_segment: '0.050000', min_purchase: 100, is_purchases_enabled: true }],
+    liability: [{ outstanding: 480, storesWithBalance: 2 }],
+    payments: [{ status: 'PAID', count: 3, segments: 1500 }],
+  });
+  ok(body?.volume?.outstanding === 480, 'outstanding liability is read from the query');
+  ok(body?.volume?.storesWithBalance === 2, 'storesWithBalance is read from the query');
+  ok(body?.volume?.segmentsSold === 1500, 'segments sold is summed from PAID rows');
+  ok(body?.volume?.payments?.paid === 3, 'the paid payment count is reported');
+  ok(body?.settings?.pricePerSegment === 0.05, 'the per-segment price survives the round trip');
+
+  // An empty database must return zeros, not throw.
+  body = await callPricingEndpoint({ settings: [], liability: [], payments: [] });
+  ok(body?.volume?.outstanding === 0 && body?.volume?.storesWithBalance === 0,
+    'an empty ledger reports zeroes rather than undefined');
+
+  // The exact case that was a 500: no liability row and no PAID payments.
+  // Destructuring one Promise.all result too few made `volume[1]` undefined,
+  // so `.rows` threw before any of this could be returned.
+  body = await callPricingEndpoint({
+    settings: [],
+    liability: [],
+    payments: [{ status: 'PENDING', count: 1, segments: 0 }],
+  });
+  ok(body?.volume?.outstanding === 0, 'an empty ledger does not throw');
+  ok(body?.volume?.payments?.pending === 1, 'a pending-only payments table is still reported');
+  ok(body?.volume?.segmentsSold === 0, 'segments sold is zero when nothing is paid');
+
+  // Every promise in the group must be bound to its own name. Assert the shape
+  // rather than trusting a comment, since this was the original defect. The
+  // count is taken from the destructured names, which is the thing that was
+  // wrong; the expected value is the number of calls inside the group.
+  const src = read('routes/admin/smsPricing.js');
+  const group = src.slice(
+    src.indexOf('await Promise.all'),
+    src.indexOf(']);', src.indexOf('await Promise.all')),
+  );
+  const destructure = src.match(/const \[([^\]]+)\] = await Promise\.all/);
+  const bound = destructure ? destructure[1].split(',').map((s) => s.trim()).filter(Boolean).length : 0;
+  const promises = (group.match(/runQuery\(|readSettings\(/g) || []).length;
+  ok(bound === promises && promises === 3,
+    `all ${promises} concurrent queries are bound to a name (found ${bound})`);
+}
+
 const files = [
   'services/smsQuota.js', 'services/smsService.js', 'services/planCatalog.js',
   'services/storeSms.js', 'services/smsProviders.js',
