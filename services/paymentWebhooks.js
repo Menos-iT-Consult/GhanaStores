@@ -20,6 +20,8 @@ import {
   getSettings, paystackClient, hubtelClient, isPaystackReady, isHubtelReady,
 } from './storePayments.js';
 import { cycleInterval } from './planCatalog.js';
+import { formatGhs } from '../utils/helpers.js';
+import { sendMerchantPushNotification } from './pushService.js';
 
 /**
  * Find the order a gateway callback refers to. The reference we send is the
@@ -54,6 +56,19 @@ async function markOrderPaid(order, note) {
     [order.id],
   );
   console.log(`[payment-webhook] order ${order.order_number} marked PAID (${note})`);
+
+  // Instant merchant push so the seller's phone confirms the money landed.
+  // Fire-and-forget: the order is already committed, so a push failure here must
+  // never affect the webhook's 200 response.
+  if (order.store_id) {
+    sendMerchantPushNotification({
+      storeId: order.store_id,
+      title: 'Payment received',
+      body: `Payment received for Order #${order.order_number} - ${formatGhs(order.total, { symbol: true })}`,
+      data: { type: 'order_paid', orderId: order.id, orderNumber: order.order_number },
+    }).catch(() => {});
+  }
+
   return { changed: true };
 }
 
@@ -273,6 +288,15 @@ export async function handleSubscriptionWebhook(payload = {}) {
     `[payment-webhook] subscription ${reference} activated via Hubtel hosted checkout ` +
     `(store ${sub.store_id}, plan ${sub.plan_id}, ${cycle})`,
   );
+
+  // Let the merchant's phone know their plan went live.
+  sendMerchantPushNotification({
+    storeId: sub.store_id,
+    title: 'Subscription active',
+    body: `Your DiDwa plan (${sub.plan_id}) is now active.`,
+    data: { type: 'subscription_active', planId: sub.plan_id },
+  }).catch(() => {});
+
   return { processed: true, storeId: sub.store_id, planId: sub.plan_id };
 }
 

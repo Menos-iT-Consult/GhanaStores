@@ -85,6 +85,42 @@ export function verifyTwoFactorChallenge(token) {
   }
 }
 
+/* ----------------------------- Mobile app tokens --------------------------- */
+
+/*
+ * The DiDwa Seller mobile app authenticates with its own access token rather
+ * than the storefront's host-header session. It is the SAME seller identity
+ * (role SELLER, sub = store id, so it is interchangeable with requireSeller),
+ * but it also carries the mobile contract's { userId, storeId, role } explicitly
+ * and is tagged typ='mobile-access'. That tag lets authenticateMobileToken reject
+ * a refresh token or a 2FA challenge being replayed as an API session.
+ */
+export const MOBILE_ACCESS_TTL = '30d';
+export const MOBILE_REFRESH_TTL = '90d';
+
+export function issueMobileAccessToken(store) {
+  return jwt.sign(
+    {
+      sub: store.id,
+      userId: store.id,
+      storeId: store.id,
+      role: 'SELLER',
+      typ: 'mobile-access',
+    },
+    JWT_SECRET,
+    { expiresIn: MOBILE_ACCESS_TTL },
+  );
+}
+
+/**
+ * Expiry for a freshly minted mobile refresh token. Refresh tokens are opaque
+ * random strings (NOT JWTs) stored hashed by routes/mobileAuthRoutes.js; this
+ * keeps the TTL in one place beside the token issuer.
+ */
+export function mobileRefreshExpiry() {
+  return new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+}
+
 /* ------------------------------ Verify & guard ----------------------------- */
 
 /**
@@ -197,6 +233,56 @@ export function requireSeller(req, res, next) {
 }
 
 /**
+ * Mobile API auth (DiDwa Seller iOS/Android app).
+ *
+ * Same trust model as requireSeller - a Bearer JWT, role SELLER, and the store
+ * loaded from the token's subject so a client can never supply a store id - but
+ * it publishes the names the mobile routes speak: `req.user` ({ userId, storeId,
+ * role, email }) and `req.storeId`. It refuses any non-access mobile token (a
+ * refresh token or a 2FA challenge) so those can never open an API session.
+ */
+export async function authenticateMobileToken(req, res, next) {
+  const token = readToken(req);
+  if (!token) return res.status(401).json({ error: 'Authentication required.' });
+
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Session expired or invalid. Please sign in again.' });
+  }
+  if (payload?.role !== 'SELLER') {
+    return res.status(403).json({ error: 'Merchant access required.' });
+  }
+  if (payload?.typ && payload.typ !== 'mobile-access') {
+    return res.status(401).json({ error: 'This token cannot access the API. Please sign in again.' });
+  }
+
+  try {
+    const { rows } = await query(
+      `SELECT id, name, email, phone, subdomain_slug, status, plan, currency
+         FROM stores WHERE id = $1 LIMIT 1`,
+      [payload.sub],
+    );
+    const store = rows[0];
+    if (!store) return res.status(401).json({ error: 'Store account not found.' });
+
+    req.auth = payload;
+    req.store = store;
+    req.storeId = store.id;
+    req.user = {
+      id: payload.userId || store.id,
+      storeId: store.id,
+      role: 'SELLER',
+      email: store.email,
+    };
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Blocking gate for billing-sensitive actions (payouts, POS sales).
  * SUSPENDED stores are hard-blocked; PAST_DUE stores get a warning header
  * but remain operable during their grace period.
@@ -229,8 +315,10 @@ export default {
   signToken,
   issueStoreToken,
   issueAdminToken,
+  issueMobileAccessToken,
   requireAuth,
   requireAdmin,
   requireSeller,
+  authenticateMobileToken,
   requireActiveSeller,
 };

@@ -783,6 +783,40 @@ CREATE TABLE IF NOT EXISTS store_password_resets (
 CREATE INDEX IF NOT EXISTS store_password_resets_store_idx
   ON store_password_resets (store_id, created_at DESC);
 
+-- ------------------------------------------------- mobile app (DiDwa Seller iOS/Android)
+-- The mobile app authenticates with its own short-lived JWT (role SELLER) and a
+-- rotating refresh token, instead of the host-header routing the storefront PWA
+-- uses. Two tables support that, both cascading with the store so Delete Account
+-- removes them and frees the push tokens:
+--   device_tokens           - one row per Expo push token (globally unique), so a
+--                             device is reachable by store across reinstalls.
+--   mobile_refresh_tokens   - SHA-256 hashed refresh tokens; the raw value only
+--                             ever lives in the app and in memory, never the DB.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id         UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  user_id          UUID,                        -- store owner identity (== store_id in DiDwa today)
+  expo_push_token  TEXT NOT NULL UNIQUE,        -- Expo push token; unique per device
+  platform         TEXT NOT NULL CHECK (platform IN ('ios','android')),
+  last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS device_tokens_store_idx ON device_tokens (store_id);
+
+CREATE TABLE IF NOT EXISTS mobile_refresh_tokens (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,              -- SHA-256 of the refresh token; raw never stored
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,                       -- set when rotated or on logout
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS mobile_refresh_tokens_store_idx
+  ON mobile_refresh_tokens (store_id, created_at DESC);
+
 
 
 

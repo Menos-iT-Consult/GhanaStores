@@ -40,6 +40,7 @@
     "test:reserved-slugs": "node scripts/reservedSlugsTest.js",
     "test:site-settings": "node scripts/siteSettingsTest.js",
     "test:email-templates": "node scripts/emailTemplatesTest.js",
+    "test:mobile": "node scripts/mobileApiTest.js",
     "test:payments": "node scripts/paymentTest.js",
     "test:payments-db": "node scripts/paymentDbTest.js",
     "payments:repair-db": "node scripts/paymentDbRepair.js",

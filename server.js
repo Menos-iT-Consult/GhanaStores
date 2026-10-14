@@ -45,6 +45,9 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import siteSettingsRoutes from './routes/siteSettingsRoutes.js';
+import mobileAuthRoutes from './routes/mobileAuthRoutes.js';
+import mobileDeviceRoutes from './routes/mobileDeviceRoutes.js';
+import mobileRoutes from './routes/mobileRoutes.js';
 import { startBillingCron } from './jobs/billingCron.js';
 
 dotenv.config();
@@ -169,6 +172,12 @@ app.use('/api', orderRoutes);
 app.use('/api', contactRoutes);
 // Store Site Settings: rename, change/forgot/reset password, hard delete, 2FA.
 app.use('/api/site-settings', siteSettingsRoutes);
+// DiDwa Seller mobile app (iOS/Android): Bearer-JWT auth, Expo push device
+// tokens, and the versioned merchant API. These authenticate by token rather
+// than the storefront's host-header routing, so they work from the app.
+app.use('/api/mobile/auth', mobileAuthRoutes);
+app.use('/api/mobile/devices', mobileDeviceRoutes);
+app.use('/api/mobile/v1', mobileRoutes);
 
 app.use('/api', apiNotFound);
 

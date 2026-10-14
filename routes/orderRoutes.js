@@ -13,7 +13,7 @@
 import { Router } from 'express';
 import { pool, query, withTransaction } from '../config/database.js';
 import { requireSeller as authenticateSeller } from '../middleware/authMiddleware.js';
-import { generateOrderNumber, money, toIntOr } from '../utils/helpers.js';
+import { generateOrderNumber, money, toIntOr, formatGhs } from '../utils/helpers.js';
 import {
   CONSOLE_TO_CANONICAL,
   PAID_STATUSES,
@@ -28,6 +28,7 @@ import {
 } from './inventoryRoutes.js';
 import { canonicalDomain } from '../services/domainService.js';
 import { sendOrderSms } from '../services/smsService.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 import {
   getSettings as getStoreSettings,
   resolveMethod,
@@ -341,6 +342,17 @@ const orderLines = [];
         items: orderLines,
       });
     })().catch((err) => console.error('[checkout] order SMS failed:', err.message));
+
+    // Instant merchant push alert for the DiDwa Seller mobile app. Fire-and-
+    // forget like the SMS above: a push hiccup must never turn a committed order
+    // into a 500. COD orders land here as the moment of sale; for online gateways
+    // (Paystack/Hubtel) the payment-confirmed push fires from the webhook.
+    sendMerchantPushNotification({
+      storeId,
+      title: 'New Order',
+      body: `🎉 New Order #${created.order_number} - ${formatGhs(created.totalAmount, { symbol: true })}`,
+      data: { type: 'order_created', orderId: created.id, orderNumber: created.order_number },
+    }).catch(() => {});
 
     res.status(201).json({
       message: `Order ${created.order_number} placed successfully.`,
