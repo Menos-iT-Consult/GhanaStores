@@ -19,8 +19,7 @@
       "package": "com.didwa.seller",
       "adaptiveIcon": {
         "backgroundColor": "#0066FF"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "plugins": [
       [
