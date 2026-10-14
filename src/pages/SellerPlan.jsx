@@ -71,6 +71,13 @@ export default function SellerPlan() {
         network,
         momoNumber: momoNumber.trim(),
       });
+      // Fallback path: MTN MoMo could not complete, so the server handed back a
+      // Hubtel hosted-checkout URL. Redirect the seller there to pay by card or
+      // any MoMo network; the plan is activated when the webhook confirms.
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
       setResult(data);
       setSelected('');
       setMomoNumber('');

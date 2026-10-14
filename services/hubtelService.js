@@ -105,8 +105,106 @@ export async function collectMoMo({ customerMsisdn, amount, network, description
   }
 }
 
-/* ------------------------- Disbursements (Send) ---------------------------- */
+/* ----------------------- Hosted checkout (redirect) ------------------------ */
 
+/**
+ * Base URL for Hubtel's hosted checkout API. The domain purchase flow
+ * (services/domainService.js) already uses this host + path successfully, so
+ * the subscription fallback deliberately reuses the same contract instead of
+ * inventing a second one.
+ */
+const CHECKOUT_BASE_URL = (process.env.HUBTEL_CHECKOUT_BASE_URL || 'https://api.hubtel.com')
+  .replace(/\/+$/, '');
+
+/**
+ * Initialise a hosted checkout session: the caller redirects the browser to
+ * the returned `checkoutUrl` and the payer completes the payment with card or
+ * any Mobile Money network. Confirmation arrives later on
+ * HUBTEL_CALLBACK_URL (`/api/webhooks/hubtel`), so this NEVER activates
+ * anything by itself - it only opens the payment page.
+ *
+ * Used as the automatic fallback when the MTN MoMo leg fails on
+ * POST /api/billing/subscribe (see routes/billingRoutes.js).
+ *
+ * @param {object} args
+ * @param {number} args.amountGhs      amount in Ghana Cedis
+ * @param {string} args.description    shown to the payer on the checkout page
+ * @param {string} args.clientReference  our business reference (GS-SUB-...)
+ * @param {string} [args.customerPhone]  prefilled payer MSISDN (233XXXXXXXXX)
+ * @param {string} [args.returnUrl]    where the browser lands after paying
+ * @param {string} [args.cancellationUrl] where the browser lands on cancel
+ * @param {object} [args.metadata]     echoed back on the webhook callback
+ * @returns {Promise<{checkoutUrl: string, checkoutId: string, reference: string,
+ *   dryRun?: boolean}>} throws an Error with a seller-safe message on failure.
+ */
+export async function initCheckout({
+  amountGhs, description, clientReference, customerPhone, returnUrl, cancellationUrl, metadata = {},
+}) {
+  if (!amountGhs || !Number(amountGhs) || Number(amountGhs) <= 0) {
+    throw new Error('A payment amount greater than zero is required.');
+  }
+  if (!clientReference) {
+    throw new Error('A payment reference is required.');
+  }
+
+  if (hubtelDryRun) {
+    console.log(`[hubtel:DRY_RUN] INIT CHECKOUT ${Number(amountGhs).toFixed(2)} GHS for ${clientReference}`);
+    return {
+      dryRun: true,
+      checkoutUrl: `https://checkout.hubtel.com/dry-run/${encodeURIComponent(clientReference)}`,
+      checkoutId: clientReference,
+      reference: clientReference,
+    };
+  }
+
+  try {
+    const { data } = await axios.post(
+      `${CHECKOUT_BASE_URL}/v2/pos/onlinecheckout/items/initiate`,
+      {
+        totalAmount: Number(amountGhs).toFixed(2),
+        description: String(description || 'DiDwa payment').slice(0, 160),
+        callbackUrl: CALLBACK_URL || undefined,
+        merchantAccountNumber: MERCHANT_ACCOUNT || undefined,
+        customerMsisdn: customerPhone || undefined,
+        returnUrl: returnUrl || undefined,
+        cancellationUrl: cancellationUrl || undefined,
+        clientReference,
+        items: [{
+          name: String(description || 'DiDwa payment').slice(0, 160),
+          quantity: 1,
+          unitPrice: Number(amountGhs).toFixed(2),
+          totalPrice: Number(amountGhs).toFixed(2),
+        }],
+        metadata,
+      },
+      {
+        auth: { username: CLIENT_ID, password: CLIENT_SECRET },
+        headers: { 'Content-Type': 'application/json' },
+        timeout: ON_VERCEL ? 8_000 : 25_000,
+      },
+    );
+
+    const checkoutUrl = data?.checkoutUrl || data?.data?.checkoutUrl || data?.response?.checkoutUrl;
+    if (!checkoutUrl) {
+      // A 200 without a URL is still a failure - handing the seller `undefined`
+      // would redirect them to a blank page.
+      console.error('[hubtel] checkout init returned no URL:', JSON.stringify(data).slice(0, 400));
+      throw new Error('The payment page could not be created. Please try again.');
+    }
+    return {
+      checkoutUrl,
+      checkoutId: data?.checkoutId || data?.data?.checkoutId || data?.data?.reference || clientReference,
+      reference: clientReference,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'The payment page could not be created. Please try again.') throw err;
+    const detail = err.response?.data || err.message;
+    console.error('[hubtel] checkout init failed:', typeof detail === 'object' ? JSON.stringify(detail).slice(0, 400) : String(detail).slice(0, 400));
+    throw new Error('The payment gateway is unavailable right now. Please try again in a moment.');
+  }
+}
+
+/* ------------------------- Disbursements (Send) ---------------------------- */
 /**
  * Instant MoMo payout to a seller's wallet (Module 3).
  * Returns { success, reference, transactionId, message }.
@@ -153,4 +251,10 @@ export async function disburseMoMo({ destination, amount, network, description =
   }
 }
 
-export default { collectMoMo, disburseMoMo, channelFor, get dryRun() { return hubtelDryRun; } };
+export default {
+  collectMoMo,
+  disburseMoMo,
+  initCheckout,
+  channelFor,
+  get dryRun() { return hubtelDryRun; },
+};

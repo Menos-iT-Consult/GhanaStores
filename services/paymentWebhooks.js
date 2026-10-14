@@ -15,10 +15,11 @@
  *     trustworthy answer is Hubtel's own status API, queried with the store's
  *     client id/secret and cross-checked against the order.
  */
-import { query } from '../config/database.js';
+import { query, withTransaction } from '../config/database.js';
 import {
   getSettings, paystackClient, hubtelClient, isPaystackReady, isHubtelReady,
 } from './storePayments.js';
+import { cycleInterval } from './planCatalog.js';
 
 /**
  * Find the order a gateway callback refers to. The reference we send is the
@@ -187,4 +188,95 @@ export async function handleHubtelWebhook(payload = {}, signature = null, rawBod
   return { status: 200, body: { received: true, changed: result.changed, verified: true } };
 }
 
-export default { handlePaystackWebhook, handleHubtelWebhook, findOrderByReference };
+/* --------------------------- Subscriptions (platform) ---------------------- */
+// A subscription bought through the Hubtel HOSTED CHECKOUT (the fallback when
+// MTN MoMo cannot complete the charge) is a PLATFORM-level Hubtel transaction,
+// not a per-store BYOK one: it is authenticated by the platform webhook secret
+// in the router, exactly like a domain purchase. Its reference is our own
+// GS-SUB-... business reference, so the callback is joined back to the
+// subscription_payments row (and the store) here. Unlike an MTN charge - which
+// activates the plan synchronously in the route - a hosted checkout settles
+// LATER, so THIS is the only place that flips the plan to paid. Missing this
+// branch would take the seller's money and never activate anything.
+
+/**
+ * Find the subscription attempt a hosted-checkout callback refers to.
+ * @returns {Promise<{id, store_id, plan_id, amount, cycle, status}|null>}
+ */
+export async function findSubscriptionByReference(reference) {
+  if (!reference) return null;
+  const { rows } = await query(
+    `SELECT id, store_id, plan_id, amount, cycle, status
+       FROM subscription_payments WHERE reference = $1 LIMIT 1`,
+    [String(reference).trim()],
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Activate a subscription after a Hubtel hosted-checkout payment is confirmed.
+ *
+ * @param {object} payload parsed Hubtel callback body
+ * @returns {Promise<{processed: boolean, reason?: string, storeId?: string}>}
+ */
+export async function handleSubscriptionWebhook(payload = {}) {
+  const status = String(payload?.Data?.Status || payload?.status || '').toLowerCase();
+  const reference = payload?.Data?.ClientReference || payload?.reference || '';
+  const sub = await findSubscriptionByReference(reference);
+  if (!sub) {
+    return { processed: false, reason: 'Unknown subscription reference.' };
+  }
+
+  if (status !== 'success') {
+    console.log('[payment-webhook] subscription callback: non-success status ignored:', status);
+    return { processed: false, reason: 'Not a successful transaction.' };
+  }
+
+  // Idempotency: a replayed callback must not activate (and re-bill the period)
+  // a second time. The unique reference plus this guard makes a double callback
+  // a no-op instead of a double extension.
+  if (sub.status === 'PAID') {
+    return { processed: false, reason: 'Already settled.' };
+  }
+
+  // Amount guard: if the callback carries an amount, it must match what we
+  // asked for, so a payment for a different amount cannot activate this plan.
+  const paidAmount = payload?.Data?.Amount ?? payload?.Amount ?? null;
+  if (paidAmount !== null && Math.abs(Number(paidAmount) - Number(sub.amount)) > 0.01) {
+    console.warn(
+      `[payment-webhook] subscription ${reference} amount ${paidAmount} != ${sub.amount} - refused`,
+    );
+    return { processed: false, reason: 'Amount mismatch.' };
+  }
+
+  const cycle = sub.cycle || 'monthly';
+  // Activate the tenant and close the payment row atomically, mirroring the
+  // synchronous MTN path: plan_period_end is computed from the recorded cycle.
+  await withTransaction(async (t) => {
+    await t.query(
+      `UPDATE stores
+          SET status = 'ACTIVE', plan = $2, plan_cycle = $3,
+              plan_period_end = NOW() + $4::INTERVAL
+        WHERE id = $1 AND status <> 'SUSPENDED'`,
+      [sub.store_id, sub.plan_id, cycle, cycleInterval(cycle)],
+    );
+    await t.query(
+      `UPDATE subscription_payments
+          SET status = 'PAID', provider = 'HUBTEL', paid_at = NOW(),
+              period_start = NOW(), period_end = NOW() + $2::INTERVAL
+        WHERE id = $1 AND status <> 'PAID'`,
+      [sub.id, cycleInterval(cycle)],
+    );
+  });
+
+  console.log(
+    `[payment-webhook] subscription ${reference} activated via Hubtel hosted checkout ` +
+    `(store ${sub.store_id}, plan ${sub.plan_id}, ${cycle})`,
+  );
+  return { processed: true, storeId: sub.store_id, planId: sub.plan_id };
+}
+
+export default {
+  handlePaystackWebhook, handleHubtelWebhook, findOrderByReference,
+  findSubscriptionByReference, handleSubscriptionWebhook,
+};

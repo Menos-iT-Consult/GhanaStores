@@ -12,7 +12,9 @@ import { sendLifecycleEmail } from '../services/emailService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../services/subdomainSlug.js';
-import { routeCollection } from '../services/paymentRouter.js';
+import { isMtnNumber } from '../services/paymentRouter.js';
+import { mtnCollect } from '../services/mtnMomoService.js';
+import { initCheckout } from '../services/hubtelService.js';
 import { billingCronHandler } from './billingCronRoute.js';
 import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
 
@@ -195,10 +197,11 @@ router.get('/status', requireSeller, async (req, res, next) => {
 });
 
 /* ------------------------------ Activate (pay) ------------------------------ */
-// POST /api/billing/subscribe - charge the subscription through the 2-way
-// MoMo router (MTN API first, Hubtel once on failure) and flip the store to
-// ACTIVE only when the provider confirms. The seller pays from their own
-// MoMo wallet, so destination === their number.
+// POST /api/billing/subscribe - charge the subscription and flip the store to
+// ACTIVE only when the provider confirms. MTN numbers hit the MTN MoMo
+// PRODUCTION API first; on ANY MTN failure (error/timeout/pending) or for a
+// non-MTN number it falls back to a Hubtel HOSTED CHECKOUT (card or any MoMo),
+// and the plan is activated by the Hubtel webhook when that settles.
 //
 // Idempotency: every attempt carries a client-supplied `idempotencyKey`
 // (default: one per request) so a retried tap on "Activate" cannot charge
@@ -259,60 +262,116 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
     );
     const attemptId = attempt.rows[0].id;
 
-    const collected = await routeCollection({
-      customerMsisdn: momoNumber,
-      amount: amountGhs,
-      network,
-      description: `DiDwa ${plan.name} ${cycle} plan - ${reference}`,
-      clientReference: reference,
-    });
+    // Charge the subscription. MTN numbers go to the MTN MoMo PRODUCTION API
+    // first (instant requestToPay + status poll). Anything else - a non-MTN
+    // number, or any MTN failure/timeout/still-pending - falls back to a Hubtel
+    // HOSTED CHECKOUT, so the seller is redirected to a secure page and can pay
+    // by card or any Mobile Money network. A confirmed MTN charge activates the
+    // plan immediately; a hosted checkout settles later and is activated by the
+    // Hubtel webhook (see services/paymentWebhooks.js), so the row stays PENDING
+    // until then - never a silent ACTIVE.
+    const useMtn = isMtnNumber(momoNumber);
+    let collected = null;
 
-    if (!collected.success) {
-      await query(
-        `UPDATE subscription_payments
-            SET status = 'FAILED', provider = $2, failure_reason = $3
-          WHERE id = $1`,
-        [attemptId, collected.provider || 'HUBTEL', (collected.message || 'Collection declined').slice(0, 300)],
-      );
-      return res.status(402).json({
-        error: collected.message || 'MoMo payment was not approved. Your plan was not changed.',
-        provider: collected.provider || 'HUBTEL',
+    if (useMtn) {
+      try {
+        collected = await mtnCollect({
+          customerMsisdn: momoNumber,
+          amount: amountGhs,
+          description: `DiDwa ${plan.name} ${cycle} plan - ${reference}`,
+          clientReference: reference,
+        });
+      } catch (err) {
+        // mtnCollect catches its own HTTP errors, but an unexpected throw
+        // (timeout, network) must still fall back rather than surface as a 500.
+        console.error('[billing] MTN collect threw:', err.message);
+        collected = { success: false, provider: 'MTN', status: 'ERROR', message: err.message };
+      }
+    }
+
+    if (collected && collected.success) {
+      // Provider confirmed: activate + close the payment row in one transaction.
+      // plan_period_end is computed server-side from the cycle; it is what the
+      // paid period actually bought, recorded on both the tenant and the payment.
+      const done = await withTransaction(async (t) => {
+        const activated = await t.query(
+          `UPDATE stores
+              SET status = 'ACTIVE', plan = $2, plan_cycle = $3,
+                  plan_period_end = NOW() + $4::INTERVAL
+            WHERE id = $1 AND status <> 'SUSPENDED'
+            RETURNING id, name, status, plan, plan_cycle, plan_period_end`,
+          [req.auth.sub, plan.id, cycle, cycleInterval(cycle)],
+        );
+        if (!activated.rows[0]) {
+          throw Object.assign(new Error('Store cannot be activated in its current state.'), { status: 400 });
+        }
+        await t.query(
+          `UPDATE subscription_payments
+              SET status = 'PAID', provider = $2, gateway_reference = $3, paid_at = NOW(),
+                  period_start = NOW(), period_end = NOW() + $4::INTERVAL
+            WHERE id = $1`,
+          [attemptId, collected.provider || 'MTN', collected.reference || reference, cycleInterval(cycle)],
+        );
+        return activated.rows[0];
+      });
+
+      return res.json({
+        success: true,
+        message: `${plan.name} (${cycle}) activated for GHS ${amountGhs.toFixed(2)} via ${collected.provider || 'MTN'}. Your storefront stays live.`,
+        store: done,
+        plan: { id: plan.id, name: plan.name, cycle, amountGhs },
+        periodEnd: done.plan_period_end,
+        provider: collected.provider || 'MTN',
+        dryRun: Boolean(collected.dryRun),
       });
     }
 
-    // Provider confirmed: activate + close the payment row in one transaction.
-    // plan_period_end is computed server-side from the cycle; it is what the
-    // paid period actually bought, recorded on both the tenant and the payment.
-    const done = await withTransaction(async (t) => {
-      const activated = await t.query(
-        `UPDATE stores
-            SET status = 'ACTIVE', plan = $2, plan_cycle = $3,
-                plan_period_end = NOW() + $4::INTERVAL
-          WHERE id = $1 AND status <> 'SUSPENDED'
-          RETURNING id, name, status, plan, plan_cycle, plan_period_end`,
-        [req.auth.sub, plan.id, cycle, cycleInterval(cycle)],
+    // MTN declined/errored/timed-out (or this was never an MTN number). Instead
+    // of failing the seller with an opaque 402, hand them a Hubtel hosted
+    // checkout to complete the SAME payment by card or any MoMo network. Money
+    // moves later, so the plan is activated by the webhook, not here.
+    if (collected && !collected.success) {
+      console.warn(
+        `[billing] MTN collect failed for ${reference} (${collected.status || 'ERROR'}): `
+        + `${collected.message || 'unknown'} - falling back to Hubtel hosted checkout.`,
       );
-      if (!activated.rows[0]) {
-        throw Object.assign(new Error('Store cannot be activated in its current state.'), { status: 400 });
-      }
-      await t.query(
-        `UPDATE subscription_payments
-            SET status = 'PAID', provider = $2, gateway_reference = $3, paid_at = NOW(),
-                period_start = NOW(), period_end = NOW() + $4::INTERVAL
-          WHERE id = $1`,
-        [attemptId, collected.provider || 'HUBTEL', collected.reference || reference, cycleInterval(cycle)],
-      );
-      return activated.rows[0];
-    });
+    }
 
-    res.json({
-      message: `${plan.name} (${cycle}) activated for GHS ${amountGhs.toFixed(2)} via ${collected.provider || 'HUBTEL'}. Your storefront stays live.`,
-      store: done,
-      plan: { id: plan.id, name: plan.name, cycle, amountGhs },
-      periodEnd: done.plan_period_end,
-      provider: collected.provider || 'HUBTEL',
-      dryRun: Boolean(collected.dryRun),
-    });
+    try {
+      const checkout = await initCheckout({
+        amountGhs,
+        description: `DiDwa ${plan.name} ${cycle} plan - ${reference}`,
+        clientReference: reference,
+        customerPhone: momoNumber,
+        returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
+        cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
+        metadata: { kind: 'SUBSCRIPTION', storeId: req.auth.sub, planId: plan.id, cycle },
+      });
+
+      return res.json({
+        success: true,
+        provider: 'hubtel',
+        checkoutUrl: checkout.checkoutUrl,
+        checkoutId: checkout.checkoutId,
+        reference,
+        message: 'Complete your payment on the secure checkout page to activate your plan.',
+        dryRun: Boolean(checkout.dryRun),
+      });
+    } catch (err) {
+      // Both legs failed. Record it and return an actionable JSON error instead
+      // of crashing - the UI displays this message verbatim.
+      await query(
+        `UPDATE subscription_payments
+            SET status = 'FAILED', provider = 'HUBTEL', failure_reason = $2
+          WHERE id = $1`,
+        [attemptId, (err.message || 'Checkout could not be created').slice(0, 300)],
+      );
+      return res.status(402).json({
+        error: err.message || 'Payment could not be completed. Please try again or contact support.',
+        provider: 'HUBTEL',
+        reference,
+      });
+    }
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch { /* noop */ }
     try { client.release(); } catch { /* noop */ }

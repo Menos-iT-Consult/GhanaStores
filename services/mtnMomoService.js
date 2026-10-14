@@ -3,32 +3,70 @@
  * Collections + Disbursements with async status polling.
  * https://momodeveloper.mtn.com/
  *
+ * PRODUCTION-BY-DEFAULT: the base URL and target environment below default to
+ * the MTN Ghana production gateway (`proxy.momoapi.mtn.com` / `mtnghana`).
+ * Defaulting to the sandbox host is what made live requestToPay calls hit
+ * `sandbox.momodeveloper.mtn.com`, receive the developer-portal 404 page (an
+ * HTML document), and surface to the seller as an opaque payment failure.
+ * Sandbox is now an explicit opt-in via .env (see .env.example).
+ *
  * Routing (see routes/paymentRouter.js):
  *   MTN numbers    -> MTN MoMo API first, Hubtel once on failure/timeout.
  *   Telecel/AT     -> Hubtel directly (fallback provider).
  *
- * Env: MTN_MOMO_BASE_URL, MTN_MOMO_SUBSCRIPTION_KEY,
+ * Env: MTN_MOMO_BASE_URL (default https://proxy.momoapi.mtn.com),
+ *   MTN_MOMO_SUBSCRIPTION_KEY,
  *   MTN_MOMO_COLLECTION_USER_ID, MTN_MOMO_COLLECTION_API_KEY,
  *   MTN_MOMO_DISBURSEMENT_USER_ID, MTN_MOMO_DISBURSEMENT_API_KEY
- *   (default to the collection user), MTN_MOMO_TARGET_ENVIRONMENT
- *   (`sandbox` | `mtn-ghana`), MTN_MOMO_PARTY_ID_TYPE, MTN_MOMO_CURRENCY,
+ *   (default to the collection user), MTN_TARGET_ENVIRONMENT
+ *   (default `mtnghana`; legacy MTN_MOMO_TARGET_ENVIRONMENT still honoured),
+ *   MTN_MOMO_PARTY_ID_TYPE, MTN_MOMO_CURRENCY,
  *   MTN_MOMO_TIMEOUT_MS, MTN_MOMO_POLL_ATTEMPTS,
  *   MTN_MOMO_POLL_INTERVAL_MS, MTN_MOMO_CALLBACK_URL.
  */
 import axios from 'axios';
 import crypto from 'node:crypto';
+import { normalizeGhPhone } from '../utils/helpers.js';
 
-const BASE_URL = (process.env.MTN_MOMO_BASE_URL || 'https://sandbox.momodeveloper.mtn.com')
+const BASE_URL = (process.env.MTN_MOMO_BASE_URL || 'https://proxy.momoapi.mtn.com')
   .replace(/\/+$/, '');
+// Canonical name is MTN_TARGET_ENVIRONMENT (`mtnghana` for live traffic). The
+// legacy MTN_MOMO_TARGET_ENVIRONMENT keeps existing .env files working instead
+// of silently flipping them to production values they were not configured for.
+const TARGET_ENV = process.env.MTN_TARGET_ENVIRONMENT
+  || process.env.MTN_MOMO_TARGET_ENVIRONMENT
+  || 'mtnghana';
 const SUBSCRIPTION_KEY = process.env.MTN_MOMO_SUBSCRIPTION_KEY || '';
 const COLLECTION_USER_ID = process.env.MTN_MOMO_COLLECTION_USER_ID || '';
 const COLLECTION_API_KEY = process.env.MTN_MOMO_COLLECTION_API_KEY || '';
 const DISBURSEMENT_USER_ID = process.env.MTN_MOMO_DISBURSEMENT_USER_ID || COLLECTION_USER_ID;
 const DISBURSEMENT_API_KEY = process.env.MTN_MOMO_DISBURSEMENT_API_KEY || COLLECTION_API_KEY;
-const TARGET_ENV = process.env.MTN_MOMO_TARGET_ENVIRONMENT || 'sandbox';
 const PARTY_ID_TYPE = process.env.MTN_MOMO_PARTY_ID_TYPE || 'MSISDN';
 const CURRENCY = (process.env.MTN_MOMO_CURRENCY || 'GHS').toUpperCase();
 const CALLBACK_URL = process.env.MTN_MOMO_CALLBACK_URL || '';
+
+/* The two settings are a pair - MTN rejects the request when the host says
+ * sandbox and the header says production (or the other way round), and the
+ * rejection arrives as an opaque error. Say so at boot instead. */
+const HOST_IS_SANDBOX = /sandbox/i.test(BASE_URL);
+const ENV_IS_SANDBOX = /sandbox/i.test(TARGET_ENV);
+if (HOST_IS_SANDBOX !== ENV_IS_SANDBOX) {
+  console.warn(
+    `[mtn] MTN_MOMO_BASE_URL (${BASE_URL}) and target environment (${TARGET_ENV}) disagree. `
+    + 'MTN rejects mismatched pairs - align them in .env '
+    + '(production: https://proxy.momoapi.mtn.com + mtnghana).',
+  );
+}
+
+/** The exact requestToPay endpoint, built from the configured base URL. */
+export const REQUEST_TO_PAY_URL = `${BASE_URL}/collection/v1_0/requesttopay`;
+
+/** Read-only view of the resolved MTN configuration (ops panels + tests). */
+export const mtnConfig = Object.freeze({
+  baseUrl: BASE_URL,
+  targetEnv: TARGET_ENV,
+  requestToPayUrl: REQUEST_TO_PAY_URL,
+});
 
 /** Keep attempts inside serverless time budgets (Vercel Hobby ~10s). */
 const ON_VERCEL = Boolean(process.env.VERCEL);
@@ -64,10 +102,13 @@ async function bearerToken(kind) {
   return fetchToken(kind);
 }
 
-function mtnHeaders(token, reference) {
+function mtnHeaders(token, xReferenceId) {
+  // Exactly the four headers the production proxy requires. X-Reference-Id must
+  // be a UUIDv4: the sandbox accepted our GS-SUB-... strings, the production
+  // gateway rejects anything else (and it is the key the status poll uses).
   return {
     Authorization: `Bearer ${token}`,
-    'X-Reference-Id': reference,
+    'X-Reference-Id': xReferenceId,
     'X-Target-Environment': TARGET_ENV,
     'Ocp-Apim-Subscription-Key': SUBSCRIPTION_KEY,
     'Content-Type': 'application/json',
@@ -76,6 +117,73 @@ function mtnHeaders(token, reference) {
 }
 
 const newReference = () => crypto.randomUUID();
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * MTN's X-Reference-Id must be a UUIDv4. Our business references
+ * (`GS-SUB-...`, `GS-POS-...`) are not, so each call gets a real UUID while the
+ * business reference stays on `externalId` for reconciliation. A caller that
+ * already passes a UUID keeps it, so a retried request still dedupes on MTN's
+ * side instead of creating a second charge.
+ */
+function toXReferenceId(clientReference) {
+  return UUID_RE.test(String(clientReference || '')) ? String(clientReference) : newReference();
+}
+
+/**
+ * Sanitize any phone input into the international MSISDN MTN expects:
+ * no leading `+`, no leading `0` - e.g. `23324XXXXXXX`.
+ * Accepts `0244123456`, `244123456`, `+233244123456`, `00233244123456`.
+ * @returns {string|null} `233XXXXXXXXX` or null when the input is not a valid
+ * Ghanaian number (the caller turns null into a clear 400/402, not a gateway hit).
+ */
+export function toMsisdn(input) {
+  return normalizeGhPhone(input);
+}
+
+/**
+ * Turn any MTN/axios failure into one sentence a seller can act on.
+ * The important case: a wrong base URL answers with the developer portal's
+ * HTML 404 page, so `err.response.data` is an HTML document, not JSON - that
+ * must never reach the UI verbatim (or as "[object Object]").
+ */
+function describeMtnError(err) {
+  const status = err.response?.status;
+  const data = err.response?.data;
+  const dataText = typeof data === 'string' ? data : JSON.stringify(data || '');
+  const isHtml = typeof data === 'string'
+    ? /^\s*<(!doctype|html|head|body)/i.test(data)
+    : /<(!doctype|html)/i.test(dataText);
+
+  if (isHtml) {
+    return `MTN MoMo returned a web page instead of a payment response (HTTP ${status || '404'}). `
+      + 'Check MTN_MOMO_BASE_URL - production is https://proxy.momoapi.mtn.com.';
+  }
+  if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
+    return 'The MTN MoMo request timed out before it was confirmed. Please try again.';
+  }
+  if (status === 401 || status === 403) {
+    return 'MTN MoMo rejected the platform credentials. Payments are temporarily unavailable - please try the fallback payment method or contact support.';
+  }
+  if (status === 404) {
+    return 'The MTN MoMo endpoint was not found. Check MTN_MOMO_BASE_URL (production: https://proxy.momoapi.mtn.com).';
+  }
+  if (status === 429) {
+    return 'MTN MoMo is rate-limiting us right now. Please wait a moment and try again.';
+  }
+  if (status >= 500) {
+    return 'The MTN MoMo service is currently unavailable. Please try again shortly.';
+  }
+  // Gateway JSON rejections (insufficient funds, wrong target environment...):
+  // prefer MTN's own human text when it sent any.
+  const reason = data?.reason?.message || data?.message || data?.reason || data?.error?.message;
+  if (typeof reason === 'string' && reason.trim() && reason.length < 200) return reason.trim();
+  if (/insufficient|balance/i.test(dataText)) {
+    return 'The Mobile Money wallet has insufficient balance for this payment.';
+  }
+  return 'The MTN MoMo payment could not be completed. Please try again or use the fallback payment method.';
+}
 
 /* Status polling: requestToPay/transfer are async on MTN's side - HTTP 202
  * only means "received". SUCCESSFUL vs FAILED/REJECTED/TIMEOUT/EXPIRED are
@@ -111,7 +219,7 @@ async function pollStatus(kind, reference) {
       const httpStatus = err.response?.status;
       // 404/202 while the transaction propagates = "not final yet".
       if (httpStatus && ![404, 202].includes(httpStatus) && httpStatus < 500) {
-        return { final: false, success: false, message: err.message, raw: err.response?.data };
+        return { final: false, success: false, message: describeMtnError(err), raw: err.response?.data };
       }
       last = err.response?.data ?? null;
     }
@@ -134,80 +242,112 @@ function dryResult(verb, amount, counterparty) {
 
 /**
  * Charge a customer's MTN wallet (requestToPay). amount is GHS.
- * customerMsisdn: 233XXXXXXXXX. clientReference doubles as the MTN
- * X-Reference-Id for idempotency across retries.
+ *
+ * `customerMsisdn` is sanitized here into international MSISDN form
+ * (`233XXXXXXXXX`, no `+`, no leading `0`) so a raw `024...` from a form can
+ * never be sent to the gateway. `clientReference` is our business reference
+ * (kept on `externalId`); MTN's X-Reference-Id is always a UUIDv4.
+ *
+ * Never throws: every failure comes back as `{ success: false, message }` with
+ * a human sentence, so callers can fall back instead of crashing on gateway
+ * text (or an HTML 404 page from a wrong base URL).
  */
 export async function mtnCollect({ customerMsisdn, amount, description = 'DiDwa purchase', clientReference }) {
   const reference = clientReference || newReference();
-  if (mtnDryRun) return dryResult('COLLECT', amount, `from ${customerMsisdn}`);
+  const msisdn = toMsisdn(customerMsisdn);
+  if (!msisdn) {
+    return {
+      success: false, provider: 'MTN', reference, status: 'INVALID_MSISDN',
+      message: 'Enter a valid Ghana Mobile Money number, e.g. 0241234567.',
+    };
+  }
+  if (mtnDryRun) return dryResult('COLLECT', amount, `from ${msisdn}`);
 
+  const xRef = toXReferenceId(clientReference);
   const payload = {
     amount: Number(amount).toFixed(2),
     currency: CURRENCY,
     externalId: reference,
-    payer: { partyIdType: PARTY_ID_TYPE, partyId: String(customerMsisdn) },
+    payer: { partyIdType: PARTY_ID_TYPE, partyId: msisdn },
     payerMessage: String(description).slice(0, 160),
     payeeNote: String(description).slice(0, 160),
   };
 
   try {
-    await http.post('/collection/v1_0/requesttopay', payload,
-      { headers: mtnHeaders(await bearerToken('collection'), reference) });
-    const polled = await pollStatus('collection', reference);
+    await http.post(REQUEST_TO_PAY_URL, payload,
+      { headers: mtnHeaders(await bearerToken('collection'), xRef) });
+    const polled = await pollStatus('collection', xRef);
     if (polled.final && polled.success) {
-      return { success: true, provider: 'MTN', reference, transactionId: reference, status: 'SUCCESSFUL', raw: polled.raw };
+      return { success: true, provider: 'MTN', reference, transactionId: xRef, status: 'SUCCESSFUL', raw: polled.raw };
     }
     return {
-      success: false, provider: 'MTN', reference, status: polled.status || 'UNKNOWN',
+      success: false, provider: 'MTN', reference, transactionId: xRef, status: polled.status || 'UNKNOWN',
       message: polled.message || 'MTN collection was not approved.',
       pending: !polled.final, raw: polled.raw,
     };
   } catch (err) {
     const detail = err.response?.data || err.message;
-    console.error('[mtn] collect failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    const message = describeMtnError(err);
+    console.error('[mtn] collect failed:', message, '|', typeof detail === 'object' ? JSON.stringify(detail).slice(0, 400) : String(detail).slice(0, 400));
     return {
-      success: false, provider: 'MTN', reference, status: 'ERROR',
-      message: 'MTN collection error. Fallback provider may be tried.', raw: detail,
+      success: false, provider: 'MTN', reference, transactionId: xRef, status: 'ERROR',
+      message, raw: detail,
     };
   }
 }
 
 /**
- * Pay out to a seller MTN wallet (transfer). destination: 233XXXXXXXXX.
+ * Pay out to a seller MTN wallet (transfer). destination is sanitized into
+ * international MSISDN form here (`233XXXXXXXXX`), same as collections.
  */
 export async function mtnDisburse({ destination, amount, description = 'DiDwa payout', clientReference }) {
   const reference = clientReference || newReference();
-  if (mtnDryRun) return dryResult('DISBURSE', amount, `to ${destination}`);
+  const msisdn = toMsisdn(destination);
+  if (!msisdn) {
+    return {
+      success: false, provider: 'MTN', reference, status: 'INVALID_MSISDN',
+      message: 'Enter a valid Ghana Mobile Money number, e.g. 0241234567.',
+    };
+  }
+  if (mtnDryRun) return dryResult('DISBURSE', amount, `to ${msisdn}`);
 
+  const xRef = toXReferenceId(clientReference);
   const payload = {
     amount: Number(amount).toFixed(2),
     currency: CURRENCY,
     externalId: reference,
-    payee: { partyIdType: PARTY_ID_TYPE, partyId: String(destination) },
+    payee: { partyIdType: PARTY_ID_TYPE, partyId: msisdn },
     payerMessage: String(description).slice(0, 160),
     payeeNote: String(description).slice(0, 160),
   };
 
   try {
-    await http.post('/disbursement/v1_0/transfer', payload,
-      { headers: mtnHeaders(await bearerToken('disbursement'), reference) });
-    const polled = await pollStatus('disbursement', reference);
+    await http.post(`${BASE_URL}/disbursement/v1_0/transfer`, payload,
+      { headers: mtnHeaders(await bearerToken('disbursement'), xRef) });
+    const polled = await pollStatus('disbursement', xRef);
     if (polled.final && polled.success) {
-      return { success: true, provider: 'MTN', reference, transactionId: reference, status: 'SUCCESSFUL', raw: polled.raw };
+      return { success: true, provider: 'MTN', reference, transactionId: xRef, status: 'SUCCESSFUL', raw: polled.raw };
     }
     return {
-      success: false, provider: 'MTN', reference, status: polled.status || 'UNKNOWN',
+      success: false, provider: 'MTN', reference, transactionId: xRef, status: polled.status || 'UNKNOWN',
       message: polled.message || 'MTN disbursement was not completed.',
       pending: !polled.final, raw: polled.raw,
     };
   } catch (err) {
     const detail = err.response?.data || err.message;
-    console.error('[mtn] disbursement failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    const message = describeMtnError(err);
+    console.error('[mtn] disbursement failed:', message, '|', typeof detail === 'object' ? JSON.stringify(detail).slice(0, 400) : String(detail).slice(0, 400));
     return {
-      success: false, provider: 'MTN', reference, status: 'ERROR',
-      message: 'MTN disbursement error. Fallback provider may be tried.', raw: detail,
+      success: false, provider: 'MTN', reference, transactionId: xRef, status: 'ERROR',
+      message, raw: detail,
     };
   }
 }
 
-export default { mtnCollect, mtnDisburse, get dryRun() { return mtnDryRun; } };
+export default {
+  mtnCollect,
+  mtnDisburse,
+  toMsisdn,
+  mtnConfig,
+  get dryRun() { return mtnDryRun; },
+};

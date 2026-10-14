@@ -713,6 +713,8 @@ import {
   handlePaystackWebhook,
   handleHubtelWebhook,
   findOrderByReference,
+  findSubscriptionByReference,
+  handleSubscriptionWebhook,
 } from '../services/paymentWebhooks.js';
 
 export const webhookRouter = WebhookRouter();
@@ -834,6 +836,45 @@ webhookRouter.post('/hubtel', async (req, res) => {
       return res.status(202).json({ received: true, processed: false, reason: 'Handler error.' });
     }
     return res.status(result.status).json(result.body);
+  }
+
+  // PLATFORM SUBSCRIPTION checkout (the Hubtel fallback for POST /api/billing/
+  // subscribe). Its reference is a GS-SUB-... subscription_payments row, not an
+  // order and not a domain, so it is disambiguated here and activated by
+  // handleSubscriptionWebhook. Like the domain flow it is a platform-level
+  // Hubtel transaction, so it is authenticated by the platform webhook secret
+  // below - never left as an unverified self-asserted callback.
+  const subRef = req.body?.ClientReference ?? req.body?.clientReference
+    ?? req.body?.Reference ?? req.body?.reference;
+  let sub = null;
+  try {
+    sub = subRef ? await findSubscriptionByReference(subRef) : null;
+  } catch (err) {
+    console.error('[webhook] hubtel subscription lookup failed:', err.message);
+    return res.status(202).json({ received: true, processed: false, reason: 'Lookup unavailable.' });
+  }
+
+  if (sub) {
+    let auth;
+    try {
+      auth = verifyWebhook(req);
+    } catch (err) {
+      console.error('[webhook] hubtel subscription auth error:', err.message);
+      return res.status(202).json({ received: true, processed: false, reason: 'Auth unavailable.' });
+    }
+    if (!auth.ok) {
+      console.warn('[webhook] rejected unverified Hubtel subscription webhook:', auth.reason);
+      return res.status(401).json({ received: false, error: auth.reason });
+    }
+
+    let result;
+    try {
+      result = await handleSubscriptionWebhook(req.body || {});
+    } catch (err) {
+      console.error('[payment-webhook] subscription handler error:', err.message);
+      return res.status(202).json({ received: true, processed: false, reason: 'Handler error.' });
+    }
+    return res.json({ received: true, processed: result.processed, reason: result.reason || undefined });
   }
 
   try {
