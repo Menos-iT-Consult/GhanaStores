@@ -8,7 +8,9 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#F8FAFC",
     "primaryColor": "#0066FF",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.didwa.seller"
@@ -31,12 +33,6 @@
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": {}
-      }
-    },
-  "owner": {}
+    }
   }
 }
