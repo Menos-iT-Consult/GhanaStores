@@ -26,7 +26,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 
 import { pingDb, ensureSchema, getSchemaState, isMissingSchemaError } from './config/database.js';
-import { resolveTenantStore } from './middleware/domainMiddleware.js';
+import { resolveTenantStore, platformDomain } from './middleware/domainMiddleware.js';
 import { errorHandler, requestContext, apiNotFound, installProcessGuards } from './middleware/errorMiddleware.js';
 import billingRoutes from './routes/billingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
@@ -94,8 +94,37 @@ app.use(express.urlencoded({
   extended: true,
   verify: (req, _res, buf) => { req.rawBody = buf; },
 }));
+/* CORS. The API uses Bearer tokens (not cookies), so `credentials` stays false.
+   `CLIENT_URL` may be a comma-separated list of allowed origins; when it is unset
+   we fall back to '*'. In addition we always allow every origin on the platform
+   apex itself (apex, www, app, api) so the seller PWA served from
+   app.<apex> and any same-apex host work without extra configuration. The apex
+   is read from platformDomain() (env-driven), never hard-coded. */
+const apex = platformDomain();
+const platformOrigins = [
+  `https://${apex}`,
+  `https://www.${apex}`,
+  `https://app.${apex}`,
+  `https://api.${apex}`,
+];
+const configuredOrigins = String(process.env.CLIENT_URL || '')
+  .split(',')
+  .map((value) => value.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+const allowAllOrigins = configuredOrigins.includes('*');
+const allowedOrigins = new Set(
+  [...configuredOrigins.filter((value) => value !== '*'), ...platformOrigins],
+);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: (origin, callback) => {
+    // No Origin header (curl, server-to-server, native mobile): allow.
+    if (!origin) return callback(null, true);
+    if (allowAllOrigins) return callback(null, true);
+    const normalized = origin.replace(/\/+$/, '');
+    if (allowedOrigins.has(normalized)) return callback(null, true);
+    return callback(null, false);
+  },
   credentials: false,
 }));
 
