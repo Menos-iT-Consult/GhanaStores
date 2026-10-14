@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
  * Axios client for the DiDwa mobile API.
  *
  * - Base URL comes from EXPO_PUBLIC_API_URL (the API origin, e.g.
- *   https://api.didwaghana.com). The mobile app never uses the storefront's
+ *   https://app.didwaghana.com). The mobile app never uses the storefront's
  *   host-header routing.
  * - The access token is attached as a Bearer header and kept in SecureStore.
  * - On a 401, the client transparently refreshes the access token using the
@@ -14,7 +14,7 @@ import * as SecureStore from 'expo-secure-store';
  *   registered unauthorized handler fires (the app logs out).
  */
 
-const RAW_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.didwaghana.com';
+const RAW_URL = process.env.EXPO_PUBLIC_API_URL || 'https://app.didwaghana.com';
 export const API_BASE_URL = RAW_URL.replace(/\/+$/, '');
 
 const ACCESS_KEY = 'didwa.access_token';

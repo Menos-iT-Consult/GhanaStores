@@ -46,11 +46,11 @@ All routes live under `/api/mobile` on the DiDwa API (see `routes/mobile*`,
 
 ```bash
 cd mobile
-cp .env.example .env      # set EXPO_PUBLIC_API_URL (default https://api.didwaghana.com)
+cp .env.example .env      # set EXPO_PUBLIC_API_URL (default https://app.didwaghana.com)
 npm install
 ```
 
-`EXPO_PUBLIC_API_URL` should point at the API origin (a dedicated `api.`
+`EXPO_PUBLIC_API_URL` should point at the API origin (a dedicated `app.`
 subdomain is recommended — the app never uses host-header tenant routing).
 
 ## Initialize EAS & Expo project (one time, interactive)

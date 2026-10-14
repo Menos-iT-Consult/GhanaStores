@@ -55,7 +55,9 @@ MTN MoMo credential provisioning
   Usage: node momo.js <PRIMARY_SUBSCRIPTION_KEY> [--sandbox|--production] [--callback-host host]
 
   The key can also come from MTN_MOMO_SUBSCRIPTION_KEY in .env.
-  Defaults to --sandbox; use --production only with a live key.
+  Defaults to --sandbox. --production prints the MTN Partner Portal steps
+  (live API User + Key are portal-issued, not self-serve) instead of
+  calling the API.
 `);
   process.exit(args.help ? 0 : 1);
 }
@@ -70,7 +72,59 @@ const http = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/**
+ * Production API User + Key are issued by MTN through the Partner Portal,
+ * NOT via a self-serve API call. POST /v1_0/apiuser returns 404 on the
+ * production host by design, so this script must never fire that request in
+ * production. Instead we print the exact manual steps.
+ */
+function printProductionPartnerPortalGuide() {
+  console.log(`
+Production MoMo credentials are issued through the MTN PARTNER PORTAL,
+not via a self-serve API call. POST /v1_0/apiuser returns 404 on the
+production host (proxy.momoapi.mtn.com) by design - so this script will
+not try. Instead:
+
+  1. Get Partner Portal access from your MTN account manager.
+     (Country-specific URL, e.g. https://mobilemoney.mtn.co.ug for Uganda;
+      MTN issues your login + an OTP to a registered SIM.)
+
+  2. Profile menu -> API Access -> "Create API User".
+     In the popup choose your Account, then:
+       - Provider Callback Host = a BARE domain (e.g. didwaghana.com)
+         [no scheme, no path]
+       - Payment Server URL = the FULL callback path
+         (e.g. https://didwaghana.com/api/webhooks/hubtel)
+
+  3. Click OK. The popup shows:
+       - API User  (a UUID)  -> MTN_MOMO_COLLECTION_USER_ID
+       - API Key   (secret)  -> MTN_MOMO_COLLECTION_API_KEY
+     Save the API Key immediately; it is shown once.
+
+  4. Subscription Key comes separately from the production developer portal
+     (https://momoapi.mtn.com) after KYC. It MUST be a PRODUCTION
+     Collections key - a sandbox key against the production URL is the
+     usual cause of the opaque HTTP 401 we saw earlier.
+
+Then paste these into .env and restart the server:
+
+  MTN_MOMO_BASE_URL=https://proxy.momoapi.mtn.com
+  MTN_MOMO_TARGET_ENVIRONMENT=mtnghana
+  MTN_MOMO_SUBSCRIPTION_KEY=<production Collections key>
+  MTN_MOMO_COLLECTION_USER_ID=<UUID from the popup>
+  MTN_MOMO_COLLECTION_API_KEY=<API Key from the popup>
+`);
+}
+
 async function main() {
+  // Production API Users are NOT self-serve: POST /v1_0/apiuser 404s on the
+  // production host by design. Print the Partner Portal steps and exit
+  // cleanly instead of firing a doomed request.
+  if (args.env === 'production') {
+    printProductionPartnerPortalGuide();
+    process.exit(0);
+  }
+
   console.log(`\nProvisioning MTN MoMo ${args.env} credentials`);
   console.log(`  host:     ${baseUrl}`);
   console.log(`  api user: ${userId}`);

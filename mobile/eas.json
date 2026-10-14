@@ -9,7 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.didwaghana.com"
+        "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       }
     },
     "preview": {
@@ -19,7 +19,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.didwaghana.com"
+        "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       }
     },
     "production": {
@@ -30,7 +30,7 @@
       },
       "ios": {},
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.didwaghana.com"
+        "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       }
     }
   },
