@@ -53,6 +53,38 @@ export function issueAdminToken(admin) {
   });
 }
 
+/* ------------------------- Two-factor login challenge ------------------------ */
+
+/*
+ * When a seller has 2FA on, the password check passes but we must NOT hand back a
+ * real session yet - a stolen password alone is not enough. Instead the login
+ * route returns a short-lived "challenge" token that only proves "password was
+ * correct for this store". The follow-up /login/2fa call verifies the TOTP code
+ * and, only then, issues the full session token.
+ *
+ * The challenge is a JWT so it is signed and tamper-proof, carries the store id
+ * as its subject, and is typed (purpose: '2fa') plus given a brief TTL so a leaked
+ * challenge cannot be reused as a session or replayed later.
+ */
+export function issueTwoFactorChallenge(store) {
+  return jwt.sign(
+    { sub: store.id, purpose: '2fa', role: 'SELLER' },
+    JWT_SECRET,
+    { expiresIn: '5m' },
+  );
+}
+
+/** Verify a 2FA challenge token; returns its payload or null when invalid. */
+export function verifyTwoFactorChallenge(token) {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload?.purpose !== '2fa' || payload?.role !== 'SELLER') return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------ Verify & guard ----------------------------- */
 
 /**

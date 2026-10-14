@@ -44,6 +44,7 @@ import themeRoutes from './routes/themeRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
+import siteSettingsRoutes from './routes/siteSettingsRoutes.js';
 import { startBillingCron } from './jobs/billingCron.js';
 
 dotenv.config();
@@ -166,6 +167,8 @@ app.use('/api', themeRoutes);
 // Order management: public checkout + seller fulfillment console.
 app.use('/api', orderRoutes);
 app.use('/api', contactRoutes);
+// Store Site Settings: rename, change/forgot/reset password, hard delete, 2FA.
+app.use('/api/site-settings', siteSettingsRoutes);
 
 app.use('/api', apiNotFound);
 

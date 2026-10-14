@@ -25,6 +25,8 @@ import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
 import SellerSmsSettings from './pages/SellerSmsSettings.jsx';
 import SellerPlan from './pages/SellerPlan.jsx';
+import SellerSiteSettings from './pages/SellerSiteSettings.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import SellerMessages from './pages/SellerMessages.jsx';
 import SellerInventory from './pages/SellerInventory.jsx';
 import SellerOrders from './pages/SellerOrders.jsx';
@@ -211,6 +213,7 @@ export default function App() {
       case '/settings/payments': return <SellerPaymentSettings />;
     case '/settings/notifications': return <SellerSmsSettings />;
       case '/settings/plan': return <SellerPlan />;
+      case '/settings/site': return <SellerSiteSettings />;
 case '/messages': return <SellerMessages />;
       case '/inventory': return <SellerInventory />;
       case '/orders': return <SellerOrders />;
@@ -294,6 +297,8 @@ case '/messages': return <SellerMessages />;
     case '/contact': return <ContactPage authed={authed} />;
     case '/terms': return <TermsPage authed={authed} />;
     case '/privacy': return <PrivacyPage authed={authed} />;
+    // Public: reachable from the forgot-password email while signed out.
+    case '/reset-password': return <ResetPassword />;
     default: break;
   }
 

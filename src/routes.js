@@ -14,6 +14,8 @@
  */
 export const PUBLIC_ROUTES = [
   '/', '/pricing', '/features', '/how-it-works', '/about', '/contact', '/terms', '/privacy',
+  // Reached from the forgot-password email while signed out - must be public.
+  '/reset-password',
 ];
 
 /** Seller PWA + platform admin pages (auth-gated in App.jsx). */
@@ -41,6 +43,7 @@ export const PWA_ROUTES = [
   '/settings/payments',
   '/settings/notifications',
   '/settings/plan',
+  '/settings/site',
   '/inventory',
   '/orders',
   '/themes',

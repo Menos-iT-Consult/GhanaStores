@@ -96,6 +96,11 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
      overwriting it. Derived slug, they can type; derived slug they never touch,
      it stays in step with what they called their shop. */
   const [slugTouched, setSlugTouched] = useState(false);
+  /* Two-factor login step: set when the server returns twoFactorRequired. */
+  const [twoFa, setTwoFa] = useState(null); // { challenge, email }
+  const [twoFaCode, setTwoFaCode] = useState('');
+  /* Forgot-password: shows a "reset link sent" confirmation on the login tab. */
+  const [resetSent, setResetSent] = useState(false);
 
   /* Keep the suggested address in step with the shop name until it is edited. */
   useEffect(() => {
@@ -113,6 +118,9 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
     setMode(m);
     setError('');
     setShowPw(false); // never carry revealed state across modes
+    setTwoFa(null);   // never carry a half-finished 2FA login across modes
+    setTwoFaCode('');
+    setResetSent(false);
     setForm((f) => ({ ...f, password: '' }));
   }
 
@@ -143,10 +151,52 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
         ? { ...form, accepts_terms: true, accepted_at: new Date().toISOString() }
         : form;
       const data = await api.post(path, payload);
+
+      // Two-factor login: the server verified the password but requires a live
+      // authenticator code. Show the code step instead of a session.
+      if (data?.twoFactorRequired) {
+        setTwoFa({ challenge: data.challenge, email: data.email || form.email });
+        return;
+      }
+
       setSession(data.token, data.store);
       /* `fromSignup` tells App this was a registration - the only path that shows
          the welcome popup. Logging in deliberately does not. */
       onAuthed(data.store, { fromSignup: mode === 'register' });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* Complete a two-factor login with the authenticator code. */
+  async function submitTwoFa(e) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const data = await api.post('/api/billing/login/2fa', {
+        challenge: twoFa.challenge,
+        code: twoFaCode,
+      });
+      setSession(data.token, data.store);
+      onAuthed(data.store, { fromSignup: false });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* Send a password-reset link to the typed email. */
+  async function sendReset(e) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      await api.post('/api/site-settings/password/forgot', { email: form.email });
+      setResetSent(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -237,6 +287,47 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
               </div>
             )}
 
+            {/* Two-factor step: shown instead of the form once the password was
+                accepted and the store has an authenticator app enrolled. */}
+            {twoFa && (
+              <form onSubmit={submitTwoFa} className="mt-5 space-y-4" autoComplete="off">
+                <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
+                  <ShieldCheck size={16} className="mt-0.5 shrink-0" />
+                  <span>
+                    Enter the 6-digit code from your authenticator app for{' '}
+                    <span className="font-semibold">{twoFa.email}</span>.
+                  </span>
+                </div>
+                <div>
+                  <label className={labelCls} htmlFor="totp">Verification code</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                      <ShieldCheck size={16} aria-hidden="true" />
+                    </span>
+                    <input
+                      id="totp" type="text" inputMode="numeric" className={inputCls}
+                      value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value)}
+                      placeholder="123456" maxLength={6} required autoComplete="one-time-code"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit" disabled={busy || twoFaCode.length < 6}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:from-blue-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {busy && <IconSpinner size={18} />}
+                  Verify and sign in
+                </button>
+                <button
+                  type="button" onClick={() => { setTwoFa(null); setTwoFaCode(''); setError(''); }}
+                  className="w-full rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50"
+                >
+                  Use a different account
+                </button>
+              </form>
+            )}
+
+            {!twoFa && (
             <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="on">
               {mode === 'register' && (
                 <>
@@ -341,6 +432,25 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                 </label>
               )}
 
+              {/* Forgot password - login mode only. Sends a reset link to the
+                  typed email; always shows the same confirmation. */}
+              {mode === 'login' && (
+                <div className="flex justify-end">
+                  {resetSent ? (
+                    <span className="text-xs font-semibold text-emerald-600">
+                      Reset link sent - check your email.
+                    </span>
+                  ) : (
+                    <button
+                      type="button" onClick={sendReset} disabled={busy || !form.email}
+                      className="text-xs font-semibold text-blue-600 underline decoration-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={busy || (mode === 'register' && !acceptsTerms)}
@@ -351,6 +461,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                 {!busy && <ArrowRight size={16} aria-hidden="true" />}
               </button>
             </form>
+            )}
 
             {/* Compact feature recap where the brand rail is hidden */}
             <ul className="mt-6 space-y-2 border-t border-slate-100 pt-5 text-xs text-slate-400 lg:hidden">

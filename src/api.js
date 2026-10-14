@@ -152,8 +152,10 @@ export const api = {
   post: (p, body) => request(p, { method: 'POST', body }),
   put: (p, body) => request(p, { method: 'PUT', body }),
   patch: (p, body) => request(p, { method: 'PATCH', body }),
-  // Removing a store logo is the one delete a seller may perform.
-  del: (p) => request(p, { method: 'DELETE' }),
+  // Removing a store logo is the one delete a seller may perform. An optional
+  // body is accepted so the (confirmation-guarded) account-deletion call can
+  // send the typed slug + current password with its DELETE request.
+  del: (p, body) => request(p, { method: 'DELETE', body }),
 };
 
 /* ------------------------------ Media uploads ------------------------------

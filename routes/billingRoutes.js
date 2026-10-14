@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool, query, withTransaction } from '../config/database.js';
-import { issueStoreToken, requireSeller, requireAdmin, optionalSeller } from '../middleware/authMiddleware.js';
+import { issueStoreToken, requireSeller, requireAdmin, optionalSeller, issueTwoFactorChallenge, verifyTwoFactorChallenge } from '../middleware/authMiddleware.js';
 import { sendWelcomeSms } from '../services/smsService.js';
 import { sendLifecycleEmail } from '../services/emailService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
@@ -15,6 +15,8 @@ import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../ser
 import { isMtnNumber } from '../services/paymentRouter.js';
 import { mtnCollect } from '../services/mtnMomoService.js';
 import { initCheckout } from '../services/hubtelService.js';
+import { decryptSecret } from '../services/secretBox.js';
+import { verifyTotp } from '../services/totpService.js';
 import { billingCronHandler } from './billingCronRoute.js';
 import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
 
@@ -154,7 +156,8 @@ router.post('/login', async (req, res, next) => {
 
     const { rows } = await query(
       `SELECT id, name, owner_name, email, phone, password_hash, subdomain_slug, status, plan,
-              trial_ends_at, grace_ends_at, currency, custom_domain, created_at
+              trial_ends_at, grace_ends_at, currency, custom_domain, created_at,
+              totp_enabled, totp_secret
          FROM stores WHERE LOWER(email) = $1 LIMIT 1`,
       [String(email).trim().toLowerCase()],
     );
@@ -164,7 +167,61 @@ router.post('/login', async (req, res, next) => {
     const ok = await bcrypt.compare(password, store.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid email or password.' });
 
+    // Two-factor gate. The password is correct, but if the store has TOTP enabled
+    // a password alone is not enough: hand back a short-lived challenge token
+    // instead of a session, and let the client complete /login/2fa with a code.
+    const twoFactorEnabled = Boolean(store.totp_enabled) && Boolean(store.totp_secret);
     delete store.password_hash;
+    delete store.totp_secret;
+
+    if (twoFactorEnabled) {
+      return res.json({
+        twoFactorRequired: true,
+        challenge: issueTwoFactorChallenge(store),
+        email: store.email,
+      });
+    }
+
+    res.json({ token: issueStoreToken(store), store });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------- Login: two-factor step --------------------------- */
+// Second half of a 2FA login. The `challenge` token proves the password was
+// already verified for this store; we now require a live TOTP code from the
+// seller's authenticator app before issuing the real session token.
+router.post('/login/2fa', async (req, res, next) => {
+  try {
+    const { challenge, code } = req.body || {};
+    if (!challenge || !code) {
+      return res.status(400).json({ error: 'Verification code is required.' });
+    }
+
+    const payload = verifyTwoFactorChallenge(challenge);
+    if (!payload) {
+      return res.status(401).json({ error: 'This verification has expired. Please sign in again.' });
+    }
+
+    const { rows } = await query(
+      `SELECT id, name, owner_name, email, phone, subdomain_slug, status, plan,
+              trial_ends_at, grace_ends_at, currency, custom_domain, created_at,
+              totp_enabled, totp_secret
+         FROM stores WHERE id = $1 LIMIT 1`,
+      [payload.sub],
+    );
+    const store = rows[0];
+    if (!store || !store.totp_enabled || !store.totp_secret) {
+      return res.status(401).json({ error: 'Two-factor is no longer active on this account. Please sign in again.' });
+    }
+
+    const secret = decryptSecret(store.totp_secret);
+    if (!secret || !verifyTotp(secret, String(code))) {
+      return res.status(401).json({ error: 'That code is not correct. Try the next code from your app.' });
+    }
+
+    delete store.totp_secret;
     res.json({ token: issueStoreToken(store), store });
   } catch (err) {
     next(err);

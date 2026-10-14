@@ -758,6 +758,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS store_domains_name_idx ON store_domains (LOWER
 CREATE INDEX IF NOT EXISTS store_domains_store_idx ON store_domains (store_id, status);
 CREATE INDEX IF NOT EXISTS store_domains_status_idx ON store_domains (status, created_at DESC);
 
+-- ------------------------------------------------- store account settings (Site Settings tab)
+-- Two additions to `stores` and one new table, all idempotent:
+--   totp_secret / totp_enabled  - seller-chosen TOTP 2FA (RFC 6238 authenticator app).
+--                                  The secret is stored as an AES-256-GCM envelope from
+--                                  services/secretBox.js, never in plaintext, and stays
+--                                  disabled until the seller confirms a code.
+--   store_password_resets       - single-use, hashed, time-limited forgot-password tokens.
+--                                  The emailed token is hashed (SHA-256) before storage so a
+--                                  database read cannot be replayed as a reset; the raw value
+--                                  only ever exists in the email and in memory.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS totp_secret  TEXT,
+  ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS store_password_resets (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,              -- SHA-256 of the emailed token; the raw value is never stored
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,               -- set when consumed, so a token can only be redeemed once
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS store_password_resets_store_idx
+  ON store_password_resets (store_id, created_at DESC);
+
+
 
 
 -- Canonical DiDwa fresh-install schema; supplemental historical SQL is not executed.
