@@ -23,6 +23,7 @@ import { query, pool } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { encryptSecret, decryptSecret, encryptionConfigured } from '../services/secretBox.js';
 import { sendEmail } from '../services/emailService.js';
+import { passwordResetTemplate } from '../services/emailTemplates.js';
 import { generateSecret, verifyTotp, otpauthUri, qrDataUrl } from '../services/totpService.js';
 
 const router = Router();
@@ -126,26 +127,12 @@ router.post('/password/forgot', async (req, res, next) => {
     );
 
     const link = `${platformUrl()}/reset-password?token=${token}`;
+    const mail = passwordResetTemplate({ store, link, minutes: RESET_TTL_MINUTES });
     await sendEmail({
       to: store.email,
-      subject: 'Reset your DiDwa password',
-      text: [
-        `Hi ${store.name || 'there'},`,
-        '',
-        'Use the link below to choose a new password. It expires in 60 minutes and can be used once.',
-        '',
-        link,
-        '',
-        'If you did not request this, you can ignore this email - your password stays the same.',
-      ].join('\n'),
-      html: `
-        <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.5;color:#0f172a;max-width:560px">
-          <p>Hi ${store.name || 'there'},</p>
-          <p>Use the button below to choose a new password. The link expires in 60 minutes and can be used once.</p>
-          <p><a href="${link}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Reset password</a></p>
-          <p style="color:#64748b;font-size:12px">If the button does not work, paste this link into your browser:<br>${link}</p>
-          <p style="color:#64748b;font-size:12px;margin-top:24px">If you did not request this, ignore this email - your password stays the same.</p>
-        </div>`,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
     });
 
     res.json(GENERIC);

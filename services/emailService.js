@@ -17,6 +17,15 @@
  * never actually been installed, so every send failed at the import and returned
  * `send-failed` - this service has never once delivered a message.
  */
+import {
+  welcomeTemplate,
+  trialReminderTemplate,
+  renewalReminderTemplate,
+  pastDueTemplate,
+  contactMessageTemplate,
+  passwordResetTemplate,
+} from './emailTemplates.js';
+
 const SMTP_HOST = process.env.GMAIL_SMTP_HOST || 'smtp.gmail.com';
 const SMTP_PORT = Number(process.env.GMAIL_SMTP_PORT || 465);
 const SMTP_USER = String(process.env.GMAIL_USER || '').trim();
@@ -80,11 +89,6 @@ export async function sendEmail({ to, subject, text, html, replyTo }) {
   }
 }
 
-/** Plain-text escape for values interpolated into an HTML body. */
-const esc = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
 /**
  * Tell a seller (or the platform admin) that a contact form was submitted.
  *
@@ -100,39 +104,14 @@ export async function notifyNewMessage(msg, to, storeName) {
     ? `New message for ${storeName || 'your store'}`
     : 'New contact form submission';
 
-  const text = [
-    label,
-    '',
-    `From:    ${msg.name}`,
-    `Email:   ${msg.email}`,
-    msg.phone ? `Phone:   ${msg.phone}` : null,
-    msg.topic ? `Topic:   ${msg.topic}` : null,
-    '',
-    msg.message,
-    '',
-    '-- ',
-    'Reply directly to this email to answer the sender.',
-  ].filter(Boolean).join('\n');
-
-  const html = `
-    <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.5;color:#0f172a">
-      <p><strong>${esc(label)}</strong></p>
-      <table cellpadding="4" style="border-collapse:collapse;font-size:14px">
-        <tr><td style="color:#64748b">From</td><td>${esc(msg.name)}</td></tr>
-        <tr><td style="color:#64748b">Email</td><td><a href="mailto:${esc(msg.email)}">${esc(msg.email)}</a></td></tr>
-        ${msg.phone ? `<tr><td style="color:#64748b">Phone</td><td>${esc(msg.phone)}</td></tr>` : ''}
-        ${msg.topic ? `<tr><td style="color:#64748b">Topic</td><td>${esc(msg.topic)}</td></tr>` : ''}
-      </table>
-      <p style="white-space:pre-wrap;border-left:3px solid #e2e8f0;padding-left:12px;margin:16px 0">${esc(msg.message)}</p>
-      <p style="color:#64748b;font-size:12px">Reply directly to this email to answer the sender.</p>
-    </div>`;
+  const mail = contactMessageTemplate({ msg, storeName, label });
 
   return sendEmail({
     to: recipient,
     replyTo: msg.email,
-    subject: `[DiDwa] ${label}`,
-    text,
-    html,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
   });
 }
 
@@ -146,57 +125,12 @@ export async function notifyNewMessage(msg, to, storeName) {
  * would bury the merchant. It is also the one SMS with a delivery latch
  * (low_stock_alert_sent) - see routes/inventoryRoutes.js dispatchLowStockAlerts -
  * and email must never touch that flag, or a Gmail outage would re-arm the
- * latch on every sale and spray restock emails at the merchant.
+ * lifecycle on every sale and spray restock emails at the merchant.
  *
  * Lifecycle email is fire-and-forget. It has no retry, no latch and no coupling
  * to whether the SMS succeeded: the two channels are independent, and if one
  * gateway is down the other should still deliver.
  */
-
-/** Storefront URL, preferring the custom domain over the subdomain. */
-function storefrontUrl(store) {
-  const platformDomain = (process.env.PLATFORM_DOMAIN || '')
-    .replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  if (store.custom_domain) {
-    return `https://${String(store.custom_domain).replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
-  }
-  if (store.subdomain_slug && platformDomain) {
-    return `https://${store.subdomain_slug}.${platformDomain}`;
-  }
-  return null;
-}
-
-function formatDate(value) {
-  return new Date(value).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  });
-}
-
-/** Shared shell so every lifecycle email looks like it came from one place. */
-function lifecycleEmail(store, heading, lines, cta) {
-  const greeting = `Hi ${store.name || 'there'},`;
-  const text = [greeting, '', heading, ...lines, cta ? `\n${cta.label}: ${cta.url}` : null]
-    .filter(Boolean)
-    .join('\n');
-
-  const row = (k, v) => `<tr><td style="color:#64748b;padding-right:12px">${esc(k)}</td>`
-    + `<td style="font-weight:600">${esc(v)}</td></tr>`;
-
-  const html = `
-    <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.5;color:#0f172a;max-width:560px">
-      <p>${esc(greeting)}</p>
-      <h2 style="font-size:18px;margin:16px 0 8px">${esc(heading)}</h2>
-      <table cellpadding="4" style="border-collapse:collapse;font-size:14px;margin:12px 0">
-        ${lines.map(([k, v]) => row(k, v)).join('')}
-      </table>
-      ${cta ? `<p><a href="${esc(cta.url)}" style="display:inline-block;background:#f97316;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">${esc(cta.label)}</a></p>` : ''}
-      <p style="color:#64748b;font-size:12px;margin-top:24px">
-        Reply to this email and it reaches a human on the DiDwa team.
-      </p>
-    </div>`;
-
-  return { subject: `[DiDwa] ${heading}`, text, html };
-}
 
 /**
  * Send the lifecycle email matching `template`.
@@ -214,41 +148,18 @@ export async function sendLifecycleEmail(store, template, extra = {}) {
 
   let mail;
   switch (template) {
-    case 'welcome': {
-      const url = storefrontUrl(store);
-      mail = lifecycleEmail(store, 'Your free trial is live',
-        [['Trial ends', formatDate(store.trial_ends_at)]],
-        url ? { label: 'Open your storefront', url } : null);
+    case 'welcome':
+      mail = welcomeTemplate(store);
       break;
-    }
-    case 'trial-reminder': {
-      mail = lifecycleEmail(store, 'Your free trial ends soon',
-        [['Trial ends', formatDate(store.trial_ends_at)]],
-        { label: 'Renew now', url: storefrontUrl(store) || 'https://didwaghana.com' });
+    case 'trial-reminder':
+      mail = trialReminderTemplate(store);
       break;
-    }
-    case 'renewal-reminder': {
-      mail = lifecycleEmail(store, 'Your plan is up for renewal',
-        [
-          ['Plan', store.plan || 'current'],
-          ['Renews', formatDate(store.plan_period_end)],
-        ],
-        { label: 'Manage billing', url: storefrontUrl(store) || 'https://didwaghana.com' });
+    case 'renewal-reminder':
+      mail = renewalReminderTemplate(store);
       break;
-    }
-    case 'past-due': {
-      const suspended = extra.suspended === true;
-      mail = lifecycleEmail(store,
-        suspended ? 'Your storefront has been suspended' : 'Your account is past due',
-        suspended
-          ? [['Status', 'SUSPENDED']]
-          : [
-            ['Status', 'PAST DUE'],
-            ['Grace ends', formatDate(store.grace_ends_at)],
-          ],
-        { label: 'Subscribe to restore your store', url: storefrontUrl(store) || 'https://didwaghana.com' });
+    case 'past-due':
+      mail = pastDueTemplate(store, { suspended: extra.suspended === true });
       break;
-    }
     default:
       return { sent: false, reason: `unknown-template:${template}` };
   }
