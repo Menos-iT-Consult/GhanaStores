@@ -1,4 +1,3 @@
-import 'react-native-gesture-handler';
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';

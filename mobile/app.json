@@ -13,13 +13,16 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.didwa.seller"
+      "bundleIdentifier": "com.didwa.seller",
+      "icon": "./assets/icon.jpg"
     },
     "android": {
       "package": "com.didwa.seller",
       "adaptiveIcon": {
-        "backgroundColor": "#0066FF"
-      }
+        "foregroundImage": "./assets/adaptive-icon.jpg",
+        "backgroundColor": "#0B1120"
+      },
+      "icon": "./assets/icon.jpg"
     },
     "plugins": [
       [
@@ -41,6 +44,19 @@
         "projectId": "a942c0c2-3a85-4368-9251-eb7f79ff211a"
       }
     },
-    "owner": "didwa"
+    "owner": "didwa",
+    "icon": "./assets/icon.jpg",
+    "splash": {
+      "image": "./assets/splash.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1120"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.jpg",
+      "color": "#0066FF"
+    },
+    "web": {
+      "favicon": "./assets/favicon.jpg"
+    }
   }
 }
