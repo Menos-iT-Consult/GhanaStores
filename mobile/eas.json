@@ -11,7 +11,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       },
-      "nodeVersion": "20.19.4"
+      "node": "20.19.4"
     },
     "preview": {
       "distribution": "internal",
@@ -22,7 +22,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       },
-      "nodeVersion": "20.19.4"
+      "node": "20.19.4"
     },
     "production": {
       "channel": "production",
@@ -34,7 +34,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       },
-      "nodeVersion": "20.19.4"
+      "node": "20.19.4"
     }
   },
   "submit": {
