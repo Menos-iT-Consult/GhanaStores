@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "DiDwa Seller",
+    "slug": "didwa-seller",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "didwa",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F8FAFC",
+    "primaryColor": "#0066FF",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.didwa.seller"
+    },
+    "android": {
+      "package": "com.didwa.seller",
+      "adaptiveIcon": {
+        "backgroundColor": "#0066FF"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#0066FF"
+        }
+      ],
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    },
+    "owner": "REPLACE_WITH_EXPO_USERNAME"
+  }
+}

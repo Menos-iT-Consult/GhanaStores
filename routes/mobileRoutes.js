@@ -141,6 +141,28 @@ router.get('/orders', authenticateMobileToken, async (req, res, next) => {
   }
 });
 
+/* ---------------------------- Order detail (by id) ------------------------- */
+// The order-detail screen and push deep-links reference a single order by id;
+// the list endpoint is paginated so it can't reliably surface it. Same slim
+// shape as the list, scoped to the signed-in store.
+router.get('/orders/:id', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.customer_address,
+              o.total, o.total_amount, o.payment_method, o.status, o.notes,
+              o.created_at, o.updated_at
+         FROM orders o
+        WHERE o.id = $1 AND o.store_id = $2
+        LIMIT 1`,
+      [req.params.id, req.storeId],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Order not found for your store.' });
+    res.json({ order: slimOrder(rows[0]) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* --------------------------- Orders: status update ------------------------- */
 // Canonical status transition via the single source of truth, then a push to the
 // merchant's devices so any other logged-in phone sees it instantly.
@@ -247,6 +269,27 @@ router.patch('/products/:id/stock', authenticateMobileToken, async (req, res, ne
     );
     if (!rows[0]) return res.status(404).json({ error: 'Product not found for your store.' });
     res.json({ product: { id: rows[0].id, name: rows[0].name, isActive: rows[0].is_active } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------------------------- Products: quick price ----------------------- */
+// Price quick-edit from the mobile product list. Mirrors the stock toggle:
+// store-scoped, returns the persisted value so the client never trusts its own
+// optimistic number.
+router.patch('/products/:id/price', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const price = Number(req.body?.price);
+    if (!Number.isFinite(price) || price < 0) {
+      return res.status(400).json({ error: 'Provide a valid non-negative price.' });
+    }
+    const { rows } = await query(
+      'UPDATE products SET price = $2 WHERE id = $1 AND store_id = $3 RETURNING id, name, price',
+      [req.params.id, price.toFixed(2), req.storeId],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Product not found for your store.' });
+    res.json({ product: { id: rows[0].id, name: rows[0].name, price: Number(rows[0].price) } });
   } catch (err) {
     next(err);
   }
