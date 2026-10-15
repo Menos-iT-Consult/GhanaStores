@@ -14,15 +14,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.didwa.seller",
-      "icon": "./assets/icon.jpg"
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "com.didwa.seller",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.jpg",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B1120"
       },
-      "icon": "./assets/icon.jpg"
+      "icon": "./assets/icon.png"
     },
     "plugins": [
       [
@@ -45,18 +45,18 @@
       }
     },
     "owner": "didwa",
-    "icon": "./assets/icon.jpg",
+    "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/splash.jpg",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B1120"
     },
     "notification": {
-      "icon": "./assets/notification-icon.jpg",
+      "icon": "./assets/notification-icon.png",
       "color": "#0066FF"
     },
     "web": {
-      "favicon": "./assets/favicon.jpg"
+      "favicon": "./assets/favicon.png"
     }
   }
 }
