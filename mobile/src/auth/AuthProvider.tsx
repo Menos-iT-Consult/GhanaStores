@@ -10,6 +10,7 @@ import {
 } from '@/api/client';
 import * as endpoints from '@/api/endpoints';
 import { isTwoFactorChallenge, type LoginResult, type Session, type StoreMeta } from '@/types';
+import { clearWidgetSnapshot } from '@/widgets/snapshot';
 
 /**
  * Session + auth state for the seller app. Credentials (access + refresh
@@ -54,6 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const rt = currentRefreshToken();
     if (rt) await endpoints.logout(rt).catch(() => undefined);
     await clearSession();
+    // Drop the cached store numbers so the home-screen widget falls back to
+    // its "open the app to sync" empty state instead of stale figures.
+    await clearWidgetSnapshot();
     await SecureStore.deleteItemAsync(BOOTSTRAP_KEY).catch(() => undefined);
     setState({ status: 'signedOut', session: null, store: null });
   }, []);

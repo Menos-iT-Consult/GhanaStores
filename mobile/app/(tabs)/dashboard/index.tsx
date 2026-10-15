@@ -7,6 +7,13 @@ import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
+import { KpiWidget } from '@/components/widgets/KpiWidget';
+import { OrdersWidget } from '@/components/widgets/OrdersWidget';
+import { OpsWidget } from '@/components/widgets/OpsWidget';
+import { TrendWidget } from '@/components/widgets/TrendWidget';
+import { writeWidgetSnapshot } from '@/widgets/snapshot';
+import { refreshAndroidWidget } from '@/widgets/refreshAndroidWidget';
+
 import { StatCard } from '@/components/StatCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { StatCardSkeleton, SectionSkeleton, SkeletonBlock } from '@/components/Skeleton';
@@ -44,6 +51,33 @@ export default function DashboardScreen() {
       setSnack(`${sync.pending} offline sale${sync.pending === 1 ? '' : 's'} syncing…`);
     }
   }, [sync.failed, sync.pending, sync.online]);
+
+  // Keep the home-screen widget snapshot in sync with the dashboard payload.
+  // Best-effort: snapshot + Android push must never break the screen.
+  React.useEffect(() => {
+    if (!data) return;
+    const pending = (Array.isArray(data.recentOrders) ? data.recentOrders : []).filter(
+      (o) => String(o?.status).toUpperCase() === 'PENDING',
+    ).length;
+    writeWidgetSnapshot({
+      storeName: store?.name ?? null,
+      todayRevenue: Number(data.kpis?.todayRevenue) || 0,
+      weekRevenue: Number(data.kpis?.weekRevenue) || 0,
+      paidOrders: Number(data.kpis?.paidOrders) || 0,
+      pendingOrders: pending,
+      lowStockCount: Number(data.operations?.lowStockCount) || 0,
+      transitCash: Number(data.operations?.transitCash) || 0,
+      recentOrders: (Array.isArray(data.recentOrders) ? data.recentOrders : []).slice(0, 5).map((o) => ({
+        id: String(o?.id ?? ''),
+        orderNumber: String(o?.orderNumber ?? ''),
+        customerName: String(o?.customerName ?? ''),
+        total: Number(o?.total) || 0,
+        status: String(o?.status ?? ''),
+      })),
+    })
+      .then(refreshAndroidWidget)
+      .catch(() => undefined);
+  }, [data, store?.name]);
 
   if (isLoading) {
     return (
@@ -143,6 +177,22 @@ export default function DashboardScreen() {
           <StatCard label="Paid orders" value={String(safeKpis.paidOrders)} hint={`${pendingOrders} pending`} />
           <StatCard label="Avg order" value={formatGhs(safeKpis.averageOrderValue)} hint="All time" />
         </View>
+
+        <SectionHeader title="At a glance" actionLabel="New sale" onAction={() => router.push('/pos')} />
+        <KpiWidget todayRevenue={safeKpis.todayRevenue} weekRevenue={safeKpis.weekRevenue} paidOrders={safeKpis.paidOrders} />
+        <OrdersWidget
+          orders={safeOrders.slice(0, 3).map((o) => ({
+            id: String(o.id),
+            orderNumber: String(o.orderNumber),
+            customerName: String(o.customerName),
+            total: Number(o.total) || 0,
+            status: String(o.status),
+          }))}
+          pendingOrders={pendingOrders}
+          onSeeAll={() => router.push('/orders')}
+        />
+        <OpsWidget lowStockCount={safeOps.lowStockCount} transitCash={safeOps.transitCash} onRestock={() => router.push('/products')} />
+        <TrendWidget points={safeTrend.map((m) => ({ month: String(m?.month ?? ''), revenue: Number(m?.revenue) || 0 }))} />
 
         <SectionHeader title="Revenue trend" actionLabel="New sale" onAction={() => router.push('/pos')} />
         <Card mode="elevated" style={styles.card}>

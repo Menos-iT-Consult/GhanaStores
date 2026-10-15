@@ -31,6 +31,24 @@
           "color": "#0066FF"
         }
       ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "StoreWidget",
+              "label": "DiDwa store",
+              "description": "Today's revenue, pending orders and low stock at a glance",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
       "expo-router"
     ],
     "experiments": {
