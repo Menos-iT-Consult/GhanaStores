@@ -146,7 +146,7 @@ export default function LoginScreen() {
                 </>
               ) : (
                 <>
-                  <Text variant="titleLarge" style={styles.heading}>Welcome back</Text>
+                  <Text variant="titleLarge" style={styles.heading}>Welcome back 👋</Text>
                   <Text variant="bodyMedium" style={styles.subheading}>
                     Sign in to manage your store on the go.
                   </Text>
