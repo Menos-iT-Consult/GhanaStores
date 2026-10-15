@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/AuthProvider';
  * in register/signup mode by default, so that is the "create an account" target,
  * and `/reset-password` is the public password-recovery page.
  */
-const WEB_APP_URL = 'https://app.didwaghana.com';
+const WEB_APP_URL = 'https://didwaghana.com';
 const SIGNUP_URL = `${WEB_APP_URL}/login`;
 const RESET_URL = `${WEB_APP_URL}/reset-password`;
 
