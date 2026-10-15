@@ -72,8 +72,24 @@ export default function DashboardScreen() {
   }
 
   const { kpis, monthlyTrend, recentOrders, operations } = data;
-  const pendingOrders = recentOrders.filter((o) => String(o.status).toUpperCase() === 'PENDING').length;
-  const barData = monthlyTrend.map((m) => ({ value: Math.round(m.revenue), label: m.month }));
+  // Defensive defaults: never let a partial/stale payload crash the screen.
+  const safeTrend = Array.isArray(monthlyTrend) ? monthlyTrend : [];
+  const safeOrders = Array.isArray(recentOrders) ? recentOrders : [];
+  const safeKpis = {
+    todayRevenue: Number(kpis?.todayRevenue) || 0,
+    weekRevenue: Number(kpis?.weekRevenue) || 0,
+    paidOrders: Number(kpis?.paidOrders) || 0,
+    averageOrderValue: Number(kpis?.averageOrderValue) || 0,
+    totalRevenue: Number(kpis?.totalRevenue) || 0,
+  };
+  const safeOps = {
+    lowStockCount: Number(operations?.lowStockCount) || 0,
+    loyaltyMembers: Number(operations?.loyaltyMembers) || 0,
+    outstandingPoints: Number(operations?.outstandingPoints) || 0,
+    transitCash: Number(operations?.transitCash) || 0,
+  };
+  const pendingOrders = safeOrders.filter((o) => String(o?.status).toUpperCase() === 'PENDING').length;
+  const barData = safeTrend.map((m) => ({ value: Math.round(Number(m?.revenue) || 0), label: String(m?.month ?? '') }));
   const hasTrend = barData.some((d) => d.value > 0);
   return (
     <View style={styles.root}>
@@ -120,12 +136,12 @@ export default function DashboardScreen() {
         ) : null}
 
         <View style={styles.statsRow}>
-          <StatCard label="Today" value={formatGhs(kpis.todayRevenue)} hint="Revenue" />
-          <StatCard label="This week" value={formatGhs(kpis.weekRevenue)} hint="Revenue" />
+          <StatCard label="Today" value={formatGhs(safeKpis.todayRevenue)} hint="Revenue" />
+          <StatCard label="This week" value={formatGhs(safeKpis.weekRevenue)} hint="Revenue" />
         </View>
         <View style={styles.statsRow}>
-          <StatCard label="Paid orders" value={String(kpis.paidOrders)} hint={`${pendingOrders} pending`} />
-          <StatCard label="Avg order" value={formatGhs(kpis.averageOrderValue)} hint="All time" />
+          <StatCard label="Paid orders" value={String(safeKpis.paidOrders)} hint={`${pendingOrders} pending`} />
+          <StatCard label="Avg order" value={formatGhs(safeKpis.averageOrderValue)} hint="All time" />
         </View>
 
         <SectionHeader title="Revenue trend" actionLabel="New sale" onAction={() => router.push('/pos')} />
@@ -185,7 +201,7 @@ export default function DashboardScreen() {
         )}
 
         <SectionHeader title="Recent orders" actionLabel="See all" onAction={() => router.push('/orders')} />
-        {recentOrders.length === 0 ? (
+        {safeOrders.length === 0 ? (
           <Card mode="elevated" style={styles.card}>
             <View style={styles.listBody}>
               <Text variant="bodyMedium" style={styles.mutedCenter}>
@@ -195,7 +211,7 @@ export default function DashboardScreen() {
           </Card>
         ) : (
           <Card mode="elevated" style={styles.card}>
-            {recentOrders.slice(0, 6).map((o, i) => (
+            {safeOrders.slice(0, 6).map((o, i) => (
               <View key={o.id} style={[styles.rankRow, i > 0 && styles.divider]}>
                 <View style={{ flex: 1, marginRight: 10 }}>
                   <Text variant="titleSmall" style={styles.rankName} numberOfLines={1}>
@@ -216,14 +232,14 @@ export default function DashboardScreen() {
         <View style={styles.statsRow}>
           <StatCard
             label="Low stock"
-            value={String(operations.lowStockCount)}
-            hint={operations.lowStockCount > 0 ? 'Variants to restock' : 'All good'}
+            value={String(safeOps.lowStockCount)}
+            hint={safeOps.lowStockCount > 0 ? 'Variants to restock' : 'All good'}
           />
-          <StatCard label="Loyalty members" value={String(operations.loyaltyMembers)} />
+          <StatCard label="Loyalty members" value={String(safeOps.loyaltyMembers)} />
         </View>
         <View style={styles.statsRow}>
-          <StatCard label="Points outstanding" value={String(operations.outstandingPoints)} />
-          <StatCard label="Rider cash in transit" value={formatGhs(operations.transitCash)} />
+          <StatCard label="Points outstanding" value={String(safeOps.outstandingPoints)} />
+          <StatCard label="Rider cash in transit" value={formatGhs(safeOps.transitCash)} />
         </View>
       </ScrollView>
 
