@@ -34,7 +34,7 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
     if (!storeId || !title || !body) return { sent: 0 };
 
     const { rows } = await query(
-      'SELECT expo_push_token FROM device_tokens WHERE store_id = $1',
+      'SELECT expo_push_token, platform FROM device_tokens WHERE store_id = $1',
       [storeId],
     );
     if (rows.length === 0) return { sent: 0 };
@@ -47,6 +47,12 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
       title: String(title),
       body: String(body),
       data: data || {},
+      // Android decides visibility by channel. Since Expo's FCM V1 migration a
+      // message with no channelId is dropped into an auto-created fallback
+      // channel (fcm_fallback_notification_channel) which is often silent, so
+      // the notification arrives but is never seen. Target the high-importance
+      // 'orders' channel the client creates on permission grant. Ignored on iOS.
+      ...(r.platform === 'android' ? { channelId: 'orders' } : {}),
     }));
 
     await axios.post(EXPO_PUSH_URL, messages, {

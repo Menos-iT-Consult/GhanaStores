@@ -111,13 +111,17 @@ export function addNotificationResponseListener(handler: (data: Record<string, u
 
 /**
  * Decide which route a notification payload should open. Matches the payload
- * keys the backend sends in services/pushService.js.
+ * `type` values the backend sends in services/pushService.js callers:
+ *   order_created, order_status (orderRoutes/mobileRoutes)
+ *   order_paid (paymentWebhooks)
+ *   subscription_active (paymentWebhooks)
  */
 export function routeForNotification(data: Record<string, unknown>): string | null {
   const type = data?.type;
-  if (type === 'order_created' || type === 'order_status' || type === 'payment_received') {
+  if (type === 'order_created' || type === 'order_status' || type === 'order_paid' || type === 'payment_received') {
     const id = data?.orderId ?? data?.order_id;
     return id ? `/orders/${id}` : '/orders';
   }
+  if (type === 'subscription_active') return '/settings';
   return null;
 }
