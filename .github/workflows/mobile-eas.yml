@@ -16,6 +16,8 @@ on:
         options:
           - preview
           - production
+          - production-apk
+          - both-android
           - development
       platform:
         description: 'Target platform'
@@ -88,4 +90,12 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - run: eas build --profile ${{ inputs.profile }} --platform ${{ inputs.platform }} --non-interactive --no-wait
+      - name: EAS build (single profile)
+        run: eas build --profile ${{ inputs.profile }} --platform ${{ inputs.platform }} --non-interactive --no-wait
+        if: inputs.profile != 'both-android'
+      - name: EAS build production AAB
+        run: eas build --profile production --platform android --non-interactive --no-wait
+        if: inputs.profile == 'both-android'
+      - name: EAS build production APK
+        run: eas build --profile production-apk --platform android --non-interactive --no-wait
+        if: inputs.profile == 'both-android'
