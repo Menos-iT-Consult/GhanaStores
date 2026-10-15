@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Card, Dialog, Portal, Switch, Text, TextInput, useTheme } from 'react-native-paper';
+import { FlatList, Image, RefreshControl, StyleSheet, View } from 'react-native';
+import { Appbar, Card, FAB, Snackbar, Switch, Text, useTheme } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ScreenState';
 import { formatGhs } from '@/theme';
 import type { Product } from '@/types';
 
+/**
+ * Catalog list: quick stock switch on each row, tap to open the full editor
+ * (price, details, image, variants), FAB to add a product.
+ */
 export default function ProductsScreen() {
   const qc = useQueryClient();
+  const router = useRouter();
   const { colors } = useTheme();
-
-  const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [priceDraft, setPriceDraft] = useState('');
   const [snack, setSnack] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
@@ -41,31 +44,6 @@ export default function ProductsScreen() {
     onSettled: () => invalidate(),
   });
 
-  const priceMutation = useMutation({
-    mutationFn: ({ id, price }: { id: string; price: number }) => endpoints.updateProductPrice(id, price),
-    onSuccess: (saved) => {
-      setSnack(`${saved.name} price updated.`);
-      setEditProduct(null);
-      invalidate();
-    },
-    onError: (err) => setSnack(apiErrorMessage(err, 'Could not update price.')),
-  });
-
-  const openPrice = (p: Product) => {
-    setEditProduct(p);
-    setPriceDraft(String(p.price));
-  };
-
-  const savePrice = () => {
-    if (!editProduct) return;
-    const price = Number(priceDraft);
-    if (!Number.isFinite(price) || price < 0) {
-      setSnack('Enter a valid price.');
-      return;
-    }
-    priceMutation.mutate({ id: editProduct.id, price });
-  };
-
   const products = data ?? [];
 
   return (
@@ -79,7 +57,12 @@ export default function ProductsScreen() {
       ) : isError ? (
         <ErrorState message={apiErrorMessage(error)} onRetry={refetch} />
       ) : products.length === 0 ? (
-        <EmptyState title="No products yet" message="Add products in your dashboard and they’ll show here." />
+        <EmptyState
+          title="No products yet"
+          message="Add your first product to start selling online and in the POS."
+          actionLabel="Add product"
+          onAction={() => router.push('/products/new')}
+        />
       ) : (
         <FlatList
           data={products}
@@ -87,42 +70,45 @@ export default function ProductsScreen() {
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
           renderItem={({ item }) => (
-            <Card mode="elevated" style={styles.card}>
+            <Card mode="elevated" style={styles.card} onPress={() => router.push(`/products/${item.id}`)}>
               <View style={styles.cardBody}>
-                <View style={styles.row}>
-                  <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text variant="titleMedium" style={styles.name} numberOfLines={1}>{item.name}</Text>
-                    <Text variant="bodySmall" style={styles.meta}>
-                      {item.category || 'Uncategorised'} · {formatGhs(item.price)}
-                    </Text>
+                {item.imageUrl ? (
+                  <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
+                ) : (
+                  <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                    <Text style={styles.thumbLetter}>{item.name.charAt(0).toUpperCase()}</Text>
                   </View>
-                  <Switch value={item.isActive} color="#0066FF" onValueChange={(v) => stockMutation.mutate({ id: item.id, isActive: v })} />
-                </View>
-                <View style={styles.actionsRow}>
-                  <Text variant="labelMedium" style={[styles.stock, { color: item.isActive ? '#16A34A' : '#DC2626' }]}>
+                )}
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text variant="titleMedium" style={styles.name} numberOfLines={1}>{item.name}</Text>
+                  <Text variant="bodySmall" style={styles.meta}>
+                    {item.category || 'Uncategorised'} · {formatGhs(item.price)}
+                  </Text>
+                  <Text variant="bodySmall" style={[styles.stock, { color: item.isActive ? '#16A34A' : '#DC2626' }]}>
                     {item.isActive ? 'In stock' : 'Sold out'}
                   </Text>
-                  <Button mode="text" compact onPress={() => openPrice(item)}>Edit price</Button>
                 </View>
+                <Switch
+                  value={item.isActive}
+                  color="#0066FF"
+                  onValueChange={(v) => stockMutation.mutate({ id: item.id, isActive: v })}
+                />
               </View>
             </Card>
           )}
         />
       )}
 
-      <Portal>
-        <Dialog visible={Boolean(editProduct)} onDismiss={() => setEditProduct(null)}>
-          <Dialog.Title>Edit price</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={styles.meta}>{editProduct?.name}</Text>
-            <TextInput label="Price (GHS)" value={priceDraft} onChangeText={setPriceDraft} keyboardType="decimal-pad" mode="outlined" style={{ marginTop: 12 }} />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setEditProduct(null)}>Cancel</Button>
-            <Button mode="contained" onPress={savePrice} loading={priceMutation.isPending}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <FAB
+        icon="plus"
+        label="Add product"
+        style={styles.fab}
+        onPress={() => router.push('/products/new')}
+      />
+
+      <Snackbar visible={Boolean(snack)} onDismiss={() => setSnack(null)} duration={3000}>
+        {snack}
+      </Snackbar>
     </View>
   );
 }
@@ -130,12 +116,14 @@ export default function ProductsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F8FAFC' },
   title: { color: '#0F172A', fontWeight: '700' },
-  list: { padding: 16, gap: 12 },
+  list: { padding: 16, gap: 12, paddingBottom: 96 },
   card: { backgroundColor: '#FFFFFF' },
-  cardBody: { padding: 14 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardBody: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+  thumb: { width: 52, height: 52, borderRadius: 10, marginRight: 12 },
+  thumbPlaceholder: { backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
+  thumbLetter: { color: '#475569', fontWeight: '700', fontSize: 20 },
   name: { color: '#0F172A', fontWeight: '700' },
   meta: { color: '#64748B', marginTop: 2 },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  stock: { fontWeight: '700' },
+  stock: { marginTop: 4, fontWeight: '700' },
+  fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: '#0066FF' },
 });

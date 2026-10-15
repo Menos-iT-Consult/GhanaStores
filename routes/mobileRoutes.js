@@ -25,7 +25,11 @@ import { getSettings, saveSettings, toClientView } from '../services/storePaymen
 import { encryptionConfigured } from '../services/secretBox.js';
 // Shared read/write engines: the seller app must never diverge from the PWA.
 import { getDashboardFull, getTopProducts } from './analyticsRoutes.js';
-import { createProductForStore, updateProductForStore } from './inventoryRoutes.js';
+import {
+  adjustVariantStockHandler,
+  createProductForStore,
+  updateProductForStore,
+} from './inventoryRoutes.js';
 import { presignHandler, confirmHandler } from './uploadRoutes.js';
 import { loyaltyLookupHandler } from './posRoutes.js';
 import { runPosSale } from '../services/posSaleService.js';
@@ -445,6 +449,9 @@ router.put('/products/:id', authenticateMobileToken, async (req, res, next) => {
     next(err);
   }
 });
+
+// Variant restock/fix — same shared handler as the PWA inventory route.
+router.patch('/variants/:id/stock', authenticateMobileToken, adjustVariantStockHandler);
 
 // R2 image flow: presign -> client PUTs the bytes straight to the bucket ->
 // confirm. The shared handlers key every object by the caller's store

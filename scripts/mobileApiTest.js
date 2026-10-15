@@ -166,7 +166,7 @@ test('every mobile v1 route sits behind authenticateMobileToken', () => {
 test('v1.1 wraps the shared engines instead of duplicating logic', () => {
   const src = read('routes/mobileRoutes.js');
   assert.ok(src.includes("import { getDashboardFull, getTopProducts } from './analyticsRoutes.js'"));
-  assert.ok(src.includes("import { createProductForStore, updateProductForStore } from './inventoryRoutes.js'"));
+  assert.ok(/import \{[\s\S]*?adjustVariantStockHandler[\s\S]*?\} from '\.\/inventoryRoutes\.js'/.test(src));
   assert.ok(src.includes("import { presignHandler, confirmHandler } from './uploadRoutes.js'"));
   assert.ok(src.includes("import { loyaltyLookupHandler } from './posRoutes.js'"));
   assert.ok(src.includes("import { runPosSale } from '../services/posSaleService.js'"));
@@ -178,6 +178,11 @@ test('v1.1 wraps the shared engines instead of duplicating logic', () => {
   const inventory = read('routes/inventoryRoutes.js');
   assert.ok(inventory.includes('export async function createProductForStore'));
   assert.ok(inventory.includes('export async function updateProductForStore'));
+  assert.ok(inventory.includes('export async function adjustVariantStockHandler'));
+  // PWA keeps its own thin wrapper over the extracted handler.
+  assert.ok(inventory.includes("router.patch('/variants/:id/stock', requireSeller, adjustVariantStockHandler)"));
+  // Mobile mounts the identical handler behind its own auth.
+  assert.ok(src.includes("router.patch('/variants/:id/stock', authenticateMobileToken, adjustVariantStockHandler)"));
   const uploads = read('routes/uploadRoutes.js');
   assert.ok(uploads.includes('export async function presignHandler'));
   assert.ok(uploads.includes('export async function confirmHandler'));

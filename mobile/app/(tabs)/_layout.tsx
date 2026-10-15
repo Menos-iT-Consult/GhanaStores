@@ -3,7 +3,11 @@ import { Tabs } from 'expo-router';
 import { useTheme } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-/** Bottom tab navigator for the signed-in merchant: Dashboard, Orders, Products, Settings. */
+/**
+ * Bottom tab navigator for the signed-in merchant:
+ * Dashboard · Orders · POS (centre, the register) · Products · Customers.
+ * Settings lives behind the gear icon on the Dashboard header.
+ */
 export default function TabsLayout() {
   const { colors } = useTheme();
   return (
@@ -30,6 +34,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="pos/index"
+        options={{
+          title: 'POS',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cash-register" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="products/index"
         options={{
           title: 'Products',
@@ -37,10 +48,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings/index"
+        name="customers/index"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cog-outline" color={color} size={size} />,
+          title: 'Customers',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-group-outline" color={color} size={size} />,
         }}
       />
     </Tabs>

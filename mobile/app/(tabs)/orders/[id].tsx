@@ -3,6 +3,8 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Card, Menu, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -33,6 +35,25 @@ function nextActions(status: string): { label: string; status: OrderStatus }[] {
   }
 }
 
+/** Download the receipt PDF and hand it to the OS share sheet. */
+async function shareReceipt(orderId: string, orderNumber: string): Promise<void> {
+  const blob = await endpoints.getOrderReceiptBlob(orderId);
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = String(reader.result || '');
+      resolve(dataUrl.includes(',') ? dataUrl.split(',')[1] : '');
+    };
+    reader.onerror = () => reject(new Error('Could not read the receipt file.'));
+    reader.readAsDataURL(blob);
+  });
+  if (!base64) throw new Error('The receipt came back empty.');
+  const target = `${FileSystem.cacheDirectory}receipt-${orderNumber}.pdf`;
+  await FileSystem.writeAsStringAsync(target, base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this device.');
+  await Sharing.shareAsync(target, { mimeType: 'application/pdf', dialogTitle: 'Share receipt' });
+}
+
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -40,6 +61,7 @@ export default function OrderDetailScreen() {
   const { colors } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [snack, setSnack] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['order', id],
@@ -53,48 +75,94 @@ export default function OrderDetailScreen() {
       setSnack(res.message || 'Order updated.');
       qc.invalidateQueries({ queryKey: ['order', id] });
       qc.invalidateQueries({ queryKey: ['orders'] });
-      qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-full'] });
     },
     onError: (err) => setSnack(apiErrorMessage(err, 'Could not update order.')),
   });
 
-  const msisdn = useMemo(() => toMsisdn(data?.customer?.phone || ''), [data?.customer?.phone]);
+  const onShareReceipt = async () => {
+    if (!data) return;
+    setSharing(true);
+    try {
+      await shareReceipt(String(id), data.order.orderNumber);
+    } catch (err) {
+      setSnack(apiErrorMessage(err, 'Could not share the receipt.'));
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const order = data?.order;
+  const items = data?.items ?? [];
+  const msisdn = useMemo(() => toMsisdn(order?.customer?.phone || ''), [order?.customer?.phone]);
 
   if (isLoading) return <LoadingState label="Loading order…" />;
   if (isError) return <ErrorState message={apiErrorMessage(error)} />;
-  if (!data) return <EmptyState title="Order not found" />;
+  if (!order) return <EmptyState title="Order not found" />;
 
-  const actions = nextActions(data.status);
-
+  const actions = nextActions(order.status);
   return (
     <View style={styles.root}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title={`Order #${data.orderNumber}`} titleStyle={styles.title} />
+        <Appbar.Content title={`Order #${order.orderNumber}`} titleStyle={styles.title} />
+        <Appbar.Action
+          icon="share-variant"
+          onPress={onShareReceipt}
+          disabled={sharing}
+          accessibilityLabel="Share receipt"
+        />
       </Appbar.Header>
 
       <ScrollView contentContainerStyle={styles.content}>
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <View style={styles.rowBetween}>
-              <Text variant="titleMedium" style={styles.amount}>{formatGhs(data.totalAmount)}</Text>
-              <StatusBadge status={data.status} />
+              <Text variant="titleMedium" style={styles.amount}>{formatGhs(order.totalAmount)}</Text>
+              <StatusBadge status={order.status} />
             </View>
             <Text variant="bodySmall" style={styles.muted}>
-              Placed {new Date(data.createdAt).toLocaleString()} · {data.paymentMethod}
+              {order.paymentMethod} · placed {new Date(order.createdAt).toLocaleString()}
             </Text>
-            {data.paymentStatus ? (
-              <Text variant="bodySmall" style={styles.muted}>Payment: {data.paymentStatus}</Text>
-            ) : null}
+            <Button
+              mode="contained-tonal"
+              icon="file-pdf-box"
+              loading={sharing}
+              disabled={sharing}
+              onPress={onShareReceipt}
+              style={styles.receiptBtn}
+            >
+              Share receipt (PDF)
+            </Button>
           </View>
         </Card>
+
+        {items.length > 0 ? (
+          <Card mode="elevated" style={styles.card}>
+            <View style={styles.cardBody}>
+              <Text variant="titleSmall" style={styles.sectionTitle}>Items</Text>
+              {items.map((it, i) => (
+                <View key={it.id} style={[styles.itemRow, i > 0 && styles.divider]}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text variant="bodyLarge" style={styles.itemName}>{it.productName}</Text>
+                    {it.variantLabel ? <Text variant="bodySmall" style={styles.muted}>{it.variantLabel}</Text> : null}
+                    <Text variant="bodySmall" style={styles.muted}>
+                      {it.quantity} × {formatGhs(it.unitPrice)}
+                    </Text>
+                  </View>
+                  <Text variant="titleSmall" style={styles.amount}>{formatGhs(it.lineTotal)}</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        ) : null}
 
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={styles.sectionTitle}>Customer</Text>
-            <Text variant="bodyLarge" style={styles.customerName}>{data.customer?.name || 'Customer'}</Text>
-            <Text variant="bodyMedium" style={styles.muted}>{data.customer?.phone}</Text>
-            <Text variant="bodyMedium" style={styles.muted}>{data.customer?.address}</Text>
+            <Text variant="bodyLarge" style={styles.customerName}>{order.customer?.name || 'Customer'}</Text>
+            <Text variant="bodyMedium" style={styles.muted}>{order.customer?.phone}</Text>
+            <Text variant="bodyMedium" style={styles.muted}>{order.customer?.address}</Text>
             <View style={styles.contactRow}>
               <Button mode="contained" icon="phone" style={[styles.contactBtn, { flex: 1 }]} disabled={!msisdn} onPress={() => Linking.openURL(`tel:${msisdn}`)}>
                 Call
@@ -105,7 +173,7 @@ export default function OrderDetailScreen() {
                 style={[styles.contactBtn, { flex: 1, backgroundColor: '#DCFCE7' }]}
                 textColor="#166534"
                 disabled={!msisdn}
-                onPress={() => Linking.openURL(`https://wa.me/${msisdn}?text=${encodeURIComponent(`Hi ${data.customer?.name || ''}, about your DiDwa order #${data.orderNumber}.`)}`)}
+                onPress={() => Linking.openURL(`https://wa.me/${msisdn}?text=${encodeURIComponent(`Hi ${order.customer?.name || ''}, about your DiDwa order #${order.orderNumber}.`)}`)}
               >
                 WhatsApp
               </Button>
@@ -113,21 +181,20 @@ export default function OrderDetailScreen() {
           </View>
         </Card>
 
-        {data.notes ? (
+        {order.notes ? (
           <Card mode="elevated" style={styles.card}>
             <View style={styles.cardBody}>
               <Text variant="titleSmall" style={styles.sectionTitle}>Notes</Text>
-              <Text variant="bodyMedium" style={styles.muted}>{data.notes}</Text>
+              <Text variant="bodyMedium" style={styles.muted}>{order.notes}</Text>
             </View>
           </Card>
         ) : null}
-
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={styles.sectionTitle}>Update status</Text>
             {actions.length === 0 ? (
               <Text variant="bodyMedium" style={styles.muted}>
-                This order is {String(data.status).toLowerCase()} — no further actions.
+                This order is {String(order.status).toLowerCase()} — no further actions.
               </Text>
             ) : (
               <Menu
@@ -168,4 +235,8 @@ const styles = StyleSheet.create({
   customerName: { color: '#0F172A', fontWeight: '600' },
   contactRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   contactBtn: { backgroundColor: '#0066FF' },
+  receiptBtn: { marginTop: 14, alignSelf: 'flex-start' },
+  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  divider: { borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  itemName: { color: '#0F172A', fontWeight: '600' },
 });

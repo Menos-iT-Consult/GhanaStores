@@ -1,14 +1,25 @@
 import { api } from './client';
 import type {
+  ConfirmResult,
+  CustomersPage,
+  DashboardFull,
   DashboardStats,
   LoginResult,
+  LoyaltyLookup,
   Order,
+  OrderDetail,
   OrdersPage,
   OrderFilter,
   OrderStatus,
   PaymentKeysPayload,
   PaymentSettings,
+  PosSalePayload,
+  PosSaleResult,
+  PresignResult,
   Product,
+  ProductUpsertPayload,
+  ProductUpsertResult,
+  TopProductsPayload,
 } from '@/types';
 
 /**
@@ -47,7 +58,7 @@ export function getOrders(params?: { filter?: OrderFilter; page?: number; limit?
 }
 
 export function getOrder(id: string) {
-  return api.get<{ order: Order }>(`/api/mobile/v1/orders/${id}`).then((r) => r.data.order);
+  return api.get<OrderDetail>(`/api/mobile/v1/orders/${id}`).then((r) => r.data);
 }
 
 export function updateOrderStatus(id: string, status: OrderStatus) {
@@ -100,4 +111,88 @@ export function registerDevice(token: string, platform: 'ios' | 'android') {
 
 export function unregisterDevice(token: string) {
   return api.delete('/api/mobile/devices/unregister', { data: { token } }).then((r) => r.data);
+}
+
+/* ============================ v1.1 (command center) ======================== */
+
+/* ------------------------------- Dashboard -------------------------------- */
+
+/** Full command-center payload: KPIs, 6-month trend, recent orders, ops counters. */
+export function getDashboardFull() {
+  return api.get<DashboardFull>('/api/mobile/v1/dashboard/full').then((r) => r.data);
+}
+
+/** Top sellers by revenue for the dashboard leaderboard. */
+export function getTopProducts(limit = 8) {
+  return api
+    .get<TopProductsPayload>('/api/mobile/v1/analytics/top', { params: { limit } })
+    .then((r) => r.data);
+}
+
+/* ---------------------------------- POS ----------------------------------- */
+
+/**
+ * Ring up (or replay) an in-store sale. The app generates `saleId` per cart;
+ * sending the same id again returns the original order instead of recording a
+ * duplicate — this is what makes the offline outbox safe to flush.
+ */
+export function createPosSale(payload: PosSalePayload) {
+  return api.post<PosSaleResult>('/api/mobile/v1/pos/sales', payload).then((r) => r.data);
+}
+
+/** Loyalty balance + max redeemable value for a (normalized) phone number. */
+export function getLoyalty(phone: string) {
+  return api.get<LoyaltyLookup>(`/api/mobile/v1/pos/loyalty/${encodeURIComponent(phone)}`).then((r) => r.data);
+}
+
+/* -------------------------------- Customers -------------------------------- */
+
+export function getCustomers(params?: { q?: string; page?: number; limit?: number }) {
+  return api
+    .get<CustomersPage>('/api/mobile/v1/customers', {
+      params: { q: params?.q ?? '', page: params?.page ?? 1, limit: params?.limit ?? 20 },
+    })
+    .then((r) => r.data);
+}
+
+/* ------------------------------- Catalog write ----------------------------- */
+
+/** Create a product (+ default variants) via the shared inventory writer. */
+export function createProduct(payload: ProductUpsertPayload) {
+  return api.post<ProductUpsertResult>('/api/mobile/v1/products', payload).then((r) => r.data);
+}
+
+export function updateProduct(id: string, payload: ProductUpsertPayload) {
+  return api.put<ProductUpsertResult>(`/api/mobile/v1/products/${id}`, payload).then((r) => r.data);
+}
+
+/** Adjust a variant's stock (delta +/- or absolute quantity). */
+export function adjustVariantStock(variantId: string, body: { delta?: number; quantity?: number }) {
+  return api
+    .patch<{ message: string; variant: { id: string; stockQuantity: number } }>(
+      `/api/mobile/v1/variants/${variantId}/stock`,
+      body,
+    )
+    .then((r) => r.data);
+}
+
+/* ------------------------------ Image upload ------------------------------- */
+
+/** Ask the server for a short-lived signed PUT URL for one picked image. */
+export function presignUpload(body: { kind: string; contentType: string; size: number }) {
+  return api.post<PresignResult>('/api/mobile/v1/uploads/presign', body).then((r) => r.data);
+}
+
+/**
+ * Verify the upload reached R2. Pass `productId` to attach immediately, or
+ * omit it to stage the key for a product that hasn't been created yet.
+ */
+export function confirmUpload(body: { kind: string; key: string; productId?: string }) {
+  return api.post<ConfirmResult>('/api/mobile/v1/uploads/confirm', body).then((r) => r.data);
+}
+
+/** Download the QR-verified receipt PDF as a Blob (for expo-sharing). */
+export async function getOrderReceiptBlob(id: string) {
+  const res = await api.get(`/api/mobile/v1/orders/${id}/receipt`, { responseType: 'blob' });
+  return res.data as Blob;
 }

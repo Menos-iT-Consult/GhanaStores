@@ -297,7 +297,10 @@ router.post('/products/:id/variants', requireSeller, async (req, res, next) => {
 
 /* --------------------- Adjust variant stock (restock / fix) ------------------- */
 // body: { delta } for +/- adjustment or { quantity } to set absolute count.
-router.patch('/variants/:id/stock', requireSeller, async (req, res, next) => {
+// Shared by the PWA inventory route and the seller app's catalog endpoint —
+// both middlewares publish req.auth (sub = store id), so one implementation
+// serves both surfaces. Throws handled via next(err).
+export async function adjustVariantStockHandler(req, res, next) {
   try {
     const delta = req.body?.delta != null ? parseInt(req.body.delta, 10) : null;
     const absolute = req.body?.quantity != null ? parseInt(req.body.quantity, 10) : null;
@@ -364,7 +367,10 @@ router.patch('/variants/:id/stock', requireSeller, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+}
+
+/* Thin PWA route over the shared handler. */
+router.patch('/variants/:id/stock', requireSeller, adjustVariantStockHandler);
 
 /* ------------------------------ Low-stock report ------------------------------ */
 router.get('/low-stock', requireSeller, async (req, res, next) => {

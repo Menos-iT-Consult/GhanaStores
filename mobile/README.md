@@ -1,7 +1,8 @@
 # DiDwa: Seller App (React Native + Expo)
 
-Mobile companion for DiDwa merchants — manage orders, products, and payment keys
-on the go, with push alerts for new orders. Built with **Expo Router**,
+Mobile companion for DiDwa merchants — an offline-capable POS register, order
+fulfilment, catalog management with image uploads, and a KPI command centre,
+with push alerts for new orders. Built with **Expo Router**,
 **TypeScript**, **React Query**, **Axios**, **React Native Paper**, and
 **Expo Notifications**. Deployed to the App Store & Play Store via **EAS**.
 
@@ -18,14 +19,22 @@ app/
   (tabs)/_layout.tsx          bottom tabs
     dashboard/index.tsx       today's revenue, pending orders, quick actions
     orders/index.tsx          order list, status tabs (All/Pending/Processing/Delivered)
-    orders/[id].tsx           order detail, Call/WhatsApp, status update
-    products/index.tsx        stock toggle (optimistic) + price quick-edit
-    settings/index.tsx        store info, push opt-in, sign out
-    settings/payments.tsx     Paystack/Hubtel keys + Cash on Delivery
+    orders/[id].tsx           order detail, line items, Call/WhatsApp, status update, share receipt (PDF)
+    pos/index.tsx             offline-first register: cart, loyalty, cash/MoMo, outbox sync
+    products/index.tsx        catalog list, stock toggle (optimistic), add-product FAB
+    products/[id].tsx         create/edit product, image upload, per-option stock adjust
+    customers/index.tsx       loyalty book: search, points, call/WhatsApp
+  settings/                   (stack, gear icon on Dashboard)
+    index.tsx                 store info, push opt-in, sign out
+    payments.tsx              Paystack/Hubtel keys + Cash on Delivery
 src/
   api/client.ts               axios + Bearer header + single-flight token refresh
   api/endpoints.ts            typed API calls
   auth/AuthProvider.tsx       session state (tokens in SecureStore)
+  offline/catalog.ts          cached catalog for offline POS
+  offline/posOutbox.ts        offline sale queue + idempotent reconnect flush
+  offline/usePosSync.ts       NetInfo + outbox state hook
+  components/                 StatCard, StatusBadge, Skeleton, SectionHeader, ScreenState
   services/pushNotifications.ts  permissions, token, register/unregister, deep-links
   theme.ts                    Paper MD3 theme (#0066FF / #1E293B / #F8FAFC)
 ```
@@ -38,9 +47,15 @@ All routes live under `/api/mobile` on the DiDwa API (see `routes/mobile*`,
 - `POST /api/mobile/auth/login`, `/login/2fa`, `/refresh`, `/logout`
 - `POST /api/mobile/devices/register`, `DELETE /api/mobile/devices/unregister`
 - `GET  /api/mobile/v1/dashboard/stats`
-- `GET  /api/mobile/v1/orders`, `GET /api/mobile/v1/orders/:id`, `PATCH .../status`
+- `GET  /api/mobile/v1/orders`, `GET /api/mobile/v1/orders/:id`, `PATCH .../status`, `GET .../:id/receipt`
 - `GET  /api/mobile/v1/products`, `PATCH .../:id/stock`, `PATCH .../:id/price`
 - `GET/POST /api/mobile/v1/settings/payment-keys`
+- **v1.1 command centre / POS / catalog** (thin adapters over the shared PWA engines):
+  - `GET  /api/mobile/v1/dashboard/full`, `GET /api/mobile/v1/analytics/top`
+  - `POST /api/mobile/v1/pos/sales` (idempotent via `saleId`), `GET /api/mobile/v1/pos/loyalty/:phone`
+  - `POST|PUT /api/mobile/v1/products`, `PATCH /api/mobile/v1/variants/:id/stock`
+  - `POST /api/mobile/v1/uploads/presign`, `POST /api/mobile/v1/uploads/confirm`
+  - `GET  /api/mobile/v1/customers` (search + pagination)
 
 ## Configure
 
