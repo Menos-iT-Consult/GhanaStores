@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "DiDwa Seller",
-    "slug": "didwa",
+    "slug": "didwaghana",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "didwa",
@@ -41,7 +41,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "a942c0c2-3a85-4368-9251-eb7f79ff211a"
+        "projectId": "78f88e44-2b31-4981-a689-7749951bf439"
       }
     },
     "owner": "didwa",
