@@ -348,7 +348,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                       the shop name because it is derived from it until they edit it. */}
                   <SubdomainField
                     value={form.subdomain}
-                    onChange={(next) => { setSlugTouched(true); set('subdomain')(next); }}
+                    onChange={(next) => { setSlugTouched(true); setForm((f) => ({ ...f, subdomain: next })); }}
                     apex={getPlatformDomain()}
                   />
                   <Field id="phone" label="Ghana mobile number" icon={Phone}>
