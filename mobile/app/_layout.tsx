@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { queryClient } from '@/queryClient';
 import { theme } from '@/theme';
 import { addNotificationResponseListener, registerDeviceForPush, routeForNotification } from '@/services/pushNotifications';
+import { hasOnboarded } from '@/onboarding/onboarded';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -17,18 +18,29 @@ function RootNavigator() {
   const { status } = useAuth();
   const router = useRouter();
   const bootstrapped = useRef(false);
+  // null = still checking whether onboarding has been seen on this device.
+  const [onboarded, setOnboardedState] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (status === 'loading' || bootstrapped.current) return;
+    hasOnboarded()
+      .then(setOnboardedState)
+      .catch(() => setOnboardedState(false));
+  }, []);
+
+  // Keep the native splash up until both auth and onboarding state are known,
+  // so we never flash the wrong first screen.
+  useEffect(() => {
+    if (status === 'loading' || onboarded === null || bootstrapped.current) return;
     bootstrapped.current = true;
     SplashScreen.hideAsync().catch(() => undefined);
-  }, [status]);
+  }, [status, onboarded]);
 
-  // Route the initial stack based on auth once we know.
+  // Route the initial stack: signed in -> tabs; otherwise welcome (new device) or login.
   useEffect(() => {
+    if (status === 'loading' || onboarded === null) return;
     if (status === 'signedIn') router.replace('/(tabs)/dashboard');
-    if (status === 'signedOut') router.replace('/(auth)/login');
-  }, [status, router]);
+    if (status === 'signedOut') router.replace(onboarded ? '/(auth)/login' : '/(auth)/welcome');
+  }, [status, onboarded, router]);
 
   // Register for push + wire deep-links once signed in.
   useEffect(() => {
@@ -41,7 +53,7 @@ function RootNavigator() {
     return () => sub.remove();
   }, [status, router]);
 
-  if (status === 'loading') {
+  if (status === 'loading' || onboarded === null) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}>
         <ActivityIndicator size="large" color="#0066FF" />

@@ -49,7 +49,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B1120"
+      "backgroundColor": "#F8FAFC"
     },
     "notification": {
       "icon": "./assets/notification-icon.png",

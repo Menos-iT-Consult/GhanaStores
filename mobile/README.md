@@ -109,3 +109,33 @@ eas submit --platform ios
 Replace the adaptive-icon references in `app.json` with real assets:
 `icon`, `splash`, `ios.icon`, `android.adaptiveIcon.foregroundImage`. The
 placeholders render a solid `#0066FF` tile in the meantime.
+
+## Onboarding & Lottie animations
+
+First-run shows a 3-slide animated onboarding carousel
+(`app/(auth)/welcome.tsx`). It plays once per install; Skip and Get Started both
+mark it done (AsyncStorage key `didwa.onboarded.v1`) and route to the login
+screen. To force it to show again for testing: clear the app's storage, or
+uninstall/reinstall.
+
+The placeholder animations live in `mobile/assets/lottie/`:
+
+- `splash-animation.json` — slide 1 ("Your store, in your pocket")
+- `slide-payments.json` — slide 2 ("Sell with MoMo & cash")
+- `slide-growth.json` — slide 3 ("Grow with insights")
+
+**To swap in real animations:**
+
+1. Grab a free `.json` animation from [LottieFiles.com](https://lottiefiles.com),
+   or export one from After Effects via Bodymovin.
+2. Overwrite the matching file in `mobile/assets/lottie/` (keep the same
+   filename — no code change needed), or add a new file and point the `source`
+   in `mobile/src/onboarding/slides.ts` at it.
+3. Keep files self-contained (`assets: []`, no external images) and small
+   (<~150 KB). Square canvases (e.g. 400×400 @ 60fps) fit the layout best.
+4. Rebuild — `lottie-react-native@6.7.0` is pinned for Expo SDK 51, so run
+   `npx expo install lottie-react-native` if you ever bump the SDK.
+
+The animation square is sized responsively (72% of the smaller screen
+dimension, so it scales on phones and tablets), and the slide text reflows via
+flexbox.
