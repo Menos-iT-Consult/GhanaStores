@@ -135,6 +135,89 @@ test('push notifications wired into order creation + payment webhooks', () => {
   assert.ok(webhooks.includes("title: 'Payment received'"));
 });
 
+/* ----------------------------- v1.1 expansion ------------------------------- */
+test('v1.1 endpoints exist: dashboard, analytics, POS, catalog, customers, receipt', () => {
+  const src = read('routes/mobileRoutes.js');
+  for (const route of [
+    "router.get('/dashboard/full'",
+    "router.get('/analytics/top'",
+    "router.post('/pos/sales'",
+    "router.get('/pos/loyalty/:phone'",
+    "router.post('/products'",
+    "router.put('/products/:id'",
+    "router.post('/uploads/presign'",
+    "router.post('/uploads/confirm'",
+    "router.get('/customers'",
+    "router.get('/orders/:id/receipt'",
+  ]) {
+    assert.ok(src.includes(route), `missing ${route}`);
+  }
+});
+
+test('every mobile v1 route sits behind authenticateMobileToken', () => {
+  const routeLines = read('routes/mobileRoutes.js')
+    .split(/\r?\n/)
+    .filter((l) => /^router\.(get|post|patch|put|delete)\(/.test(l));
+  assert.ok(routeLines.length >= 19, `expected the full route set, saw ${routeLines.length}`);
+  const unprotected = routeLines.filter((l) => !l.includes('authenticateMobileToken'));
+  assert.deepEqual(unprotected, [], `routes missing auth: ${unprotected.join(' | ')}`);
+});
+
+test('v1.1 wraps the shared engines instead of duplicating logic', () => {
+  const src = read('routes/mobileRoutes.js');
+  assert.ok(src.includes("import { getDashboardFull, getTopProducts } from './analyticsRoutes.js'"));
+  assert.ok(src.includes("import { createProductForStore, updateProductForStore } from './inventoryRoutes.js'"));
+  assert.ok(src.includes("import { presignHandler, confirmHandler } from './uploadRoutes.js'"));
+  assert.ok(src.includes("import { loyaltyLookupHandler } from './posRoutes.js'"));
+  assert.ok(src.includes("import { runPosSale } from '../services/posSaleService.js'"));
+  assert.ok(src.includes("import { streamOrderPdf } from './whatsappInvoiceRoutes.js'"));
+
+  const analytics = read('routes/analyticsRoutes.js');
+  assert.ok(analytics.includes('export async function getDashboardFull'));
+  assert.ok(analytics.includes('export async function getTopProducts'));
+  const inventory = read('routes/inventoryRoutes.js');
+  assert.ok(inventory.includes('export async function createProductForStore'));
+  assert.ok(inventory.includes('export async function updateProductForStore'));
+  const uploads = read('routes/uploadRoutes.js');
+  assert.ok(uploads.includes('export async function presignHandler'));
+  assert.ok(uploads.includes('export async function confirmHandler'));
+  const pos = read('routes/posRoutes.js');
+  assert.ok(pos.includes('export async function loyaltyLookupHandler'));
+  // PWA routes stay mounted as thin wrappers over the same symbols.
+  assert.ok(pos.includes("router.post('/sales', requireActiveSeller"));
+  assert.ok(analytics.includes('router.get(\'/dashboard/full\'') === false ||
+            analytics.includes('getDashboardFull('), 'PWA dashboard must call the shared engine');
+});
+
+test('POS sale route is idempotency-ready and operationally gated', () => {
+  const src = read('routes/mobileRoutes.js');
+  const posLine = src.split(/\r?\n/).find((l) => l.includes("router.post('/pos/sales'"));
+  assert.ok(posLine, 'pos sales route missing');
+  assert.ok(posLine.includes('requireOperationalStore'), 'operational/billing gate missing');
+  assert.ok(src.includes('await runPosSale({'), 'must delegate to the shared sale engine');
+
+  const svc = read('services/posSaleService.js');
+  assert.ok(svc.includes('export async function runPosSale'));
+  assert.ok(svc.includes('idempotencyKey'), 'sale replay guard missing');
+  assert.ok(svc.includes('client_reference'), 'saleId must land in orders.client_reference');
+});
+
+test('order detail ships line items and the receipt stream is shared', () => {
+  const src = read('routes/mobileRoutes.js');
+  assert.ok(src.includes('FROM order_items'), 'order items not fetched with the order');
+  assert.ok(src.includes('lineTotal: Number(i.line_total)'), 'items not shaped for the app');
+  const wa = read('routes/whatsappInvoiceRoutes.js');
+  assert.ok(wa.includes('export async function streamOrderPdf'), 'receipt stream not exported');
+});
+
+test('customers feed is store-scoped, searchable and paginated', () => {
+  const src = read('routes/mobileRoutes.js');
+  assert.ok(src.includes('FROM customers c'), 'customers query missing');
+  assert.ok(src.includes('c.store_id = $1'), 'customers must be store-scoped');
+  assert.ok(src.includes('ILIKE'), 'phone/name search missing');
+  assert.ok(src.includes('OFFSET $'), 'pagination missing');
+});
+
 /* ---------------------------------- Report -------------------------------- */
 if (failed > 0) {
   console.log(`\n${passed} passed, ${failed} FAILED`);

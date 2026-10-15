@@ -70,6 +70,15 @@ export function resolveStorefrontTheme(resolved, tenantMeta) {
     || storePhone
     || merged.pages_content?.contact_phone
     || '';
+  /* WhatsApp gets one extra preference ahead of the fallback chain: the domain
+     resolve payload ships a dedicated whatsappNumber (a seller may publish a
+     different number than their signup phone). Everything below keeps the
+     original one-number-everywhere behaviour when no dedicated number exists. */
+  const whatsappPhone = (typeof typedPhone === 'string' && typedPhone.trim())
+    || tenantMeta?.whatsappNumber
+    || contactPhone
+    || merged.features?.whatsapp_number
+    || '';
 
   return {
     ...merged,
@@ -77,7 +86,7 @@ export function resolveStorefrontTheme(resolved, tenantMeta) {
     pages_content: { ...merged.pages_content, contact_phone: contactPhone },
     features: {
       ...merged.features,
-      ...(contactPhone ? { whatsapp_number: contactPhone } : {}),
+      ...(whatsappPhone ? { whatsapp_number: whatsappPhone } : {}),
     },
   };
 }

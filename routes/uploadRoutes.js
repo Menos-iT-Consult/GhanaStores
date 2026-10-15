@@ -33,7 +33,13 @@ function storageUnavailable() {
 }
 
 /* --------------------------------- Presign --------------------------------- */
-router.post('/presign', requireSeller, async (req, res, next) => {
+/**
+ * Shared presign handler: bound to requireSeller below for the PWA and to
+ * authenticateMobileToken on /api/mobile/v1/uploads for the seller app. Both
+ * middlewares publish the same req.auth (sub = store id), so one implementation
+ * serves both surfaces with identical key-ownership guarantees.
+ */
+export async function presignHandler(req, res, next) {
   try {
     const unavailable = storageUnavailable();
     if (unavailable) return res.status(unavailable.status).json({ error: unavailable.error });
@@ -59,10 +65,13 @@ router.post('/presign', requireSeller, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+}
+
+/* Thin PWA route over the shared handler. */
+router.post('/presign', requireSeller, presignHandler);
 
 /* --------------------------------- Confirm --------------------------------- */
-router.post('/confirm', requireSeller, async (req, res, next) => {
+export async function confirmHandler(req, res, next) {
   try {
     const unavailable = storageUnavailable();
     if (unavailable) return res.status(unavailable.status).json({ error: unavailable.error });
@@ -161,7 +170,10 @@ router.post('/confirm', requireSeller, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+}
+
+/* Thin PWA route over the shared handler. */
+router.post('/confirm', requireSeller, confirmHandler);
 
 /* ---------------------------------- Logo ----------------------------------- */
 /** Current logo + whether uploads are available, so the settings page can

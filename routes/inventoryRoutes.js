@@ -135,15 +135,19 @@ router.get('/products', requireSeller, async (req, res, next) => {
 });
 
 /* ------------------------------ Create product ------------------------------- */
-router.post('/products', requireSeller, async (req, res, next) => {
-  try {
-    const b = req.body || {};
+/**
+ * Create a product + default variants for a store. Shared by the PWA inventory
+ * route and the seller app's catalog endpoint so both run the exact same write
+ * (including the low-stock latch on variants created already at threshold).
+ * Throws Error with `.status` for client faults; resolves to the JSON payload.
+ */
+export async function createProductForStore(storeId, b = {}) {
     if (!b.name || b.price === undefined || b.price === null || b.price === '') {
-      return res.status(400).json({ error: 'Product name and base price are required.' });
+      throw Object.assign(new Error('Product name and base price are required.'), { status: 400 });
     }
     const price = money(b.price);
     if (!Number.isFinite(price) || price < 0) {
-      return res.status(400).json({ error: 'Base price must be a non-negative amount.' });
+      throw Object.assign(new Error('Base price must be a non-negative amount.'), { status: 400 });
     }
     const variants = Array.isArray(b.variants) && b.variants.length > 0
       ? b.variants
@@ -154,7 +158,7 @@ router.post('/products', requireSeller, async (req, res, next) => {
       const prod = await t.query(
         `INSERT INTO products (store_id, name, description, category, image_url, image_key, price)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name`,
-        [req.auth.sub, String(b.name).trim(), b.description || '', b.category || 'General',
+        [storeId, String(b.name).trim(), b.description || '', b.category || 'General',
           b.imageUrl || null, b.imageKey || null, price],
       );
       const productId = prod.rows[0].id;
@@ -169,7 +173,7 @@ router.post('/products', requireSeller, async (req, res, next) => {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
            RETURNING id, option_value`,
           [
-            req.auth.sub, productId,
+            storeId, productId,
             String(v.optionName || 'Default').trim(),
             String(v.optionValue || 'Standard').trim(),
             v.sku || null,
@@ -192,24 +196,29 @@ router.post('/products', requireSeller, async (req, res, next) => {
     // Dispatch AFTER commit: dispatchLowStockAlerts re-arms the latch if the
     // gateway fails, so a timeout cannot leave the merchant silently unalerted.
     if (alertCandidates.length > 0) {
-      dispatchLowStockAlerts(req.auth.sub, alertCandidates).catch(() => {});
+      dispatchLowStockAlerts(storeId, alertCandidates).catch(() => {});
     }
 
-    res.status(201).json({ message: 'Product added to catalog.', product: result });
+    return { message: 'Product added to catalog.', product: result };
+}
+
+/* Thin PWA route over the shared write. */
+router.post('/products', requireSeller, async (req, res, next) => {
+  try {
+    const json = await createProductForStore(req.auth.sub, req.body || {});
+    res.status(201).json(json);
   } catch (err) {
     next(err);
   }
 });
 
 /* ------------------------------ Update product ------------------------------- */
-router.put('/products/:id', requireSeller, async (req, res, next) => {
-  try {
-    const b = req.body || {};
+export async function updateProductForStore(storeId, id, b = {}) {
     const price = b.price === undefined || b.price === null || b.price === ''
       ? null
       : money(b.price);
     if (price !== null && (!Number.isFinite(price) || price < 0)) {
-      return res.status(400).json({ error: 'Base price must be a non-negative amount.' });
+      throw Object.assign(new Error('Base price must be a non-negative amount.'), { status: 400 });
     }
     const { rows } = await query(
       `UPDATE products
@@ -223,7 +232,7 @@ router.put('/products/:id', requireSeller, async (req, res, next) => {
               updated_at = NOW()
         WHERE id = $1 AND store_id = $2
         RETURNING id, name, price, is_active, image_key, image_url`,
-      [req.params.id, req.auth.sub,
+      [id, storeId,
         b.name ? String(b.name).trim() : null,
         b.description ?? null,
         b.category ?? null,
@@ -232,8 +241,17 @@ router.put('/products/:id', requireSeller, async (req, res, next) => {
         price,
         typeof b.isActive === 'boolean' ? b.isActive : null],
     );
-    if (!rows[0]) return res.status(404).json({ error: 'Product not found.' });
-    res.json({ message: 'Product updated.', product: rows[0] });
+    if (!rows[0]) {
+      throw Object.assign(new Error('Product not found.'), { status: 404 });
+    }
+    return { message: 'Product updated.', product: rows[0] };
+}
+
+/* Thin PWA route over the shared write. */
+router.put('/products/:id', requireSeller, async (req, res, next) => {
+  try {
+    const json = await updateProductForStore(req.auth.sub, req.params.id, req.body || {});
+    res.json(json);
   } catch (err) {
     next(err);
   }

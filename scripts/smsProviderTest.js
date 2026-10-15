@@ -194,12 +194,16 @@ check(
 );
 check(
   'every stock route dispatches through the shared failure-aware helper',
-  // inventoryRoutes.js may call the template only inside dispatchLowStockAlerts;
-  // orderRoutes.js and posRoutes.js must not call it at all.
+  // The POS half of this contract moved into the shared sale engine:
+  // posRoutes.js must delegate to runPosSale (which dispatches there), and
+  // neither the route nor the engine may bypass it with the raw template.
+  // orderRoutes.js still calls the helper directly.
   /dispatchLowStockAlerts\(/.test(read('routes/orderRoutes.js'))
-    && /dispatchLowStockAlerts\(/.test(read('routes/posRoutes.js'))
+    && /runPosSale\(/.test(read('routes/posRoutes.js'))
+    && /dispatchLowStockAlerts\(/.test(read('services/posSaleService.js'))
     && !/sendLowStockAlertSms\(/.test(read('routes/orderRoutes.js'))
-    && !/sendLowStockAlertSms\(/.test(read('routes/posRoutes.js')),
+    && !/sendLowStockAlertSms\(/.test(read('routes/posRoutes.js'))
+    && !/sendLowStockAlertSms\(/.test(read('services/posSaleService.js')),
   'these routes must call dispatchLowStockAlerts, not sendLowStockAlertSms, which skips the re-arm',
 );
 check(

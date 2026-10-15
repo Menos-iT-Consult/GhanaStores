@@ -95,9 +95,14 @@ check(
   /export async function sendRenewalReminderSms\(/.test(sms),
   'no paid-plan reminder in services/smsService.js',
 );
+// Scope strictly to the reminder's own body. The old 600-char window started
+// at the signature and leaked into the NEXT function (which legitimately says
+// "free trial"), so it was both EOL-fragile (CRLF adds a char per line and
+// pushed the leak past 600) and the wrong polarity for its label.
+const renewalBody = /export async function sendRenewalReminderSms\([\s\S]*?\n\}/.exec(sms)?.[0] || '';
 check(
   'the paid-plan reminder is not worded as a free trial',
-  /export async function sendRenewalReminderSms\([\s\S]{0,600}free trial/i.test(sms),
+  renewalBody.length > 0 && !/free trial/i.test(renewalBody),
   'a paying merchant should not be told their free trial ends',
 );
 check(

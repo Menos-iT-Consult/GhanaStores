@@ -288,7 +288,9 @@ function trySellerAuth(req) {
   }
 }
 
-async function streamOrderPdf(req, res) {
+// Exported: the seller app streams the same PDF through its authenticated
+// order screen (the handler validates against the caller's token itself).
+export async function streamOrderPdf(req, res) {
   try {
     const { rows } = await query(
       `SELECT o.*, json_build_object(

@@ -12,10 +12,11 @@ const router = Router();
 const PAID_STATUSES = "('PAID','FULFILLED','DELIVERED')";
 
 /* --------------------------------- Dashboard -------------------------------- */
-router.get('/dashboard', requireSeller, async (req, res, next) => {
-  try {
-    const storeId = req.auth.sub;
-
+/**
+ * Full dashboard payload. Shared by the PWA (/api/analytics/dashboard) and the
+ * seller app (/api/mobile/v1/dashboard/full) so both render identical numbers.
+ */
+export async function getDashboardFull(storeId) {
     const [kpis, trend, recent, ops] = await Promise.all([
       // Core KPIs over paid orders.
       query(
@@ -80,7 +81,7 @@ router.get('/dashboard', requireSeller, async (req, res, next) => {
     ]);
 
     const k = kpis.rows[0];
-    res.json({
+    return {
       kpis: {
         totalRevenue: Number(k.total_revenue),
         paidOrders: k.paid_orders,
@@ -112,15 +113,24 @@ router.get('/dashboard', requireSeller, async (req, res, next) => {
         transitCash: Number(ops.rows[0].transit_cash),
       },
       currency: 'GHS',
-    });
+    };
+}
+
+/* Thin PWA route over the shared payload. */
+router.get('/dashboard', requireSeller, async (req, res, next) => {
+  try {
+    res.json(await getDashboardFull(req.auth.sub));
   } catch (err) {
     next(err);
   }
 });
 
 /* ------------------------------ Top sellers list ----------------------------- */
-router.get('/top-products', requireSeller, async (req, res, next) => {
-  try {
+/**
+ * Top sellers by revenue. Shared by the PWA and the seller app so the leaderboard
+ * matches between dashboard and phone. `limit` defaults to 8 (the PWA shape).
+ */
+export async function getTopProducts(storeId, limit = 8) {
     const { rows } = await query(
       `SELECT oi.product_name,
               oi.variant_label,
@@ -131,16 +141,22 @@ router.get('/top-products', requireSeller, async (req, res, next) => {
         WHERE oi.store_id = $1 AND o.status IN ${PAID_STATUSES}
         GROUP BY oi.product_name, oi.variant_label
         ORDER BY revenue DESC
-        LIMIT 8`,
-      [req.auth.sub],
+        LIMIT $2`,
+      [storeId, limit],
     );
-    res.json({
+    return {
       products: rows.map((r) => ({
         name: r.variant_label ? `${r.product_name} (${r.variant_label})` : r.product_name,
         unitsSold: r.units_sold,
         revenue: Number(r.revenue),
       })),
-    });
+    };
+}
+
+/* Thin PWA route over the shared payload. */
+router.get('/top-products', requireSeller, async (req, res, next) => {
+  try {
+    res.json(await getTopProducts(req.auth.sub));
   } catch (err) {
     next(err);
   }

@@ -13,7 +13,7 @@
  */
 import { Router } from 'express';
 import { pool, query } from '../config/database.js';
-import { authenticateMobileToken } from '../middleware/authMiddleware.js';
+import { authenticateMobileToken, requireOperationalStore } from '../middleware/authMiddleware.js';
 import {
   deriveOrderStatus,
   derivePaymentStatus,
@@ -23,6 +23,13 @@ import { sendMerchantPushNotification } from '../services/pushService.js';
 import { formatGhs } from '../utils/helpers.js';
 import { getSettings, saveSettings, toClientView } from '../services/storePayments.js';
 import { encryptionConfigured } from '../services/secretBox.js';
+// Shared read/write engines: the seller app must never diverge from the PWA.
+import { getDashboardFull, getTopProducts } from './analyticsRoutes.js';
+import { createProductForStore, updateProductForStore } from './inventoryRoutes.js';
+import { presignHandler, confirmHandler } from './uploadRoutes.js';
+import { loyaltyLookupHandler } from './posRoutes.js';
+import { runPosSale } from '../services/posSaleService.js';
+import { streamOrderPdf } from './whatsappInvoiceRoutes.js';
 
 const router = Router();
 
@@ -147,17 +154,38 @@ router.get('/orders', authenticateMobileToken, async (req, res, next) => {
 // shape as the list, scoped to the signed-in store.
 router.get('/orders/:id', authenticateMobileToken, async (req, res, next) => {
   try {
-    const { rows } = await query(
-      `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.customer_address,
-              o.total, o.total_amount, o.payment_method, o.status, o.notes,
-              o.created_at, o.updated_at
-         FROM orders o
-        WHERE o.id = $1 AND o.store_id = $2
-        LIMIT 1`,
-      [req.params.id, req.storeId],
-    );
-    if (!rows[0]) return res.status(404).json({ error: 'Order not found for your store.' });
-    res.json({ order: slimOrder(rows[0]) });
+    const [orderRes, itemsRes] = await Promise.all([
+      query(
+        `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.customer_address,
+                o.total, o.total_amount, o.payment_method, o.status, o.notes,
+                o.created_at, o.updated_at
+           FROM orders o
+          WHERE o.id = $1 AND o.store_id = $2
+          LIMIT 1`,
+        [req.params.id, req.storeId],
+      ),
+      // Line items ride along: the app's receipt screen renders them locally
+      // and a tapped "share receipt" hits /orders/:id/receipt for the PDF.
+      query(
+        `SELECT id, product_name, variant_label, unit_price, quantity, line_total
+           FROM order_items
+          WHERE order_id = $1 AND store_id = $2
+          ORDER BY id ASC`,
+        [req.params.id, req.storeId],
+      ),
+    ]);
+    if (!orderRes.rows[0]) return res.status(404).json({ error: 'Order not found for your store.' });
+    res.json({
+      order: slimOrder(orderRes.rows[0]),
+      items: itemsRes.rows.map((i) => ({
+        id: i.id,
+        productName: i.product_name,
+        variantLabel: i.variant_label,
+        unitPrice: Number(i.unit_price),
+        quantity: i.quantity,
+        lineTotal: Number(i.line_total),
+      })),
+    });
   } catch (err) {
     next(err);
   }
@@ -344,6 +372,146 @@ router.post('/settings/payment-keys', authenticateMobileToken, async (req, res, 
     const merged = await mergeWithStored(req.storeId, parsePaymentKeys(req.body));
     const saved = await saveSettings(req.storeId, merged);
     res.json({ settings: toClientView(saved) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* =============================== v1.1 expansion ============================== */
+// Command center, POS, catalog, customers and receipts for the DiDwa Seller
+// app. Every endpoint runs the SAME shared engine as the PWA (analytics,
+// inventory, upload and POS services) - the mobile surface is only a thin
+// auth adapter over identical business logic, so the two can never diverge.
+
+/* ------------------------------- Command center ------------------------------ */
+// One round trip for the dashboard screen: KPIs, 6-month revenue trend,
+// recent orders and ops counters (low stock / loyalty points / in transit).
+router.get('/dashboard/full', authenticateMobileToken, async (req, res, next) => {
+  try {
+    res.json(await getDashboardFull(req.storeId));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* -------------------------------- Top products ------------------------------- */
+router.get('/analytics/top', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const limit = Math.min(24, Math.max(1, parseInt(req.query.limit, 10) || 8));
+    res.json(await getTopProducts(req.storeId, limit));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------------------ POS ------------------------------------ */
+// Offline-first intake: the app generates a UUID per sale and sends it as
+// saleId -> idempotencyKey -> orders.client_reference, so an outbox replay
+// after a timeout can never double-charge or double-decrement stock.
+// 409 INSUFFICIENT_STOCK / 404 are terminal for an outbox entry (the client
+// marks it failed instead of retrying).
+// The operational gate mirrors the PWA's requireActiveSeller.
+router.post('/pos/sales', authenticateMobileToken, requireOperationalStore, async (req, res, next) => {
+  try {
+    const result = await runPosSale({
+      storeId: req.storeId,
+      storePhone: req.store?.phone,
+      body: req.body || {},
+    });
+    return res.status(result.status).json(result.json);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Points balance + server-capped redemption for the checkout screen.
+router.get('/pos/loyalty/:phone', authenticateMobileToken, loyaltyLookupHandler);
+
+/* ---------------------------------- Catalog ---------------------------------- */
+// Full create/update through the shared writers (validation, variant insert,
+// low-stock latch included) - the PWA inventory screens run the identical code.
+router.post('/products', authenticateMobileToken, async (req, res, next) => {
+  try {
+    res.status(201).json(await createProductForStore(req.storeId, req.body || {}));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/products/:id', authenticateMobileToken, async (req, res, next) => {
+  try {
+    res.json(await updateProductForStore(req.storeId, req.params.id, req.body || {}));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// R2 image flow: presign -> client PUTs the bytes straight to the bucket ->
+// confirm. The shared handlers key every object by the caller's store
+// (isOwnedKey), so a mobile token cannot stage images under another store.
+router.post('/uploads/presign', authenticateMobileToken, presignHandler);
+router.post('/uploads/confirm', authenticateMobileToken, confirmHandler);
+
+/* -------------------------------- Customers ---------------------------------- */
+// Loyalty book: search by name/phone, most-recent-first (ties broken by
+// recency of signup) with server-side pagination.
+router.get('/customers', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const search = String(req.query.q || '').trim();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const params = [req.storeId];
+    let where = 'c.store_id = $1';
+    if (search) {
+      params.push(`%${search}%`);
+      where += ` AND (c.name ILIKE $${params.length} OR c.phone ILIKE $${params.length})`;
+    }
+    const [countRes, feed] = await Promise.all([
+      query(`SELECT COUNT(*)::int AS total FROM customers c WHERE ${where}`, params),
+      query(
+        `SELECT c.id, c.name, c.phone, c.email, c.loyalty_points, c.total_spent,
+                c.orders_count, c.created_at,
+                MAX(o.created_at) AS last_order_at
+           FROM customers c
+           LEFT JOIN orders o
+             ON o.store_id = c.store_id AND o.customer_phone = c.phone
+          WHERE ${where}
+          GROUP BY c.id
+          ORDER BY last_order_at DESC NULLS LAST, c.created_at DESC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, (page - 1) * limit],
+      ),
+    ]);
+    const total = countRes.rows[0].total;
+    res.json({
+      customers: feed.rows.map((c) => ({
+        id: c.id,
+        name: c.name || 'Customer',
+        phone: c.phone,
+        email: c.email,
+        loyaltyPoints: c.loyalty_points,
+        totalSpent: Number(c.total_spent),
+        ordersCount: c.orders_count,
+        lastOrderAt: c.last_order_at,
+        createdAt: c.created_at,
+      })),
+      page,
+      limit,
+      total,
+      hasMore: page * limit < total,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* --------------------------------- Receipts ---------------------------------- */
+// Streams the same QR-verified PDF as the web /api/orders/:id/receipt: the
+// shared handler sees the mobile req.auth (sub = store id, role SELLER) and
+// passes its ownership check with no extra token needed.
+router.get('/orders/:id/receipt', authenticateMobileToken, async (req, res, next) => {
+  try {
+    await streamOrderPdf(req, res);
   } catch (err) {
     next(err);
   }
