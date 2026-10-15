@@ -35,6 +35,14 @@
         "EXPO_PUBLIC_API_URL": "https://app.didwaghana.com"
       },
       "node": "20.19.4"
+    },
+    "production-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "channel": "production",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {
