@@ -2,16 +2,18 @@
  * PublicPages - standalone public web pages served OUTSIDE the dashboard
  * shell: About Us, Contact Us, Terms of Service and Privacy Policy.
  *
- * All four share PublicShell (compact nav + footer) so branding stays
+ * All four share PublicShell (one header, mobile menu and footer) so branding
+ * stays
  * consistent with the marketing index. Routes are wired in App.jsx:
  *   /about · /contact · /terms · /privacy
  *
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
-import { useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   ArrowRight, BarChart3, BellRing, Check, CreditCard, Globe, Mail, MapPin,
-  MessageCircle, Package, Phone, QrCode, Scale, Send, ShieldCheck, Smartphone,
+  ChevronRight, Menu, MessageCircle, Package, Phone, QrCode, Scale, Send,
+  ShieldCheck, Smartphone, X,
   Wallet, Zap,
 } from 'lucide-react';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
@@ -20,6 +22,7 @@ import PlanGrid, { CycleToggle } from '../components/PlanGrid.jsx';
 import { usePlans } from '../lib/plans.js';
 import { getPlatformDomain } from '../config.js';
 import { navigate } from '../router.js';
+import { buildLabel } from '../buildInfo.js';
 
 const UPDATED = 'August 2026';
 /** Contact address, built at render time so the API's apex always wins. */
@@ -37,25 +40,150 @@ export const MARKETING_LINKS = [
   ['/contact', 'Contact'],
 ];
 
-export function PublicShell({ authed, children, wide = false }) {
+/**
+ * SiteHeader / SiteFooter / PublicShell - the ONE chrome shared by every
+ * public page (marketing index, features, pricing, about, contact, legal and
+ * the 404). The home page used to carry a private copy of all three, which is
+ * how the two drifted apart: different CTAs, and only one side ever gained a
+ * mobile menu. Single source of truth now.
+ */
+function SiteHeader({ authed = false, wide = false, onStart, onDashboard }) {
+  /* Slide-in site menu, shown below lg (where the desktop nav collapses). */
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /* Escape closes the menu; background scroll locks while it is open. */
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [menuOpen]);
+
+  /* Sub-pages fall back to plain routes; the home page passes its auth-screen
+     openers so the register / login tab arrives preselected. */
+  const start = onStart || (() => { navigate('/login'); });
+  const dashboard = onDashboard || (() => { navigate('/dashboard'); });
+
   return (
-    <div className="flex min-h-screen flex-col bg-white text-charcoal">
+    <>
       <header className="sticky top-0 z-40 border-b border-slate-900/5 bg-white/85 backdrop-blur">
         <div className={`mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6 ${wide ? 'max-w-6xl' : 'max-w-5xl'}`}>
-          <button type="button" onClick={() => { navigate('/'); }} aria-label="Back to home">
+          <button
+            type="button"
+            onClick={() => { navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            aria-label="DiDwa home"
+          >
             <LogoLockup onLight />
           </button>
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-500 lg:flex" aria-label="Site sections">
-            {MARKETING_LINKS.map(([path, label]) => (
-              <a key={path} href={path} className="transition hover:text-charcoal">{label}</a>
+            {MARKETING_LINKS.map(([path, label], i) => (
+              <Fragment key={path}>
+                {i === 3 ? <span className="h-4 w-px bg-slate-200" aria-hidden="true" /> : null}
+                <a href={path} className="transition hover:text-charcoal">{label}</a>
+              </Fragment>
             ))}
           </nav>
           <div className="flex items-center gap-2">
+            {/* Hamburger - the slide-in menu below the lg breakpoint. */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={menuOpen}
+              className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 lg:hidden"
+            >
+              <Menu size={22} aria-hidden="true" />
+            </button>
+            {!authed && (
+              <button type="button" onClick={() => start('login')} className="rounded-xl px-3.5 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                Sign in
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => (authed ? dashboard() : start('register'))}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              {authed ? 'Open dashboard' : 'Start free trial'} <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Slide-in site menu (<lg). Escape closes it and background scroll is
+          locked while it is open - behaviour moved here verbatim from the old
+          home-only copy. */}
+      <div
+        className={`fixed inset-0 z-50 transition-all duration-300 lg:hidden ${menuOpen ? 'visible' : 'invisible pointer-events-none'}`}
+        aria-hidden={!menuOpen}
+      >
+        {/* Scrim - tap to dismiss */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close menu"
+          onClick={() => setMenuOpen(false)}
+          className={`absolute inset-0 bg-slate-950/50 backdrop-blur-sm transition-opacity duration-300 ${
+            menuOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site menu"
+          className={`absolute inset-y-0 right-0 flex w-[300px] max-w-[86vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+            menuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <LogoLockup onLight />
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Close menu"
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Site menu">
+            <p className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Explore</p>
+            {MARKETING_LINKS.slice(0, 3).map(([path, label]) => (
+              <a
+                key={path}
+                href={path}
+                onClick={() => setMenuOpen(false)}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal"
+              >
+                {label} <ChevronRight size={15} className="text-slate-300" aria-hidden="true" />
+              </a>
+            ))}
+            <p className="px-2 pb-1 pt-5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Company</p>
+            {MARKETING_LINKS.slice(3).map(([path, label]) => (
+              <a
+                key={path}
+                href={path}
+                onClick={() => setMenuOpen(false)}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal"
+              >
+                {label} <ChevronRight size={15} className="text-slate-300" aria-hidden="true" />
+              </a>
+            ))}
+          </nav>
+
+          <div className="space-y-2.5 border-t border-slate-100 p-4">
             {authed ? (
               <button
                 type="button"
-                onClick={() => { navigate('/dashboard'); }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700"
+                onClick={() => { setMenuOpen(false); dashboard(); }}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
               >
                 Open dashboard <ArrowRight size={15} aria-hidden="true" />
               </button>
@@ -63,45 +191,83 @@ export function PublicShell({ authed, children, wide = false }) {
               <>
                 <button
                   type="button"
-                  onClick={() => { navigate('/login'); }}
-                  className="hidden rounded-xl px-3.5 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:block"
+                  onClick={() => { setMenuOpen(false); start('login'); }}
+                  className="w-full rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   Sign in
                 </button>
                 <button
                   type="button"
-                  onClick={() => { navigate('/login'); }}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700"
+                  onClick={() => { setMenuOpen(false); start('register'); }}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
-                  Start free <ArrowRight size={15} aria-hidden="true" />
+                  Start free trial <ArrowRight size={15} aria-hidden="true" />
                 </button>
               </>
             )}
+            <p className="pt-1 text-center text-[10px] font-semibold text-slate-400">14-day free trial - No card required</p>
           </div>
-        </div>
-      </header>
+        </aside>
+      </div>
+    </>
+  );
+}
 
-      <main className="flex-1">{children}</main>
-
-      <footer className="border-t border-slate-900/5 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-xs font-semibold text-slate-400 sm:flex-row sm:px-6">
+/** The one public footer: brand blurb, product / company / legal columns. */
+function SiteFooter() {
+  return (
+    <footer className="border-t border-slate-900/5 py-10">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+        <div className="space-y-3">
           <LogoLockup onLight />
-          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="Site links">
-            {[['/', 'Home'], ['/features', 'Features'], ['/pricing', 'Pricing'], ['/about', 'About Us'], ['/contact', 'Contact']].map(([href, label]) => (
-              <a key={label} href={href} className="transition hover:text-charcoal">{label}</a>
-            ))}
-            <a href="/terms" className="transition hover:text-charcoal">Terms</a>
-            <a href="/privacy" className="transition hover:text-charcoal">Privacy</a>
-          </nav>
-          <p>© {new Date().getFullYear()} DiDwa</p>
+          <p className="max-w-xs text-xs leading-relaxed text-slate-400">
+            The multi-tenant commerce platform and seller PWA built for Ghanaian merchants - POS, payouts, inventory, storefronts and a native seller app in one place.
+          </p>
+          <a className="text-xs font-bold text-blue-600" href="https://demo.didwaghana.com">
+            Checkout A Demo
+          </a>
         </div>
-      </footer>
+
+        <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Product links">
+          <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Product</p>
+          {MARKETING_LINKS.slice(0, 3).map(([path, label]) => (
+            <a key={path} href={path} className="block transition hover:text-charcoal">{label}</a>
+          ))}
+          <a href="/login" className="block transition hover:text-charcoal">Seller login</a>
+        </nav>
+
+        <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Company links">
+          <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Company</p>
+          {MARKETING_LINKS.slice(3).map(([path, label]) => (
+            <a key={path} href={path} className="block transition hover:text-charcoal">{label}</a>
+          ))}
+        </nav>
+
+        <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Legal links">
+          <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Legal</p>
+          <a href="/terms" className="block transition hover:text-charcoal">Terms of Service</a>
+          <a href="/privacy" className="block transition hover:text-charcoal">Privacy Policy</a>
+        </nav>
+      </div>
+      <p className="mx-auto mt-8 max-w-6xl border-t border-slate-900/5 px-4 pt-6 text-[11px] font-medium text-slate-400 sm:px-6">
+        © {new Date().getFullYear()} DiDwa - Built for Ghanaian commerce - {buildLabel}
+      </p>
+    </footer>
+  );
+}
+
+export function PublicShell({ authed = false, children, wide = false, onStart, onDashboard }) {
+  return (
+    <div className="flex min-h-screen flex-col bg-white text-charcoal">
+      <SiteHeader authed={authed} wide={wide} onStart={onStart} onDashboard={onDashboard} />
+      <main className="flex-1">{children}</main>
+      <SiteFooter />
     </div>
   );
 }
 
-/** Centered hero band shared by info pages. */
-function PageHero({ eyebrow, title, sub }) {
+/** Centered hero band shared by info pages. `children` slots extra content (toggles, CTAs) below the sub. */
+function PageHero({ eyebrow, title, sub, children }) {
   return (
     <section className="relative overflow-hidden border-b border-slate-900/5 bg-mist/60 py-16 sm:py-20">
       <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-blue-500/15 blur-3xl" aria-hidden="true" />
@@ -109,6 +275,7 @@ function PageHero({ eyebrow, title, sub }) {
         <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">{eyebrow}</span>
         <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
         {sub ? <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-500">{sub}</p> : null}
+        {children}
       </div>
     </section>
   );
@@ -606,23 +773,15 @@ export function PricingPage({ authed = false }) {
 
   return (
     <PublicShell authed={authed} wide>
-      <section className="relative overflow-hidden border-b border-slate-900/5 bg-mist/60 py-16 sm:py-20">
-        <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-blue-500/15 blur-3xl" aria-hidden="true" />
-        <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Pricing</span>
-          <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            One login. Every tool. Pay as you grow.
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-500">
-            Start free for 14 days with no card. When you are ready, pick a plan and pay by
-            Mobile Money - monthly or yearly. Nothing renews automatically, so you are never
-            surprised by a charge.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <CycleToggle cycle={cycle} onChange={setCycle} />
-          </div>
+      <PageHero
+        eyebrow="Pricing"
+        title="One login. Every tool. Pay as you grow."
+        sub="Start free for 14 days with no card. When you are ready, pick a plan and pay by Mobile Money - monthly or yearly. Nothing renews automatically, so you are never surprised by a charge."
+      >
+        <div className="mt-8 flex justify-center">
+          <CycleToggle cycle={cycle} onChange={setCycle} />
         </div>
-      </section>
+      </PageHero>
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <PlanGrid

@@ -11,92 +11,21 @@
  *
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
-import { useEffect, useState } from 'react';
 import {
   ArrowRight, BarChart3, BellRing, Check, ChevronRight, Globe,
-  Menu, MessageCircle, Package, ShieldCheck, Smartphone, Sparkles,
-  Wallet, X, Zap,
+  MessageCircle, Package, ShieldCheck, Smartphone, Sparkles,
+  Wallet, Zap,
 } from 'lucide-react';
-import { LogoLockup } from '../components/icons.jsx';
-import { FEATURE_CARDS, STEPS, STATS } from './PublicPages.jsx';
-import { buildLabel } from '../buildInfo.js';
+import { PublicShell, FEATURE_CARDS, STEPS, STATS } from './PublicPages.jsx';
 
-/**
- * The nav used to scroll to #features / #how / #stats inside this one page.
- * Those are real pages now (/features, /how-it-works), so a visitor can link
- * straight to them - and the home page keeps a condensed version of each.
- */
-const NAV_LINKS = [
-  ['/features', 'Features'],
-  ['/how-it-works', 'How it works'],
-  ['/pricing', 'Pricing'],
-];
 
 export default function WelcomePage({ authed = false, onStart, onDashboard }) {
   const start = onStart || (() => {});
   const dashboard = onDashboard || (() => {});
 
-  /* Mobile slide-in site menu (<768px). */
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  /* Escape closes the menu; background scroll locks while it is open. */
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [menuOpen]);
 
   return (
-    <div className="min-h-screen bg-white text-charcoal">
-      {/* Nav */}
-      <header className="sticky top-0 z-40 border-b border-slate-900/5 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="DiDwa home">
-            <LogoLockup onLight />
-          </button>
-          <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-500 lg:flex" aria-label="Sections">
-            {NAV_LINKS.map(([path, label]) => (
-              <a key={path} href={path} className="transition hover:text-charcoal">{label}</a>
-            ))}
-            <span className="h-4 w-px bg-slate-200" aria-hidden="true" />
-            <a href="/about" className="transition hover:text-charcoal">About Us</a>
-            <a href="/contact" className="transition hover:text-charcoal">Contact Us</a>
-          </nav>
-          <div className="flex items-center gap-2">
-            {/* Hamburger - mobile site menu */}
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open menu"
-              aria-expanded={menuOpen}
-              className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"
-            >
-              <Menu size={22} aria-hidden="true" />
-            </button>
-            {!authed && (
-              <button type="button" onClick={() => start('login')} className="rounded-xl px-3.5 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                Sign in
-              </button>
-            )}
-            {authed ? (
-              <button type="button" onClick={dashboard} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700">
-                Open dashboard <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            ) : (
-              <button type="button" onClick={() => start('register')} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700">
-                Start free <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+    <PublicShell authed={authed} onStart={onStart} onDashboard={onDashboard} wide>
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -105,17 +34,17 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-2 lg:pt-24">
           <div>
-            <h1 className="mt-5 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">
+            <h1 className="mt-5 animate-fade-up text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl motion-reduce:animate-none">
               Sell in-store &amp; online.
               <span className="mt-1 block bg-gradient-to-r from-blue-600 to-emerald-brand bg-clip-text text-transparent">Get paid instantly.</span>
             </h1>
-            <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-500 sm:text-lg">
+            <p className="mt-5 max-w-lg animate-fade-up text-base leading-relaxed text-slate-500 sm:text-lg motion-reduce:animate-none" style={{ animationDelay: '90ms' }}>
               DiDwa is the all-in-one companion for Ghanaian merchants: a POS that works offline, Mobile Money payouts,
               inventory with smart alerts, WhatsApp ordering, a storefront you can theme and a seller app with push
               alerts - all from one login.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 flex animate-fade-up flex-wrap items-center gap-3 motion-reduce:animate-none" style={{ animationDelay: '180ms' }}>
               {authed ? (
                 <button type="button" onClick={dashboard} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-xl shadow-blue-600/25 transition hover:-translate-y-0.5 hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
                   Open your dashboard <ArrowRight size={16} aria-hidden="true" />
@@ -130,7 +59,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
               </a>
             </div>
 
-            <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-semibold text-slate-400">
+            <ul className="mt-8 flex animate-fade-up flex-wrap gap-x-6 gap-y-2 text-xs font-semibold text-slate-400 motion-reduce:animate-none" style={{ animationDelay: '260ms' }}>
               {['No card required', 'Free 14-day trial', 'Cancel anytime'].map((x) => (
                 <li key={x} className="flex items-center gap-1.5"><Check size={13} className="text-emerald-brand" aria-hidden="true" /> {x}</li>
               ))}
@@ -168,11 +97,56 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
               </ul>
             </div>
 
+            {/* Mini POS mock */}
+            <div className="absolute bottom-0 right-2 w-60 -rotate-1 rounded-2xl border border-slate-100 bg-white p-4 shadow-card transition-transform duration-300 hover:rotate-0">
+              <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                <Package size={12} className="text-blue-500" aria-hidden="true" /> Point of sale
+              </p>
+              <ul className="mt-3 grid grid-cols-2 gap-2">
+                {[
+                  { name: 'Kente hat', price: 'GHS 45.00' },
+                  { name: 'Shea butter', price: 'GHS 30.00' },
+                  { name: 'Beads set', price: 'GHS 60.00' },
+                  { name: 'Kaftan', price: 'GHS 120.00' },
+                ].map(({ name, price }) => (
+                  <li key={name} className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5">
+                    <span className="block truncate text-[10px] font-bold text-slate-600">{name}</span>
+                    <span className="block text-[10px] font-extrabold text-blue-600">{price}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex items-center justify-between rounded-lg bg-[#0B1120] px-3 py-2">
+                <span className="text-[11px] font-bold text-slate-300">Total &middot; 4 items</span>
+                <span className="text-xs font-extrabold text-white">GHS 255.00</span>
+              </div>
+              <span className="mt-2 block rounded-lg bg-blue-600 py-2 text-center text-[11px] font-extrabold text-white shadow-md shadow-blue-600/30">
+                Charge GHS 255.00
+              </span>
+            </div>
+
             <span className="absolute right-10 top-0 inline-flex items-center gap-1.5 rounded-full bg-[#0B1120] px-3.5 py-1.5 text-[11px] font-bold text-white shadow-lg">
               <Zap size={12} className="text-emerald-400" /> 14-day free trial
             </span>
           </div>
         </div>
+      </section>
+
+      {/* Capability strip */}
+      <section aria-label="Built for Ghanaian sellers" className="border-y border-slate-100 bg-white">
+        <ul className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-7 gap-y-3 px-4 py-5 sm:px-6">
+          {[
+            { Icon: Zap, text: 'Offline-first POS' },
+            { Icon: Wallet, text: 'MoMo & card payouts' },
+            { Icon: MessageCircle, text: 'WhatsApp orders' },
+            { Icon: Smartphone, text: 'Seller app + push' },
+            { Icon: BellRing, text: 'Instant alerts' },
+            { Icon: ShieldCheck, text: 'Two-factor login' },
+          ].map(({ Icon, text }) => (
+            <li key={text} className="flex items-center gap-2 text-xs font-bold text-slate-500 sm:text-sm">
+              <Icon size={15} className="shrink-0 text-blue-600" aria-hidden="true" /> {text}
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* Features */}
@@ -216,15 +190,18 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Three steps to your first sale</h2>
           </div>
 
-          <ol className="mt-12 grid gap-6 md:grid-cols-3">
-            {STEPS.map(({ n, title, body }) => (
-              <li key={n} className="relative rounded-2xl border border-slate-100 bg-white p-6 shadow-card">
-                <span className="inline-grid h-10 w-10 place-items-center rounded-xl bg-[#0B1120] text-sm font-extrabold text-emerald-400">{n}</span>
-                <h3 className="mt-4 text-base font-extrabold">{title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{body}</p>
-              </li>
-            ))}
-          </ol>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-[16%] right-[16%] top-[44px] hidden border-t-2 border-dashed border-blue-200 md:block" aria-hidden="true" />
+            <ol className="mt-12 grid gap-6 md:grid-cols-3">
+              {STEPS.map(({ n, title, body }) => (
+                <li key={n} className="relative rounded-2xl border border-slate-100 bg-white p-6 shadow-card">
+                  <span className="inline-grid h-10 w-10 place-items-center rounded-xl bg-[#0B1120] text-sm font-extrabold text-emerald-400">{n}</span>
+                  <h3 className="mt-4 text-base font-extrabold">{title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
 
           <p className="mt-10 text-center">
             <a href="/how-it-works" className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-600 transition hover:text-blue-700">
@@ -236,7 +213,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
       {/* Stats / why us */}
       <section id="stats" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20">
-        <div className="overflow-hidden rounded-3xl bg-[#0B1120] px-8 py-12 text-white sm:px-12">
+        <div className="relative overflow-hidden rounded-3xl bg-[#0B1120] px-8 py-12 text-white sm:px-12">
+          <div className="pointer-events-none absolute inset-0 opacity-[0.06]" aria-hidden="true" style={{ backgroundImage: 'repeating-linear-gradient(135deg, #ffffff 0 2px, transparent 2px 14px)' }} />
           <div className="mx-auto max-w-2xl text-center">
             <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-400">Why merchants switch</span>
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight">The back office that runs itself</h2>
@@ -259,7 +237,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
       {/* Final CTA */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="relative overflow-hidden rounded-3xl px-8 py-14 text-center text-white sm:px-12" style={{ background: 'linear-gradient(125deg, #1D4ED8 0%, #2563EB 45%, var(--tw-gradient-stops))', backgroundImage: 'linear-gradient(125deg,#1D4ED8 0%,#059669 160%)' }}>
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-emerald-600 px-8 py-14 text-center text-white sm:px-12">
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
           <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Ready to sell smarter?</h2>
           <p className="mx-auto mt-3 max-w-xl text-sm text-blue-100 sm:text-base">Join thousands of Ghanaian merchants running their entire shop from one app. Free for 14 days.</p>
@@ -282,133 +260,6 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900/5 py-10">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-[2fr_1fr_1fr_1fr]">
-          <div className="space-y-3">
-            <LogoLockup onLight />
-            <p className="max-w-xs text-xs leading-relaxed text-slate-400">
-              The multi-tenant commerce platform and seller PWA built for Ghanaian merchants - POS, payouts, inventory, storefronts and a native seller app in one place.
-            </p>
-            <a className="text-xs font-bold text-blue-600" href="https://demo.didwaghana.com">
-              Checkout A Demo
-            </a>
-          </div>
-
-          <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Product links">
-            <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Product</p>
-            {NAV_LINKS.map(([path, label]) => (
-              <a key={path} href={path} className="block transition hover:text-charcoal">{label}</a>
-            ))}
-            <a href="/login" className="block transition hover:text-charcoal">Seller login</a>
-          </nav>
-
-          <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Company links">
-            <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Company</p>
-            <a href="/about" className="block transition hover:text-charcoal">About Us</a>
-            <a href="/contact" className="block transition hover:text-charcoal">Contact Us</a>
-          </nav>
-
-          <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Legal links">
-            <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-charcoal">Legal</p>
-            <a href="/terms" className="block transition hover:text-charcoal">Terms of Service</a>
-            <a href="/privacy" className="block transition hover:text-charcoal">Privacy Policy</a>
-          </nav>
-        </div>
-        <p className="mx-auto mt-8 max-w-6xl border-t border-slate-900/5 px-4 pt-6 text-[11px] font-medium text-slate-400 sm:px-6">
-          (c) {new Date().getFullYear()} DiDwa · Built for Ghanaian commerce · {buildLabel}
-        </p>
-      </footer>
-
-      {/* Mobile slide-in site menu (<768px) */}
-      <div
-        className={`fixed inset-0 z-50 transition-all duration-300 md:hidden ${menuOpen ? 'visible' : 'invisible pointer-events-none'}`}
-        aria-hidden={!menuOpen}
-      >
-        {/* Scrim - tap to dismiss */}
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Close menu"
-          onClick={() => setMenuOpen(false)}
-          className={`absolute inset-0 bg-slate-950/50 backdrop-blur-sm transition-opacity duration-300 ${
-            menuOpen ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-
-        <aside
-          role="dialog"
-          aria-modal="true"
-          aria-label="Site menu"
-          className={`absolute inset-y-0 right-0 flex w-[300px] max-w-[86vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
-            menuOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}
-        >
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <LogoLockup onLight />
-            <button
-              type="button"
-              onClick={() => setMenuOpen(false)}
-              aria-label="Close menu"
-              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-            >
-              <X size={20} aria-hidden="true" />
-            </button>
-          </div>
-
-          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Site menu">
-            <p className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Explore</p>
-            {NAV_LINKS.map(([path, label]) => (
-              <a
-                key={path}
-                href={path}
-                onClick={() => setMenuOpen(false)}
-                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal"
-              >
-                {label} <ChevronRight size={15} className="text-slate-300" aria-hidden="true" />
-              </a>
-            ))}
-
-            <p className="px-2 pb-1 pt-5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Company</p>
-            <a href="/about" onClick={() => setMenuOpen(false)} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal">
-              About Us <ChevronRight size={15} className="text-slate-300" aria-hidden="true" />
-            </a>
-            <a href="/contact" onClick={() => setMenuOpen(false)} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mist hover:text-charcoal">
-              Contact Us <ChevronRight size={15} className="text-slate-300" aria-hidden="true" />
-            </a>
-          </nav>
-
-          <div className="space-y-2.5 border-t border-slate-100 p-4">
-            {authed ? (
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); dashboard(); }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-              >
-                Open dashboard <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => { setMenuOpen(false); start('login'); }}
-                  className="w-full rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                >
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setMenuOpen(false); start('register'); }}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-                >
-                  Start free trial <ArrowRight size={15} aria-hidden="true" />
-                </button>
-              </>
-            )}
-            <p className="pt-1 text-center text-[10px] font-semibold text-slate-400">14-day free trial · No card required</p>
-          </div>
-        </aside>
-      </div>
-    </div>
+    </PublicShell>
   );
 }

@@ -19,6 +19,15 @@ export default {
       boxShadow: {
         card: '0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.06)',
       },
+      keyframes: {
+        fadeUp: {
+          from: { opacity: '0', transform: 'translateY(14px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-up': 'fadeUp 0.6s ease-out both',
+      },
     },
   },
   plugins: [],
