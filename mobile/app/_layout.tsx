@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
@@ -10,10 +9,11 @@ import { queryClient } from '@/queryClient';
 import { theme } from '@/theme';
 import { addNotificationResponseListener, registerDeviceForPush, routeForNotification } from '@/services/pushNotifications';
 import { hasOnboarded } from '@/onboarding/onboarded';
+import { DidwaLottieSplash } from '@/components/DidwaLottieSplash';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-/** Gate the whole app on auth: not ready -> spinner, signed in -> tabs, else login. */
+/** Gate the whole app on auth: not ready -> Lottie splash, signed in -> tabs, else login. */
 function RootNavigator() {
   const { status } = useAuth();
   const router = useRouter();
@@ -54,11 +54,7 @@ function RootNavigator() {
   }, [status, router]);
 
   if (status === 'loading' || onboarded === null) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}>
-        <ActivityIndicator size="large" color="#0066FF" />
-      </View>
-    );
+    return <DidwaLottieSplash />;
   }
 
   return (
