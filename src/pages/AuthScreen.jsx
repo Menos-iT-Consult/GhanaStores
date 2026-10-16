@@ -17,7 +17,7 @@ import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../../
 import { getPlatformDomain } from '../config.js';
 import {
   AlertCircle, ArrowRight, Eye, EyeOff, Lock,
-  LogIn, Mail, Phone, ShieldCheck, Store, UserPlus, Zap,
+  LogIn, Mail, Phone, ShieldCheck, Store, Smartphone, UserPlus, Zap,
 } from 'lucide-react';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
 
@@ -81,6 +81,7 @@ const FEATURES = [
   { Icon: Zap, text: 'Instant Mobile Money payouts - MTN, Telecel, AT' },
   { Icon: Store, text: 'Offline POS with rider cash reconciliation' },
   { Icon: Mail, text: 'WhatsApp orders with PDF receipts' },
+  { Icon: Smartphone, text: 'Seller app with push alerts and home-screen widgets' },
 ];
 
 export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
@@ -467,7 +468,8 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
             <ul className="mt-6 space-y-2 border-t border-slate-100 pt-5 text-xs text-slate-400 lg:hidden">
               {['Instant MoMo payouts (MTN, Telecel, AT)',
                 'Offline POS + rider cash reconciliation',
-                'WhatsApp orders with PDF receipts'].map((f) => (
+                'WhatsApp orders with PDF receipts',
+                'Seller app with push alerts + home-screen widgets'].map((f) => (
                   <li key={f} className="flex items-center gap-2">
                     <ShieldCheck size={14} className="shrink-0 text-emerald-brand" aria-hidden="true" /> {f}
                   </li>

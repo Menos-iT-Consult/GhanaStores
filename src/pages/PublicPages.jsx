@@ -10,8 +10,9 @@
  */
 import { useState } from 'react';
 import {
-  ArrowRight, BarChart3, Check, Globe, Mail, MapPin, MessageCircle,
-  Package, Phone, Scale, Send, ShieldCheck, Smartphone, Wallet, Zap,
+  ArrowRight, BarChart3, BellRing, Check, CreditCard, Globe, Mail, MapPin,
+  MessageCircle, Package, Phone, QrCode, Scale, Send, ShieldCheck, Smartphone,
+  Wallet, Zap,
 } from 'lucide-react';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
 import { api } from '../api.js';
@@ -130,7 +131,7 @@ export function AboutPage({ authed = false }) {
       <section className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
         <div className="space-y-5 text-[15px] leading-relaxed text-slate-600">
           <p>We started in Accra watching brilliant traders lose hours to manual receipts, missed MoMo confirmations and stock counts done from memory. The tools that existed were built elsewhere, priced in dollars and designed for shops that never lose internet.</p>
-          <p>So we built the opposite: a seller companion that assumes patchy networks, speaks Mobile Money natively, reconciles rider cash without drama and turns every WhatsApp enquiry into a receipted order. One login runs the counter, the storefront and the books.</p>
+          <p>So we built the opposite: a seller companion that assumes patchy networks, speaks Mobile Money natively, reconciles rider cash without drama and turns every WhatsApp enquiry into a receipted order. One login runs the counter, the storefront, the books and the app in your pocket.</p>
           <p>Today merchants across all sixteen regions use DiDwa to sell in person and online - and we are just getting started.</p>
         </div>
 
@@ -486,14 +487,17 @@ export const FEATURE_CARDS = [
   { Icon: Wallet, title: 'Instant MoMo payouts', body: 'Cash out to MTN, Telecel/Vodafone or AT Money the moment an order settles.' },
   { Icon: Package, title: 'Inventory that thinks', body: 'Multi-variant stock tracking with automatic low-stock SMS reminders.' },
   { Icon: MessageCircle, title: 'WhatsApp commerce', body: 'Customers order straight from chat; receipts and fulfilment in one tap.' },
-  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with live theme editing.' },
-  { Icon: BarChart3, title: 'Insights that pay', body: 'Best sellers, cash flow and payout readiness without spreadsheets.' },
+  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with 100 theme templates and live editing.' },
+  { Icon: BarChart3, title: 'Insights that pay', body: 'Best sellers, loyalty points, cash flow and payout readiness without spreadsheets.' },
+  { Icon: BellRing, title: 'Seller app & push alerts', body: 'Run the shop from your phone - push notifications and Android home-screen widgets keep you posted.' },
+  { Icon: CreditCard, title: 'Pay your way', body: 'Buyers pay by Mobile Money, card or cash on delivery - you choose Paystack or Hubtel as your gateway.' },
+  { Icon: QrCode, title: 'Receipts that prove it', body: 'Every order gets a PDF receipt with a QR code the buyer can scan to verify it.' },
 ];
 
 export const STEPS = [
   { n: '01', title: 'Create your store', body: 'Register with just a shop name, email and phone number. Your 14-day trial starts instantly - no card needed.' },
-  { n: '02', title: 'Stock your catalog', body: 'Add products with prices, variants and stock counts. Share your storefront link or sell in person.' },
-  { n: '03', title: 'Sell & get paid', body: 'Accept Mobile Money or cash, reconcile rider deliveries and withdraw earnings whenever you like.' },
+  { n: '02', title: 'Stock your catalog', body: 'Add products with prices, variants and stock counts from the dashboard or the seller app. Share your storefront link or sell in person.' },
+  { n: '03', title: 'Sell & get paid', body: 'Accept Mobile Money, card or cash on delivery, reconcile rider deliveries and withdraw earnings whenever you like.' },
 ];
 
 export const STATS = [

@@ -111,7 +111,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-500 sm:text-lg">
               DiDwa is the all-in-one companion for Ghanaian merchants: a POS that works offline, Mobile Money payouts,
-              inventory with smart alerts, WhatsApp ordering and a storefront you can theme - all from one login.
+              inventory with smart alerts, WhatsApp ordering, a storefront you can theme and a seller app with push
+              alerts - all from one login.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -251,7 +252,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
           </dl>
           <p className="mx-auto mt-10 flex max-w-md items-center justify-center gap-2 text-center text-xs font-semibold text-slate-400">
             <ShieldCheck size={14} className="shrink-0 text-emerald-400" aria-hidden="true" />
-            Your data is encrypted and your storefront runs on its own secure web address.
+            Your data is encrypted, two-factor login is built in, and your storefront runs on its own secure web address.
           </p>
         </div>
       </section>
@@ -287,7 +288,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
           <div className="space-y-3">
             <LogoLockup onLight />
             <p className="max-w-xs text-xs leading-relaxed text-slate-400">
-              The multi-tenant commerce platform and seller PWA built for Ghanaian merchants - POS, payouts, inventory and storefronts in one place.
+              The multi-tenant commerce platform and seller PWA built for Ghanaian merchants - POS, payouts, inventory, storefronts and a native seller app in one place.
             </p>
             <a className="text-xs font-bold text-blue-600" href="https://demo.didwaghana.com">
               Checkout A Demo
