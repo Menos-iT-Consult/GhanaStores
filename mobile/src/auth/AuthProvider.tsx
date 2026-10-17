@@ -10,6 +10,7 @@ import {
 } from '@/api/client';
 import * as endpoints from '@/api/endpoints';
 import { isTwoFactorChallenge, type LoginResult, type Session, type StoreMeta } from '@/types';
+import { unregisterDeviceForPush } from '@/services/pushNotifications';
 import { clearWidgetSnapshot } from '@/widgets/snapshot';
 
 /**
@@ -29,6 +30,8 @@ interface AuthContextValue extends AuthState {
   signIn: (email: string, password: string) => Promise<LoginResult>;
   completeTwoFactor: (challenge: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Keep the session meta (context + SecureStore) in sync after a store rename. */
+  updateStoreName: (name: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -52,6 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Detach this device's push token FIRST (while the access token is still
+    // valid) so a logged-out phone stops receiving the store's notifications.
+    await unregisterDeviceForPush().catch(() => undefined);
     const rt = currentRefreshToken();
     if (rt) await endpoints.logout(rt).catch(() => undefined);
     await clearSession();
@@ -120,9 +126,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySession],
   );
 
+  // Rename parity with the web dashboard: once PATCH /api/site-settings/name
+  // succeeds, mirror the new name into context + SecureStore so the greeting,
+  // widget snapshot and next cold boot all agree.
+  const updateStoreName = useCallback(async (name: string) => {
+    setState((prev) => {
+      if (!prev.store || !prev.session) return prev;
+      const store = { ...prev.store, name };
+      const session = { ...prev.session, store };
+      void saveSessionMeta(session);
+      return { ...prev, store, session };
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, signIn, completeTwoFactor, signOut }),
-    [state, signIn, completeTwoFactor, signOut],
+    () => ({ ...state, signIn, completeTwoFactor, signOut, updateStoreName }),
+    [state, signIn, completeTwoFactor, signOut, updateStoreName],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -41,7 +41,7 @@ export function Sparkline({
           points={pts}
           fill="none"
           stroke={stroke}
-          strokeOpacity={0.2}
+          strokeOpacity={0.14}
           strokeWidth={6}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -55,7 +55,7 @@ export function Sparkline({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <Circle cx={lastX} cy={lastY} r={4} fill={stroke} opacity={0.25} />
+        <Circle cx={lastX} cy={lastY} r={4} fill={stroke} opacity={0.18} />
         <Circle cx={lastX} cy={lastY} r={2.5} fill={stroke} />
       </Svg>
     </View>

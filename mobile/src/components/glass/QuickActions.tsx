@@ -38,8 +38,9 @@ function Pill({ action, g }: { action: QuickAction; g: GlassTokens }) {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 10 }).start();
   };
 
+  // Grow to fill the row, but wrap onto a second line on narrow screens.
   return (
-    <Animated.View style={{ transform: [{ scale }], flex: 1 }}>
+    <Animated.View style={{ transform: [{ scale }], flexGrow: 1, minWidth: 96 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={action.label}

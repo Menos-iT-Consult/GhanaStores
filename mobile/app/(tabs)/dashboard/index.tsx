@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OrdersWidget } from '@/components/widgets/OrdersWidget';
 import { OpsWidget } from '@/components/widgets/OpsWidget';
 import { TrendWidget } from '@/components/widgets/TrendWidget';
@@ -38,6 +39,7 @@ export default function DashboardScreen() {
   const { store } = useAuth();
   const g = useGlass();
   const sync = usePosSync();
+  const insets = useSafeAreaInsets();
   const [snack, setSnack] = React.useState<string | null>(null);
   const [heroRange, setHeroRange] = React.useState<HeroRange>(7);
 
@@ -129,16 +131,14 @@ export default function DashboardScreen() {
   const heroLabel = heroRange === 7 ? 'Last 7 days' : 'All-time pace (30d)';
   return (
     <View style={[styles.root, { backgroundColor: g.slate }]}>
-      <View style={[styles.header, { justifyContent: 'space-between' }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={{ flex: 1 }}>
           <Text variant="headlineSmall" style={styles.greeting(g)}>
             {greetingFor(new Date().getHours())}{store?.name ? `, ${store.name}` : ''}
           </Text>
-          <Text variant="bodyMedium" style={styles.sub(g)}>
-            Here is how your store is doing today.
-          </Text>
         </View>
         <View style={styles.headerActions}>
+          <ThemeToggle />
           <IconButton
             icon="cog"
             size={22}
@@ -146,7 +146,6 @@ export default function DashboardScreen() {
             accessibilityLabel="Settings"
             onPress={() => router.push('/settings')}
           />
-          <ThemeToggle />
         </View>
       </View>
 
@@ -366,11 +365,10 @@ function OpsRow({ label, value, hint, last }: { label: string; value: string; hi
 const styles = {
   root: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, marginBottom: 12 } satisfies ViewStyle,
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingTop: 16 } satisfies ViewStyle,
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 } satisfies ViewStyle,
   greeting: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.ink, fontWeight: '800' }),
-  sub: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted, marginTop: 2 }),
-  pills: { flexDirection: 'row', gap: 10, marginTop: 14 } satisfies ViewStyle,
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 } satisfies ViewStyle,
   noteCard: { padding: 0, marginTop: 14 },
   metricsWrap: { marginTop: 14 },
   alertWrap: { marginTop: 14 },

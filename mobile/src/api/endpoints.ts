@@ -196,3 +196,62 @@ export async function getOrderReceiptBlob(id: string) {
   const res = await api.get(`/api/mobile/v1/orders/${id}/receipt`, { responseType: 'blob' });
   return res.data as Blob;
 }
+
+/* ========================= Store site settings (parity) ==================== */
+// Mirrors the PWA's /settings/site cards (routes/siteSettingsRoutes.js). The
+// mobile access token is a role-SELLER JWT with sub = store id, so the same
+// requireSeller middleware accepts it as-is — no extra mobile routes needed.
+
+export interface TwoFactorSetup {
+  success: boolean;
+  secret: string;
+  otpauthUri: string;
+  qrDataUrl: string;
+}
+
+export interface TwoFactorMessage {
+  success: boolean;
+  enabled?: boolean;
+  message?: string;
+}
+
+/** Display-name only — the subdomain slug (store address) never changes. */
+export function renameStore(name: string) {
+  return api
+    .patch<{ success: boolean; name: string }>('/api/site-settings/name', { name })
+    .then((r) => r.data);
+}
+
+/** Requires the CURRENT password, exactly like the web settings page. */
+export function changePassword(currentPassword: string, newPassword: string) {
+  return api
+    .patch<{ success: boolean; message?: string }>('/api/site-settings/password', {
+      currentPassword,
+      newPassword,
+    })
+    .then((r) => r.data);
+}
+
+export function getTwoFactorStatus() {
+  return api.get<{ enabled: boolean }>('/api/site-settings/2fa/status').then((r) => r.data);
+}
+
+/** Stage a TOTP secret (encrypted at rest) and get the QR payload back. */
+export function setupTwoFactor() {
+  return api.post<TwoFactorSetup>('/api/site-settings/2fa/setup').then((r) => r.data);
+}
+
+export function enableTwoFactor(code: string) {
+  return api.post<TwoFactorMessage>('/api/site-settings/2fa/enable', { code }).then((r) => r.data);
+}
+
+export function disableTwoFactor(code: string) {
+  return api.post<TwoFactorMessage>('/api/site-settings/2fa/disable', { code }).then((r) => r.data);
+}
+
+/** Irreversible hard delete: typed slug + password, server cascades everything. */
+export function deleteAccount(confirmSlug: string, password: string) {
+  return api
+    .delete<{ success: boolean }>('/api/site-settings/account', { data: { confirmSlug, password } })
+    .then((r) => r.data);
+}

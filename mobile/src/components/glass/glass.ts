@@ -79,10 +79,10 @@ const LIGHT: GlassTokens = {
 
 const DARK: GlassTokens = {
   blue: '#8FB8FF',
-  emerald: '#6EE7B7',
-  purple: '#C4B5FD',
-  cyan: '#67E8F9',
-  amber: '#FCD34D',
+  emerald: '#8FC7A9',
+  purple: '#B9AEE2',
+  cyan: '#8FC3D1',
+  amber: '#D9B978',
   slate: '#090D16',
   card: '#141A24',
   cardStrong: '#1D2532',

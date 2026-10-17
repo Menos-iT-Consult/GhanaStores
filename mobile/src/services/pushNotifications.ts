@@ -81,16 +81,31 @@ function getProjectId(): string | undefined {
   }
 }
 
-/** Register the current device with the backend (idempotent upsert). */
-export async function registerDeviceForPush(): Promise<void> {
+/** Why a push registration attempt ended where it did — surfaced in Settings. */
+export type PushRegistrationResult =
+  | 'registered'
+  | 'permission-denied'
+  | 'unavailable'
+  | 'token-error'
+  | 'register-failed';
+
+/**
+ * Register the current device with the backend (idempotent upsert). Returns a
+ * diagnostic result so the Settings screen can tell the merchant exactly what
+ * happened instead of failing silently.
+ */
+export async function registerDeviceForPush(): Promise<PushRegistrationResult> {
+  if (!Device.isDevice) return 'unavailable';
   const granted = await requestPushPermission();
-  if (!granted) return;
+  if (!granted) return 'permission-denied';
   const token = await getExpoPushToken();
-  if (!token) return;
+  if (!token) return 'token-error';
   try {
     await endpoints.registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android');
+    return 'registered';
   } catch (err) {
     console.warn('[push] device register failed:', err);
+    return 'register-failed';
   }
 }
 

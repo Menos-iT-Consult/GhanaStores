@@ -66,7 +66,7 @@ export function statusTone(status: string, dark = false): StatusTone {
         return { label: 'Processing', bg: '#17325C', fg: '#93BFFF' };
       case 'DELIVERED':
       case 'COMPLETED':
-        return { label: 'Completed', bg: '#0E3D2E', fg: '#6EE7B7' };
+        return { label: 'Completed', bg: '#0E3D2E', fg: '#8FC7A9' };
       case 'CANCELLED':
         return { label: 'Cancelled', bg: '#4A1B1B', fg: '#FCA5A5' };
       default:
@@ -130,10 +130,10 @@ export const darkTheme: MD3Theme = {
     onSecondary: '#263141',
     secondaryContainer: '#3A4456',
     onSecondaryContainer: '#E2E8F0',
-    tertiary: '#6EE7B7',
+    tertiary: '#8FC7A9',
     onTertiary: '#00382A',
     tertiaryContainer: '#0E3D2E',
-    onTertiaryContainer: '#8EF0C8',
+    onTertiaryContainer: '#BFE4D2',
     background: '#090D16',
     onBackground: '#E6EAF0',
     surface: '#141A24',
