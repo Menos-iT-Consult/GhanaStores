@@ -14,6 +14,7 @@ export const FONT_OPTIONS = [
   { value: 'Poppins', label: 'Poppins', stack: "'Poppins', system-ui, sans-serif" },
   { value: 'Outfit', label: 'Outfit', stack: "'Outfit', system-ui, sans-serif" },
   { value: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans', stack: "'Plus Jakarta Sans', system-ui, sans-serif" },
+  { value: 'Playfair Display', label: 'Playfair Display (Editorial Serif)', stack: "'Playfair Display', Georgia, 'Times New Roman', serif" },
 ];
 
 /** Deep customization token schema with safe fallback defaults. */
@@ -53,6 +54,10 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     border_radius: '0.75rem',
     product_grid_columns: 3,
     header_style: 'left_aligned',
+    /* Storefront layout archetype: 'boutique_editorial' | 'catalog_grid' |
+       'flash_express'. Resolved by templates/storefrontTypes.js; defaults to
+       'catalog_grid' (closest to the legacy single-template rendering). */
+    template: 'catalog_grid',
   },
   header: {
     sticky: false,

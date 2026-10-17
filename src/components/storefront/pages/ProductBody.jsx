@@ -1,4 +1,4 @@
-/**
+﻿/**
  * components/storefront/pages/ProductBody.jsx
  * The product detail page: gallery, variant picker, quantity stepper, add to
  * cart and the related-products row.
@@ -93,7 +93,7 @@ export default function ProductBody({ t, onNavigate, ctx }) {
                     ? { background: 'var(--primary)', borderColor: 'var(--primary)' }
                     : { borderColor: 'rgba(148,163,184,.5)' }}
                 >
-                  {v.label} · {ghs(v.price)}
+                  {v.label} Â· {ghs(v.price)}
                 </button>
               ))}
             </div>
