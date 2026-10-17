@@ -62,11 +62,12 @@ export function SectionSkeleton({ rows = 3 }: { rows?: number }) {
 }
 
 const styles = StyleSheet.create({
-  block: { backgroundColor: '#E2E8F0', borderRadius: 10 },
+  block: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10 },
   statRow: { flexDirection: 'row', marginHorizontal: -6 },
   statCard: { flex: 1, height: 92, margin: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10 },
   rowIcon: { width: 38, height: 38, borderRadius: 19, marginRight: 12 },
   rowBody: { flex: 1 },
-  rowLine: { height: 12, borderRadius: 6 },
+  rowLine: { height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.08)' },
 });
+

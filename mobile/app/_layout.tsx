@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { queryClient } from '@/queryClient';
-import { theme } from '@/theme';
+import { ThemeProvider, useThemeMode } from '@/theme/ThemeContext';
 import { addNotificationResponseListener, registerDeviceForPush, routeForNotification } from '@/services/pushNotifications';
 import { hasOnboarded } from '@/onboarding/onboarded';
 import { DidwaLottieSplash } from '@/components/DidwaLottieSplash';
@@ -67,15 +67,27 @@ function RootNavigator() {
   );
 }
 
+/** Applies the active Paper theme (light/dark) + status-bar style to the tree. */
+function ThemedProviders({ children }: { children: React.ReactNode }) {
+  const { theme, isDark } = useThemeMode();
+  return (
+    <PaperProvider theme={theme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {children}
+    </PaperProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <PaperProvider theme={theme}>
-        <AuthProvider>
-          <StatusBar style="dark" />
-          <RootNavigator />
-        </AuthProvider>
-      </PaperProvider>
+      <ThemeProvider>
+        <ThemedProviders>
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
+        </ThemedProviders>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

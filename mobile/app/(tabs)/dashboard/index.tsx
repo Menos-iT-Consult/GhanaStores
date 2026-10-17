@@ -1,13 +1,13 @@
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View, type TextStyle, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Snackbar, Text, useTheme } from 'react-native-paper';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Snackbar, Text } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
-import { KpiWidget } from '@/components/widgets/KpiWidget';
 import { OrdersWidget } from '@/components/widgets/OrdersWidget';
 import { OpsWidget } from '@/components/widgets/OpsWidget';
 import { TrendWidget } from '@/components/widgets/TrendWidget';
@@ -15,17 +15,19 @@ import { writeWidgetSnapshot } from '@/widgets/snapshot';
 import { refreshAndroidWidget } from '@/widgets/refreshAndroidWidget';
 
 import { GlassCard } from '@/components/glass/GlassCard';
-import { GLASS } from '@/components/glass/glass';
+import { ThemeToggle } from '@/components/glass/ThemeToggle';
+import { useGlass } from '@/components/glass/glass';
 import { HeroRevenueCard, type HeroRange } from '@/components/glass/HeroRevenueCard';
 import { QuickActions } from '@/components/glass/QuickActions';
 import { MetricGrid } from '@/components/glass/MetricGrid';
 import { AlertBanner } from '@/components/glass/AlertBanner';
 import { SectionHeader } from '@/components/SectionHeader';
-import { StatCardSkeleton, SectionSkeleton, SkeletonBlock } from '@/components/Skeleton';
+import { SectionSkeleton, SkeletonBlock } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ErrorState } from '@/components/ScreenState';
 import { usePosSync } from '@/offline/usePosSync';
-import { formatGhs } from '@/theme';
+import { formatGhs, ACCENT } from '@/theme';
+import { useThemeMode } from '@/theme/ThemeContext';
 import type { DashboardFull } from '@/types';
 
 /**
@@ -36,8 +38,9 @@ import type { DashboardFull } from '@/types';
  */
 export default function DashboardScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
   const { store } = useAuth();
+  const { isDark } = useThemeMode();
+  const g = useGlass();
   const sync = usePosSync();
   const [snack, setSnack] = React.useState<string | null>(null);
   const [heroRange, setHeroRange] = React.useState<HeroRange>(7);
@@ -89,12 +92,10 @@ export default function DashboardScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.root}>
-        <MeshBackground />
+      <View style={[styles.root, { backgroundColor: g.slate }]}>
+        <MeshBackground g={g} />
         <ScrollView contentContainerStyle={styles.content} scrollEnabled={false}>
-          <HeroGlassSkeleton />
-          <StatCardSkeleton />
-          <StatCardSkeleton />
+          <HeroGlassSkeleton g={g} />
           <SectionSkeleton rows={4} />
         </ScrollView>
       </View>
@@ -103,8 +104,8 @@ export default function DashboardScreen() {
 
   if (isError || !data) {
     return (
-      <View style={styles.root}>
-        <MeshBackground />
+      <View style={[styles.root, { backgroundColor: g.slate }]}>
+        <MeshBackground g={g} />
         <ErrorState message={apiErrorMessage(error)} onRetry={refetch} />
       </View>
     );
@@ -133,22 +134,26 @@ export default function DashboardScreen() {
   const heroRevenue = heroRange === 7 ? safeKpis.weekRevenue : safeKpis.totalRevenue;
   const heroLabel = heroRange === 7 ? 'Last 7 days' : 'All-time pace (30d)';
   return (
-    <View style={styles.root}>
-      <MeshBackground />
-      <View style={styles.header}>
+    <View style={[styles.root, { backgroundColor: g.slate }]}>
+      <MeshBackground g={g} />
+      <View style={[styles.header, { justifyContent: 'space-between' }]}>
         <View style={{ flex: 1 }}>
-          <Text variant="headlineSmall" style={styles.greeting}>
+          <Text variant="headlineSmall" style={styles.greeting(g)}>
             {greetingFor(new Date().getHours())}{store?.name ? `, ${store.name}` : ''}
           </Text>
-          <Text variant="bodyMedium" style={styles.sub}>
+          <Text variant="bodyMedium" style={styles.sub(g)}>
             Here is how your store is doing today.
           </Text>
+        </View>
+        <View style={styles.headerActions}>
+          <MaterialCommunityIcons name="cog" size={22} color={g.muted} accessibilityLabel="Settings" />
+          <ThemeToggle />
         </View>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={ACCENT.primary} />}
       >
         {/* 1 · Floating hero revenue card */}
         <HeroRevenueCard
@@ -184,10 +189,10 @@ export default function DashboardScreen() {
         {sync.pending > 0 ? (
           <GlassCard style={styles.noteCard}>
             <View style={styles.alertBody}>
-              <Text variant="titleSmall" style={styles.pendingTitle}>
+              <Text variant="titleSmall" style={styles.pendingTitle(g)}>
                 {sync.pending} sale{sync.pending === 1 ? '' : 's'} waiting to sync
               </Text>
-              <Text variant="bodySmall" style={styles.alertText}>
+              <Text variant="bodySmall" style={styles.alertText(g)}>
                 {sync.online ? 'Syncing as connection allows.' : 'You are offline — they will sync automatically.'}
               </Text>
             </View>
@@ -203,28 +208,28 @@ export default function DashboardScreen() {
                 value: safeKpis.paidOrders,
                 format: (n) => String(Math.round(n)),
                 icon: 'receipt-text-check-outline',
-                dot: GLASS.emerald,
+                accent: ACCENT.revenue,
               },
               {
                 label: 'Pending',
                 value: pendingOrders,
                 format: (n) => String(Math.round(n)),
                 icon: 'clock-outline',
-                dot: GLASS.blue,
+                accent: ACCENT.orders,
               },
               {
                 label: 'Low stock',
                 value: safeOps.lowStockCount,
                 format: (n) => String(Math.round(n)),
                 icon: 'alert-outline',
-                dot: safeOps.lowStockCount > 0 ? GLASS.amber : GLASS.emerald,
+                accent: safeOps.lowStockCount > 0 ? ACCENT.inventory : ACCENT.revenue,
               },
               {
                 label: 'Rider cash',
                 value: safeOps.transitCash,
                 format: (n) => formatGhs(n),
                 icon: 'bike-fast',
-                dot: GLASS.blue,
+                accent: ACCENT.pos,
               },
             ]}
           />
@@ -241,8 +246,6 @@ export default function DashboardScreen() {
           </View>
         ) : null}
 
-        <SectionHeader title="At a glance" actionLabel="New sale" onAction={() => router.push('/pos')} />
-        <KpiWidget todayRevenue={safeKpis.todayRevenue} weekRevenue={safeKpis.weekRevenue} paidOrders={safeKpis.paidOrders} />
         <OrdersWidget
           orders={safeOrders.slice(0, 3).map((o) => ({
             id: String(o.id),
@@ -269,7 +272,7 @@ export default function DashboardScreen() {
           <SectionSkeleton rows={3} />
         ) : (top.data?.products.length ?? 0) === 0 ? (
           <GlassCard style={styles.listBody}>
-            <Text variant="bodyMedium" style={styles.mutedCenter}>
+            <Text variant="bodyMedium" style={styles.mutedCenter(g)}>
               Products you sell will be ranked here.
             </Text>
           </GlassCard>
@@ -279,10 +282,10 @@ export default function DashboardScreen() {
               <View key={`${p.name}-${i}`} style={[styles.rankRow, i > 0 && styles.divider]}>
                 <Text variant="titleSmall" style={styles.rank}>{i + 1}</Text>
                 <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text variant="titleSmall" style={styles.rankName} numberOfLines={1}>{p.name}</Text>
-                  <Text variant="bodySmall" style={styles.muted}>{p.unitsSold} sold</Text>
+                  <Text variant="titleSmall" style={styles.rankName(g)} numberOfLines={1}>{p.name}</Text>
+                  <Text variant="bodySmall" style={styles.muted(g)}>{p.unitsSold} sold</Text>
                 </View>
-                <Text variant="titleSmall" style={styles.rankRevenue}>{formatGhs(p.revenue)}</Text>
+                <Text variant="titleSmall" style={styles.rankRevenue(g)}>{formatGhs(p.revenue)}</Text>
               </View>
             ))}
           </GlassCard>
@@ -291,7 +294,7 @@ export default function DashboardScreen() {
         <SectionHeader title="Recent orders" actionLabel="See all" onAction={() => router.push('/orders')} />
         {safeOrders.length === 0 ? (
           <GlassCard style={styles.listBody}>
-            <Text variant="bodyMedium" style={styles.mutedCenter}>
+            <Text variant="bodyMedium" style={styles.mutedCenter(g)}>
               Orders from your storefront and POS will show here.
             </Text>
           </GlassCard>
@@ -300,15 +303,15 @@ export default function DashboardScreen() {
             {safeOrders.slice(0, 6).map((o, i) => (
               <View key={o.id} style={[styles.rankRow, i > 0 && styles.divider]}>
                 <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text variant="titleSmall" style={styles.rankName} numberOfLines={1}>
+                  <Text variant="titleSmall" style={styles.rankName(g)} numberOfLines={1}>
                     #{o.orderNumber} · {o.customerName}
                   </Text>
-                  <Text variant="bodySmall" style={styles.muted}>
+                  <Text variant="bodySmall" style={styles.muted(g)}>
                     {o.paymentMethod} · {new Date(o.createdAt).toLocaleDateString()}
                   </Text>
                 </View>
                 <StatusBadge status={o.status} />
-                <Text variant="titleSmall" style={styles.rankRevenue}>{formatGhs(o.total)}</Text>
+                <Text variant="titleSmall" style={styles.rankRevenue(g)}>{formatGhs(o.total)}</Text>
               </View>
             ))}
           </GlassCard>
@@ -338,22 +341,22 @@ function greetingFor(hour: number): string {
   return 'Good evening';
 }
 
-/** Soft slate mesh: diagonal studio spotlight washes over #F8FAFC. */
-function MeshBackground() {
+/** Dark glass mesh: deep slate canvas with subtle blue/emerald spotlight washes. */
+function MeshBackground({ g }: { g: ReturnType<typeof useGlass> }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
-        colors={['#F8FAFC', '#EFF6FF']}
+        colors={['#090D16', '#060B14']}
         style={StyleSheet.absoluteFill}
       />
       <LinearGradient
-        colors={['rgba(0,102,255,0.10)', 'rgba(0,102,255,0)']}
+        colors={['rgba(0,102,255,0.16)', 'rgba(0,102,255,0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0.6 }}
         style={styles.washTop}
       />
       <LinearGradient
-        colors={['rgba(16,185,129,0.08)', 'rgba(16,185,129,0)']}
+        colors={['rgba(16,185,129,0.10)', 'rgba(16,185,129,0)']}
         start={{ x: 1, y: 1 }}
         end={{ x: 0.2, y: 0.5 }}
         style={styles.washBottom}
@@ -362,9 +365,9 @@ function MeshBackground() {
   );
 }
 
-function HeroGlassSkeleton() {
+function HeroGlassSkeleton({ g }: { g: ReturnType<typeof useGlass> }) {
   return (
-    <View style={styles.skelHero}>
+    <View style={styles.skelHero(g)}>
       <SkeletonBlock height={14} width="45%" />
       <SkeletonBlock height={34} width="65%" style={{ marginTop: 10 }} />
       <SkeletonBlock height={52} width="100%" style={{ marginTop: 12 }} />
@@ -373,49 +376,52 @@ function HeroGlassSkeleton() {
 }
 
 function OpsRow({ label, value, hint, last }: { label: string; value: string; hint?: string; last?: boolean }) {
+  const g = useGlass();
   return (
     <View style={[styles.opsRow, !last && styles.divider]}>
       <View style={{ flex: 1 }}>
-        <Text variant="titleSmall" style={styles.rankName}>{label}</Text>
-        {hint ? <Text variant="bodySmall" style={styles.muted}>{hint}</Text> : null}
+        <Text variant="titleSmall" style={styles.rankName(g)}>{label}</Text>
+        {hint ? <Text variant="bodySmall" style={styles.muted(g)}>{hint}</Text> : null}
       </View>
-      <Text variant="titleSmall" style={styles.rankRevenue}>{value}</Text>
+      <Text variant="titleSmall" style={styles.rankRevenue(g)}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: GLASS.slate },
+const styles = {
+  root: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, marginBottom: 12 },
-  greeting: { color: GLASS.ink, fontWeight: '800' },
-  sub: { color: GLASS.muted, marginTop: 2 },
-  pills: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, marginBottom: 12 } satisfies ViewStyle,
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 } satisfies ViewStyle,
+  greeting: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.ink, fontWeight: '800' }),
+  sub: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted, marginTop: 2 }),
+  pills: { flexDirection: 'row', gap: 10, marginTop: 14 } satisfies ViewStyle,
   noteCard: { padding: 0, marginTop: 14 },
   metricsWrap: { marginTop: 14 },
   alertWrap: { marginTop: 14 },
-  trendCard: { padding: 16, alignItems: 'center' },
+  trendCard: { padding: 16, alignItems: 'center' } satisfies ViewStyle,
   listBody: { padding: 16 },
-  opsCard: { paddingHorizontal: 0, overflow: 'hidden' },
-  opsRow: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  muted: { color: GLASS.muted },
-  mutedCenter: { color: GLASS.muted, textAlign: 'center', padding: 4 },
-  pendingTitle: { color: GLASS.amberDark, fontWeight: '700' },
-  rankRow: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  divider: { borderTopWidth: 1, borderTopColor: 'rgba(226,232,240,0.7)' },
-  rank: { width: 24, color: GLASS.faint, fontWeight: '700' },
-  rankName: { color: GLASS.ink, fontWeight: '600' },
-  rankRevenue: { color: GLASS.blue, fontWeight: '700' },
+  opsCard: { paddingHorizontal: 0, overflow: 'hidden' } satisfies ViewStyle,
+  opsRow: { flexDirection: 'row', alignItems: 'center', padding: 14 } satisfies ViewStyle,
+  muted: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted }),
+  mutedCenter: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted, textAlign: 'center', padding: 4 }),
+  pendingTitle: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.amber, fontWeight: '700' }),
+  rankRow: { flexDirection: 'row', alignItems: 'center', padding: 14 } satisfies ViewStyle,
+  divider: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)' } satisfies ViewStyle,
+  rank: { width: 24, color: 'rgba(255,255,255,0.45)', fontWeight: '700' } satisfies TextStyle,
+  rankName: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.ink, fontWeight: '600' }),
+  rankRevenue: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.blue, fontWeight: '700' }),
   alertBody: { padding: 14 },
-  alertText: { color: GLASS.muted, marginTop: 2 },
-  washTop: { position: 'absolute', top: -40, left: -60, right: -60, height: 340 },
-  washBottom: { position: 'absolute', bottom: -60, left: -60, right: -60, height: 300 },
-  skelHero: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderWidth: 1.5,
-    borderColor: GLASS.glassBorder,
-    borderRadius: GLASS.radius,
+  alertText: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted, marginTop: 2 }),
+  washTop: { position: 'absolute', top: -40, left: -60, right: -60, height: 340 } satisfies ViewStyle,
+  washBottom: { position: 'absolute', bottom: -60, left: -60, right: -60, height: 300 } satisfies ViewStyle,
+  skelHero: (g: ReturnType<typeof useGlass>): ViewStyle => ({
+    backgroundColor: g.card,
+    borderWidth: 1,
+    borderColor: g.glassBorder,
+    borderRadius: g.radius,
     padding: 18,
     marginBottom: 12,
-  },
-});
+  }),
+};
+

@@ -1,29 +1,30 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { useTheme } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useThemeMode } from '@/theme/ThemeContext';
+import { ACCENT } from '@/theme';
 
 /**
  * Bottom tab navigator for the signed-in merchant:
- * Dashboard · Orders · POS (centre, the register) · Products · Customers.
- * Settings lives behind the gear icon on the Dashboard header.
+ * Home · Orders · POS (centre, the register) · Products · Customers.
+ * Settings lives behind the gear icon on the Home header.
  */
 export default function TabsLayout() {
-  const { colors } = useTheme();
+  const { isDark } = useThemeMode();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarActiveTintColor: isDark ? '#7CAFFF' : ACCENT.primary,
+        tabBarInactiveTintColor: isDark ? '#64748B' : '#94A3B8',
         tabBarStyle: {
-          backgroundColor: 'rgba(248,250,252,0.82)',
+          backgroundColor: isDark ? 'rgba(12,17,26,0.95)' : 'rgba(248,250,252,0.82)',
           borderTopWidth: 1.5,
-          borderTopColor: 'rgba(255,255,255,0.4)',
+          borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.4)',
           elevation: 12,
-          shadowColor: '#0A2540',
+          shadowColor: isDark ? '#000000' : '#0A2540',
           shadowOffset: { width: 0, height: -8 },
-          shadowOpacity: 0.1,
+          shadowOpacity: isDark ? 0.5 : 0.1,
           shadowRadius: 20,
         },
       }}
@@ -31,7 +32,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="view-dashboard-outline" color={color} size={size} />,
         }}
       />
