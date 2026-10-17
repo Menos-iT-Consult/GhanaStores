@@ -1,32 +1,32 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useThemeMode } from '@/theme/ThemeContext';
-import { ACCENT } from '@/theme';
+import { useTheme } from 'react-native-paper';
 
 /**
  * Bottom tab navigator for the signed-in merchant:
- * Home · Orders · POS (centre, the register) · Products · Customers.
+ * Home · Orders · POS (the register) · Products · Customers.
  * Settings lives behind the gear icon on the Home header.
+ *
+ * Styled like a standard Material 3 navigation bar: solid surfaceContainer,
+ * hairline top divider, active item tinted with primary. No glow, no glass.
  */
 export default function TabsLayout() {
-  const { isDark } = useThemeMode();
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: isDark ? '#7CAFFF' : ACCENT.primary,
-        tabBarInactiveTintColor: isDark ? '#64748B' : '#94A3B8',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.onSurfaceVariant,
         tabBarStyle: {
-          backgroundColor: isDark ? 'rgba(12,17,26,0.95)' : 'rgba(248,250,252,0.82)',
-          borderTopWidth: 1.5,
-          borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.4)',
-          elevation: 12,
-          shadowColor: isDark ? '#000000' : '#0A2540',
-          shadowOffset: { width: 0, height: -8 },
-          shadowOpacity: isDark ? 0.5 : 0.1,
-          shadowRadius: 20,
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.outlineVariant,
+          elevation: 0,
+          shadowOpacity: 0,
         },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
       <Tabs.Screen

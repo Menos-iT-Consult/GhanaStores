@@ -102,10 +102,10 @@ export default function OrderDetailScreen() {
 
   const actions = nextActions(order.status);
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title={`Order #${order.orderNumber}`} titleStyle={styles.title} />
+        <Appbar.Content title={`Order #${order.orderNumber}`} />
         <Appbar.Action
           icon="share-variant"
           onPress={onShareReceipt}
@@ -115,13 +115,13 @@ export default function OrderDetailScreen() {
       </Appbar.Header>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Card mode="elevated" style={styles.card}>
+        <Card mode="elevated">
           <View style={styles.cardBody}>
             <View style={styles.rowBetween}>
-              <Text variant="titleMedium" style={styles.amount}>{formatGhs(order.totalAmount)}</Text>
+              <Text variant="titleMedium" style={[styles.amount, { color: colors.primary }]}>{formatGhs(order.totalAmount)}</Text>
               <StatusBadge status={order.status} />
             </View>
-            <Text variant="bodySmall" style={styles.muted}>
+            <Text variant="bodySmall" style={[styles.muted, { color: colors.onSurfaceVariant }]}>
               {order.paymentMethod} · placed {new Date(order.createdAt).toLocaleString()}
             </Text>
             <Button
@@ -138,40 +138,40 @@ export default function OrderDetailScreen() {
         </Card>
 
         {items.length > 0 ? (
-          <Card mode="elevated" style={styles.card}>
+          <Card mode="elevated">
             <View style={styles.cardBody}>
-              <Text variant="titleSmall" style={styles.sectionTitle}>Items</Text>
+              <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurface }]}>Items</Text>
               {items.map((it, i) => (
-                <View key={it.id} style={[styles.itemRow, i > 0 && styles.divider]}>
+                <View key={it.id} style={[styles.itemRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.outlineVariant }]}>
                   <View style={{ flex: 1, marginRight: 10 }}>
                     <Text variant="bodyLarge" style={styles.itemName}>{it.productName}</Text>
-                    {it.variantLabel ? <Text variant="bodySmall" style={styles.muted}>{it.variantLabel}</Text> : null}
-                    <Text variant="bodySmall" style={styles.muted}>
+                    {it.variantLabel ? <Text variant="bodySmall" style={[styles.muted, { color: colors.onSurfaceVariant }]}>{it.variantLabel}</Text> : null}
+                    <Text variant="bodySmall" style={[styles.muted, { color: colors.onSurfaceVariant }]}>
                       {it.quantity} × {formatGhs(it.unitPrice)}
                     </Text>
                   </View>
-                  <Text variant="titleSmall" style={styles.amount}>{formatGhs(it.lineTotal)}</Text>
+                  <Text variant="titleSmall" style={[styles.amount, { color: colors.primary }]}>{formatGhs(it.lineTotal)}</Text>
                 </View>
               ))}
             </View>
           </Card>
         ) : null}
 
-        <Card mode="elevated" style={styles.card}>
+        <Card mode="elevated">
           <View style={styles.cardBody}>
-            <Text variant="titleSmall" style={styles.sectionTitle}>Customer</Text>
+            <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurface }]}>Customer</Text>
             <Text variant="bodyLarge" style={styles.customerName}>{order.customer?.name || 'Customer'}</Text>
-            <Text variant="bodyMedium" style={styles.muted}>{order.customer?.phone}</Text>
-            <Text variant="bodyMedium" style={styles.muted}>{order.customer?.address}</Text>
+            <Text variant="bodyMedium" style={[styles.muted, { color: colors.onSurfaceVariant }]}>{order.customer?.phone}</Text>
+            <Text variant="bodyMedium" style={[styles.muted, { color: colors.onSurfaceVariant }]}>{order.customer?.address}</Text>
             <View style={styles.contactRow}>
-              <Button mode="contained" icon="phone" style={[styles.contactBtn, { flex: 1 }]} disabled={!msisdn} onPress={() => Linking.openURL(`tel:${msisdn}`)}>
+              <Button mode="contained" icon="phone" style={{ flex: 1 }} disabled={!msisdn} onPress={() => Linking.openURL(`tel:${msisdn}`)}>
                 Call
               </Button>
               <Button
                 mode="contained-tonal"
                 icon="whatsapp"
-                style={[styles.contactBtn, { flex: 1, backgroundColor: '#DCFCE7' }]}
-                textColor="#166534"
+                style={{ flex: 1, backgroundColor: colors.tertiaryContainer }}
+                textColor={colors.onTertiaryContainer}
                 disabled={!msisdn}
                 onPress={() => Linking.openURL(`https://wa.me/${msisdn}?text=${encodeURIComponent(`Hi ${order.customer?.name || ''}, about your DiDwa order #${order.orderNumber}.`)}`)}
               >
@@ -182,18 +182,18 @@ export default function OrderDetailScreen() {
         </Card>
 
         {order.notes ? (
-          <Card mode="elevated" style={styles.card}>
+          <Card mode="elevated">
             <View style={styles.cardBody}>
-              <Text variant="titleSmall" style={styles.sectionTitle}>Notes</Text>
-              <Text variant="bodyMedium" style={styles.muted}>{order.notes}</Text>
+              <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurface }]}>Notes</Text>
+              <Text variant="bodyMedium" style={[styles.muted, { color: colors.onSurfaceVariant }]}>{order.notes}</Text>
             </View>
           </Card>
         ) : null}
-        <Card mode="elevated" style={styles.card}>
+        <Card mode="elevated">
           <View style={styles.cardBody}>
-            <Text variant="titleSmall" style={styles.sectionTitle}>Update status</Text>
+            <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurface }]}>Update status</Text>
             {actions.length === 0 ? (
-              <Text variant="bodyMedium" style={styles.muted}>
+              <Text variant="bodyMedium" style={[styles.muted, { color: colors.onSurfaceVariant }]}>
                 This order is {String(order.status).toLowerCase()} — no further actions.
               </Text>
             ) : (
@@ -223,20 +223,16 @@ export default function OrderDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
-  card: { backgroundColor: '#FFFFFF' },
   cardBody: { padding: 16 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  amount: { color: '#0066FF', fontWeight: '800' },
-  muted: { color: '#64748B', marginTop: 4 },
-  sectionTitle: { color: '#0F172A', fontWeight: '700', marginBottom: 8 },
-  customerName: { color: '#0F172A', fontWeight: '600' },
+  amount: { fontWeight: '800' },
+  muted: { marginTop: 4 },
+  sectionTitle: { fontWeight: '700', marginBottom: 8 },
+  customerName: { fontWeight: '600' },
   contactRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  contactBtn: { backgroundColor: '#0066FF' },
   receiptBtn: { marginTop: 14, alignSelf: 'flex-start' },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  divider: { borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  itemName: { color: '#0F172A', fontWeight: '600' },
+  itemName: { fontWeight: '600' },
 });

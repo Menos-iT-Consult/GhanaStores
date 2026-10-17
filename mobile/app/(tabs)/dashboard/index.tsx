@@ -1,8 +1,6 @@
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View, type TextStyle, type ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Snackbar, Text } from 'react-native-paper';
+import { RefreshControl, ScrollView, View, type TextStyle, type ViewStyle } from 'react-native';
+import { IconButton, Snackbar, Text } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
@@ -27,19 +25,17 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { ErrorState } from '@/components/ScreenState';
 import { usePosSync } from '@/offline/usePosSync';
 import { formatGhs, ACCENT } from '@/theme';
-import { useThemeMode } from '@/theme/ThemeContext';
 import type { DashboardFull } from '@/types';
 
 /**
- * Command center (glassmorphic 3D): floating hero revenue card, quick-action
- * glass pills, 2x2 frosted metric grid, amber low-stock banner, top products
- * and recent orders in glass. Data layer unchanged — one round trip to
- * /dashboard/full powers most of the screen.
+ * Command center (Material 3): flat tonal hero revenue card, outlined
+ * quick actions, 2x2 metric grid, amber low-stock banner, top products and
+ * recent orders in plain surface cards. Data layer unchanged — one round
+ * trip to /dashboard/full powers most of the screen.
  */
 export default function DashboardScreen() {
   const router = useRouter();
   const { store } = useAuth();
-  const { isDark } = useThemeMode();
   const g = useGlass();
   const sync = usePosSync();
   const [snack, setSnack] = React.useState<string | null>(null);
@@ -93,7 +89,6 @@ export default function DashboardScreen() {
   if (isLoading) {
     return (
       <View style={[styles.root, { backgroundColor: g.slate }]}>
-        <MeshBackground g={g} />
         <ScrollView contentContainerStyle={styles.content} scrollEnabled={false}>
           <HeroGlassSkeleton g={g} />
           <SectionSkeleton rows={4} />
@@ -105,7 +100,6 @@ export default function DashboardScreen() {
   if (isError || !data) {
     return (
       <View style={[styles.root, { backgroundColor: g.slate }]}>
-        <MeshBackground g={g} />
         <ErrorState message={apiErrorMessage(error)} onRetry={refetch} />
       </View>
     );
@@ -135,7 +129,6 @@ export default function DashboardScreen() {
   const heroLabel = heroRange === 7 ? 'Last 7 days' : 'All-time pace (30d)';
   return (
     <View style={[styles.root, { backgroundColor: g.slate }]}>
-      <MeshBackground g={g} />
       <View style={[styles.header, { justifyContent: 'space-between' }]}>
         <View style={{ flex: 1 }}>
           <Text variant="headlineSmall" style={styles.greeting(g)}>
@@ -146,7 +139,13 @@ export default function DashboardScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <MaterialCommunityIcons name="cog" size={22} color={g.muted} accessibilityLabel="Settings" />
+          <IconButton
+            icon="cog"
+            size={22}
+            iconColor={g.muted}
+            accessibilityLabel="Settings"
+            onPress={() => router.push('/settings')}
+          />
           <ThemeToggle />
         </View>
       </View>
@@ -279,8 +278,8 @@ export default function DashboardScreen() {
         ) : (
           <GlassCard>
             {top.data!.products.map((p, i) => (
-              <View key={`${p.name}-${i}`} style={[styles.rankRow, i > 0 && styles.divider]}>
-                <Text variant="titleSmall" style={styles.rank}>{i + 1}</Text>
+              <View key={`${p.name}-${i}`} style={[styles.rankRow, i > 0 && styles.divider(g)]}>
+                <Text variant="titleSmall" style={styles.rank(g)}>{i + 1}</Text>
                 <View style={{ flex: 1, marginRight: 10 }}>
                   <Text variant="titleSmall" style={styles.rankName(g)} numberOfLines={1}>{p.name}</Text>
                   <Text variant="bodySmall" style={styles.muted(g)}>{p.unitsSold} sold</Text>
@@ -301,7 +300,7 @@ export default function DashboardScreen() {
         ) : (
           <GlassCard>
             {safeOrders.slice(0, 6).map((o, i) => (
-              <View key={o.id} style={[styles.rankRow, i > 0 && styles.divider]}>
+              <View key={o.id} style={[styles.rankRow, i > 0 && styles.divider(g)]}>
                 <View style={{ flex: 1, marginRight: 10 }}>
                   <Text variant="titleSmall" style={styles.rankName(g)} numberOfLines={1}>
                     #{o.orderNumber} · {o.customerName}
@@ -341,30 +340,6 @@ function greetingFor(hour: number): string {
   return 'Good evening';
 }
 
-/** Dark glass mesh: deep slate canvas with subtle blue/emerald spotlight washes. */
-function MeshBackground({ g }: { g: ReturnType<typeof useGlass> }) {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <LinearGradient
-        colors={['#090D16', '#060B14']}
-        style={StyleSheet.absoluteFill}
-      />
-      <LinearGradient
-        colors={['rgba(0,102,255,0.16)', 'rgba(0,102,255,0)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0.6 }}
-        style={styles.washTop}
-      />
-      <LinearGradient
-        colors={['rgba(16,185,129,0.10)', 'rgba(16,185,129,0)']}
-        start={{ x: 1, y: 1 }}
-        end={{ x: 0.2, y: 0.5 }}
-        style={styles.washBottom}
-      />
-    </View>
-  );
-}
-
 function HeroGlassSkeleton({ g }: { g: ReturnType<typeof useGlass> }) {
   return (
     <View style={styles.skelHero(g)}>
@@ -378,7 +353,7 @@ function HeroGlassSkeleton({ g }: { g: ReturnType<typeof useGlass> }) {
 function OpsRow({ label, value, hint, last }: { label: string; value: string; hint?: string; last?: boolean }) {
   const g = useGlass();
   return (
-    <View style={[styles.opsRow, !last && styles.divider]}>
+    <View style={[styles.opsRow, !last && styles.divider(g)]}>
       <View style={{ flex: 1 }}>
         <Text variant="titleSmall" style={styles.rankName(g)}>{label}</Text>
         {hint ? <Text variant="bodySmall" style={styles.muted(g)}>{hint}</Text> : null}
@@ -407,14 +382,12 @@ const styles = {
   mutedCenter: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted, textAlign: 'center', padding: 4 }),
   pendingTitle: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.amber, fontWeight: '700' }),
   rankRow: { flexDirection: 'row', alignItems: 'center', padding: 14 } satisfies ViewStyle,
-  divider: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)' } satisfies ViewStyle,
-  rank: { width: 24, color: 'rgba(255,255,255,0.45)', fontWeight: '700' } satisfies TextStyle,
+  divider: (g: ReturnType<typeof useGlass>): ViewStyle => ({ borderTopWidth: 1, borderTopColor: g.glassBorder }),
+  rank: (g: ReturnType<typeof useGlass>): TextStyle => ({ width: 24, color: g.faint, fontWeight: '700' }),
   rankName: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.ink, fontWeight: '600' }),
   rankRevenue: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.blue, fontWeight: '700' }),
   alertBody: { padding: 14 },
   alertText: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.muted, marginTop: 2 }),
-  washTop: { position: 'absolute', top: -40, left: -60, right: -60, height: 340 } satisfies ViewStyle,
-  washBottom: { position: 'absolute', bottom: -60, left: -60, right: -60, height: 300 } satisfies ViewStyle,
   skelHero: (g: ReturnType<typeof useGlass>): ViewStyle => ({
     backgroundColor: g.card,
     borderWidth: 1,

@@ -1,12 +1,13 @@
 /**
- * Glass design tokens for the hyper-modern DiDwa dashboard.
- * Two palettes (light / dark) built on the brand accents:
- *   Deep Blue #0066FF · Electric Emerald #10B981 · Vibrant Purple #8B5CF6 ·
- *   Electric Cyan #06B6D4 · Amber Gold #F59E0B
+ * Surface design tokens for the DiDwa dashboard cards.
  *
- * Dark canvas: Midnight Slate #090D16 · Dark slate cards rgba(15,23,42,0.80)
- * · 20px rounded corners · 1px color-tinted glowing borders · soft floating
- * shadows. Faked frost via layered translucent fills (expo-blur Phase 2).
+ * Kept under the historical "glass" name for API compatibility, but the
+ * values are now plain Material 3 roles: solid surfaces, 12px corners, an
+ * M3 outlineVariant hairline and a barely-there shadow (no glow, no
+ * translucency, no gradients).
+ *
+ * Components should get these via useGlass() so the light/dark toggle
+ * re-themes them instantly.
  */
 
 import { useThemeMode } from '@/theme/ThemeContext';
@@ -15,98 +16,98 @@ import { ACCENT } from '@/theme';
 export type GlassMode = 'light' | 'dark';
 
 export interface GlassTokens {
-  /** Brand accents */
+  /** Category accents (muted, legible on both modes). */
   blue: string;
   emerald: string;
   purple: string;
   cyan: string;
   amber: string;
   /** Surface colors */
-  slate: string;      // canvas background
-  card: string;       // translucent card fill
-  cardStrong: string; // slightly more opaque card fill
+  slate: string;      // screen background
+  card: string;       // card fill (M3 surface)
+  cardStrong: string; // slightly raised card fill
   ink: string;        // primary text
   muted: string;      // secondary text
-  faint: string;      // tertiary text / dividers
-  /** Borders & glows */
-  glassBorder: string;   // 1px border
-  blueFill: string;      // blue-tinted fill for chips
-  /** Hero gradient stops */
+  faint: string;      // tertiary text
+  /** Borders */
+  glassBorder: string;   // 1px hairline (outlineVariant)
+  blueFill: string;      // primaryContainer fill for chips/tiles
+  /** Legacy hero stops — kept flat so nothing crashes; hero is solid now. */
   heroStart: string;
   heroMid: string;
   heroEnd: string;
   /** Layout */
   radius: number;
-  /** Shadows */
+  /** Shadows: subtle M3 elevation only. */
   shadow: object;
   heroShadow: object;
 }
 
 const LIGHT: GlassTokens = {
   blue: '#0066FF',
-  emerald: '#10B981',
-  purple: '#8B5CF6',
-  cyan: '#06B6D4',
-  amber: '#F59E0B',
-  slate: '#F8FAFC',
-  card: 'rgba(255,255,255,0.62)',
-  cardStrong: 'rgba(255,255,255,0.78)',
+  emerald: ACCENT.revenue,
+  purple: '#6941C6',
+  cyan: ACCENT.pos,
+  amber: ACCENT.inventory,
+  slate: '#F7F8FA',
+  card: '#FFFFFF',
+  cardStrong: '#FFFFFF',
   ink: '#0F172A',
-  muted: '#64748B',
-  faint: '#94A3B8',
-  glassBorder: 'rgba(255,255,255,0.4)',
-  blueFill: 'rgba(0,102,255,0.14)',
-  heroStart: '#1D4ED8',
+  muted: '#475569',
+  faint: '#98A2B3',
+  glassBorder: '#E4E7EC',
+  blueFill: '#D6E3FF',
+  heroStart: '#0066FF',
   heroMid: '#0066FF',
-  heroEnd: '#00B2FF',
-  radius: 22,
+  heroEnd: '#0066FF',
+  radius: 12,
   shadow: {
-    shadowColor: '#0A2540',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   heroShadow: {
-    shadowColor: '#0066FF',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.35,
-    shadowRadius: 32,
-    elevation: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
 };
 
 const DARK: GlassTokens = {
-  blue: '#0066FF',
-  emerald: '#10B981',
-  purple: '#8B5CF6',
-  cyan: '#06B6D4',
-  amber: '#F59E0B',
+  blue: '#8FB8FF',
+  emerald: '#6EE7B7',
+  purple: '#C4B5FD',
+  cyan: '#67E8F9',
+  amber: '#FCD34D',
   slate: '#090D16',
-  card: 'rgba(15,23,42,0.80)',
-  cardStrong: 'rgba(15,23,42,0.92)',
-  ink: '#F8FAFC',
-  muted: '#94A3B8',
-  faint: '#475569',
-  glassBorder: 'rgba(255,255,255,0.10)',
-  blueFill: 'rgba(0,102,255,0.20)',
-  heroStart: '#0E7490',
+  card: '#141A24',
+  cardStrong: '#1D2532',
+  ink: '#E6EAF0',
+  muted: '#9AA5B5',
+  faint: '#64748B',
+  glassBorder: '#273041',
+  blueFill: '#0B2B66',
+  heroStart: '#0066FF',
   heroMid: '#0066FF',
-  heroEnd: '#06B6D4',
-  radius: 20,
+  heroEnd: '#0066FF',
+  radius: 12,
   shadow: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 1,
   },
   heroShadow: {
-    shadowColor: '#0066FF',
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.55,
-    shadowRadius: 40,
-    elevation: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 2,
   },
 };
 
@@ -115,9 +116,9 @@ export function glassTokens(mode: GlassMode): GlassTokens {
 }
 
 /**
- * Hook returning the theme-aware glass tokens for the current light/dark
+ * Hook returning the theme-aware surface tokens for the current light/dark
  * mode. Components should use this instead of importing GLASS directly so
- * the theme toggle instantly re-styles the whole surface.
+ * the theme toggle instantly re-themes the whole surface.
  */
 export function useGlass(): GlassTokens {
   const { isDark } = useThemeMode();

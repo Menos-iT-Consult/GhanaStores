@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Divider, List, Text } from 'react-native-paper';
+import { Button, Card, Divider, List, Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
 import { API_BASE_URL } from '@/api/client';
@@ -9,6 +9,7 @@ import { registerDeviceForPush, requestPushPermission } from '@/services/pushNot
 export default function SettingsScreen() {
   const router = useRouter();
   const { store, signOut } = useAuth();
+  const { colors } = useTheme();
 
   // Ask for push permission once the merchant opens settings (a good second
   // touchpoint after the automatic attempt on login).
@@ -18,8 +19,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text variant="headlineSmall" style={styles.heading}>Settings</Text>
+    <ScrollView style={[styles.root, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
+      <Text variant="headlineSmall" style={[styles.heading, { color: colors.onSurface }]}>Settings</Text>
 
       <Card mode="elevated" style={styles.card}>
         <List.Item
@@ -46,9 +47,9 @@ export default function SettingsScreen() {
 
       <Card mode="elevated" style={styles.card}>
         <View style={styles.cardBody}>
-          <Text variant="labelLarge" style={styles.sectionTitle}>Account</Text>
-          <Text variant="bodySmall" style={styles.muted}>Connected to {API_BASE_URL}</Text>
-          <Button mode="outlined" textColor="#DC2626" icon="logout" onPress={signOut} style={{ marginTop: 14 }}>
+          <Text variant="labelLarge" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Account</Text>
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>Connected to {API_BASE_URL}</Text>
+          <Button mode="outlined" textColor={colors.error} icon="logout" onPress={signOut} style={{ marginTop: 14 }}>
             Sign out
           </Button>
         </View>
@@ -58,11 +59,10 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
-  heading: { color: '#0F172A', fontWeight: '700', marginBottom: 14 },
-  card: { backgroundColor: '#FFFFFF', marginBottom: 14 },
+  heading: { fontWeight: '700', marginBottom: 14 },
+  card: { marginBottom: 14 },
   cardBody: { padding: 16 },
-  sectionTitle: { color: '#0F172A', fontWeight: '700', marginBottom: 4 },
-  muted: { color: '#64748B' },
+  sectionTitle: { fontWeight: '700', marginBottom: 4 },
 });

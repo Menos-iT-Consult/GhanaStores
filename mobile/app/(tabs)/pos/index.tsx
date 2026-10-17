@@ -202,11 +202,13 @@ export default function PosScreen() {
     onError: (err) => setSnack(apiErrorMessage(err, 'Could not record the sale.')),
   });
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.Content title="Point of sale" titleStyle={styles.title} />
-        <Chip compact style={[styles.syncChip, { backgroundColor: sync.online === false ? '#FEF3C7' : '#DCFCE7' }]}>
-          {sync.online === false ? 'Offline' : 'Online'}
+        <Appbar.Content title="Point of sale" />
+        <Chip compact style={[styles.syncChip, { backgroundColor: sync.online === false ? colors.errorContainer : colors.tertiaryContainer }]}>
+          <Text style={{ color: sync.online === false ? colors.onErrorContainer : colors.onTertiaryContainer }}>
+            {sync.online === false ? 'Offline' : 'Online'}
+          </Text>
         </Chip>
         <Appbar.Action icon="refresh" onPress={() => { sync.flush().catch(() => undefined); productsQuery.refetch(); }} accessibilityLabel="Sync" />
       </Appbar.Header>
@@ -224,7 +226,6 @@ export default function PosScreen() {
           onChangeText={setSearch}
           left={<TextInput.Icon icon="magnify" />}
           right={search ? <TextInput.Icon icon="close" onPress={() => setSearch('')} /> : undefined}
-          style={styles.searchInput}
         />
       </View>
 
@@ -250,14 +251,14 @@ export default function PosScreen() {
                     <Text variant="bodySmall" style={styles.productMeta}>
                       {item.category || 'Uncategorised'} · {formatGhs(item.price)}
                     </Text>
-                    <Text variant="bodySmall" style={[styles.productStock, { color: inStock ? '#16A34A' : '#DC2626' }]}>
+                    <Text variant="bodySmall" style={[styles.productStock, { color: inStock ? colors.tertiary : colors.error }]}>
                       {inStock
                         ? `${variants.reduce((s, v) => s + Number(v.stockQuantity), 0)} in stock`
                         : 'Out of stock'}
                       {variants.length > 1 ? ` · ${variants.length} options` : ''}
                     </Text>
                   </View>
-                  <IconButton icon={inStock ? 'plus-circle' : 'minus-circle-outline'} iconColor={inStock ? '#0066FF' : '#94A3B8'} disabled={!inStock} onPress={() => tapProduct(item)} />
+                  <IconButton icon={inStock ? 'plus-circle' : 'minus-circle-outline'} iconColor={inStock ? colors.primary : colors.outline} disabled={!inStock} onPress={() => tapProduct(item)} />
                 </View>
               </Card>
             );
@@ -267,9 +268,9 @@ export default function PosScreen() {
 
       {/* Offline queue panel: pending + failed sales with retry/discard. */}
       {sync.entries.length > 0 ? (
-        <Card mode="elevated" style={styles.outboxCard}>
+        <Card mode="elevated" style={[{ marginHorizontal: 16, marginBottom: 8 }, { backgroundColor: colors.errorContainer }]}>
           <View style={styles.outboxBody}>
-            <Text variant="titleSmall" style={styles.outboxTitle}>
+            <Text variant="titleSmall" style={[styles.outboxTitle, { color: colors.onErrorContainer }]}>
               Offline queue ({sync.entries.length})
             </Text>
             {sync.entries.map((e) => (
@@ -278,14 +279,14 @@ export default function PosScreen() {
                   <Text variant="bodyMedium" style={styles.productName} numberOfLines={1}>
                     {e.payload.items.length} item{e.payload.items.length === 1 ? '' : 's'} · {e.payload.paymentMethod}
                   </Text>
-                  <Text variant="bodySmall" style={{ color: e.status === 'failed' ? '#DC2626' : '#92400E' }}>
+                  <Text variant="bodySmall" style={{ color: e.status === 'failed' ? colors.error : colors.onSurfaceVariant }}>
                     {e.status === 'failed' ? e.error || 'Rejected' : 'Waiting to sync'} · {new Date(e.createdAt).toLocaleTimeString()}
                   </Text>
                 </View>
                 {e.status === 'failed' ? (
                   <>
                     <Button compact mode="outlined" onPress={() => retryEntry(e.saleId)}>Retry</Button>
-                    <Button compact mode="text" textColor="#DC2626" onPress={() => discardEntry(e.saleId)}>Drop</Button>
+                    <Button compact mode="text" textColor={colors.error} onPress={() => discardEntry(e.saleId)}>Drop</Button>
                   </>
                 ) : null}
               </View>
@@ -295,7 +296,7 @@ export default function PosScreen() {
       ) : null}
       {/* Cart + charge bar pinned to the bottom. */}
       {cart.length > 0 ? (
-        <View style={styles.cartBar}>
+        <View style={[styles.cartBar, { backgroundColor: colors.surface, borderTopColor: colors.outlineVariant }]}>
           <ScrollView style={styles.cartLines}>
             {cart.map((l) => (
               <View key={l.variantId} style={styles.cartRow}>
@@ -320,7 +321,7 @@ export default function PosScreen() {
             onChangeText={setPhone}
             keyboardType="phone-pad"
             left={<TextInput.Icon icon="phone" />}
-            style={styles.phoneInput}
+            style={{ marginTop: 8 }}
           />
           {loyaltyProfile?.customer ? (
             <Chip compact style={styles.loyaltyChip}>
@@ -355,8 +356,8 @@ export default function PosScreen() {
           ) : null}
 
           <View style={styles.totalRow}>
-            <Text variant="titleMedium" style={styles.totalLabel}>Total</Text>
-            <Text variant="headlineSmall" style={styles.totalValue}>{formatGhs(total)}</Text>
+            <Text variant="titleMedium" style={[styles.totalLabel, { color: colors.onSurface }]}>Total</Text>
+            <Text variant="headlineSmall" style={[styles.totalValue, { color: colors.primary }]}>{formatGhs(total)}</Text>
           </View>
           <Button
             mode="contained"
@@ -419,33 +420,29 @@ export default function PosScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   syncChip: { marginRight: 4 },
   searchRow: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  searchInput: { backgroundColor: '#FFFFFF' },
   list: { padding: 16, paddingTop: 8, paddingBottom: 24 },
   productCard: { marginBottom: 10 },
   productBody: { flexDirection: 'row', alignItems: 'center', padding: 12 },
-  productName: { color: '#0F172A', fontWeight: '700' },
-  productMeta: { color: '#64748B', marginTop: 2 },
+  productName: { fontWeight: '700' },
+  productMeta: { marginTop: 2 },
   productStock: { marginTop: 4, fontWeight: '600' },
-  outboxCard: { backgroundColor: '#FFFBEB', marginHorizontal: 16, marginBottom: 8 },
   outboxBody: { padding: 12 },
-  outboxTitle: { color: '#92400E', fontWeight: '700', marginBottom: 6 },
-  outboxRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: '#FDE68A55' },
-  cartBar: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', padding: 12 },
+  outboxTitle: { fontWeight: '700', marginBottom: 6 },
+  outboxRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: 'rgba(128,128,128,0.2)' },
+  cartBar: { borderTopWidth: 1, padding: 12 },
   cartLines: { maxHeight: 150 },
   cartRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  cartName: { color: '#0F172A', fontWeight: '600' },
-  qty: { color: '#0F172A', fontWeight: '700', minWidth: 24, textAlign: 'center' },
-  phoneInput: { backgroundColor: '#FFFFFF', marginTop: 8 },
-  loyaltyChip: { backgroundColor: '#DCFCE7', marginTop: 8, alignSelf: 'flex-start' },
+  cartName: { fontWeight: '600' },
+  qty: { fontWeight: '700', minWidth: 24, textAlign: 'center' },
+  loyaltyChip: { backgroundColor: '#CFEEDE', marginTop: 8, alignSelf: 'flex-start' },
   redeemBtn: { marginTop: 8, alignSelf: 'flex-start' },
   payRow: { marginTop: 10 },
   totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-  totalLabel: { color: '#0F172A', fontWeight: '700' },
-  totalValue: { color: '#0066FF', fontWeight: '800' },
+  totalLabel: { fontWeight: '700' },
+  totalValue: { fontWeight: '800' },
   chargeBtn: { marginTop: 10 },
   variantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
 });

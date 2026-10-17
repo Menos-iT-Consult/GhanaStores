@@ -37,9 +37,9 @@ export default function CustomersScreen() {
   const customers: Customer[] = data?.pages.flatMap((p) => p.customers) ?? [];
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.Content title="Customers" titleStyle={styles.title} />
+        <Appbar.Content title="Customers" />
       </Appbar.Header>
 
       <View style={styles.searchRow}>
@@ -52,7 +52,6 @@ export default function CustomersScreen() {
           onSubmitEditing={() => setQuery(search.trim())}
           left={<TextInput.Icon icon="magnify" />}
           right={search ? <TextInput.Icon icon="close" onPress={() => { setSearch(''); setQuery(''); }} /> : undefined}
-          style={styles.searchInput}
         />
       </View>
 
@@ -78,7 +77,7 @@ export default function CustomersScreen() {
           renderItem={({ item }) => {
             const msisdn = toMsisdn(item.phone);
             return (
-              <Card mode="elevated" style={styles.card}>
+              <Card mode="elevated">
                 <View style={styles.cardBody}>
                   <View style={{ flex: 1, marginRight: 8 }}>
                     <Text variant="titleMedium" style={styles.name} numberOfLines={1}>{item.name}</Text>
@@ -92,7 +91,7 @@ export default function CustomersScreen() {
                   </View>
                   <View style={styles.actions}>
                     <IconButton icon="phone" onPress={() => Linking.openURL(`tel:${msisdn}`)} accessibilityLabel="Call" />
-                    <IconButton icon="whatsapp" iconColor="#16A34A" onPress={() => Linking.openURL(`https://wa.me/${msisdn}`)} accessibilityLabel="WhatsApp" />
+                    <IconButton icon="whatsapp" iconColor={colors.tertiary} onPress={() => Linking.openURL(`https://wa.me/${msisdn}`)} accessibilityLabel="WhatsApp" />
                   </View>
                 </View>
               </Card>
@@ -105,16 +104,13 @@ export default function CustomersScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   searchRow: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  searchInput: { backgroundColor: '#FFFFFF' },
   list: { padding: 16, paddingTop: 8, gap: 12, paddingBottom: 24 },
-  card: { backgroundColor: '#FFFFFF' },
   cardBody: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  name: { color: '#0F172A', fontWeight: '700' },
-  meta: { color: '#64748B', marginTop: 2 },
-  pointsChip: { backgroundColor: '#DCFCE7', marginTop: 8, alignSelf: 'flex-start' },
-  pointsText: { color: '#166534', fontWeight: '700' },
+  name: { fontWeight: '700' },
+  meta: { marginTop: 2 },
+  pointsChip: { backgroundColor: '#CFEEDE', marginTop: 8, alignSelf: 'flex-start' },
+  pointsText: { color: '#0B6B45', fontWeight: '700' },
   actions: { alignItems: 'center' },
 });

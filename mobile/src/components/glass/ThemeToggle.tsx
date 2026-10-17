@@ -1,16 +1,17 @@
 import React from 'react';
-import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTheme } from 'react-native-paper';
 import { useThemeMode } from '@/theme/ThemeContext';
-import { ACCENT } from '@/theme';
 
 /**
- * Sun / Moon theme toggle. Tapping runs a spring rotation (0 -> 1 mapped to
- * the toggleAnim value) and persists the choice. Theme-aware so the icon and
- * ring read correctly on both light and dark glass.
+ * Light/dark toggle button (sun / moon). Tapping runs a spring rotation and
+ * persists the choice. Coloured from the Paper theme so it reads correctly
+ * as a standard M3 icon button on either surface.
  */
 export function ThemeToggle() {
   const { isDark, toggleTheme, toggleAnim } = useThemeMode();
+  const { colors } = useTheme();
 
   const iconName = isDark ? 'weather-sunny' : 'moon-waning-crescent';
   // Rotate 180deg over the spring so the icon spins on toggle.
@@ -27,12 +28,8 @@ export function ThemeToggle() {
       onPress={toggleTheme}
       style={styles.container}
     >
-      <Animated.View style={[styles.ring, { transform: [{ rotate }] }]}>
-        <MaterialCommunityIcons
-          name={iconName}
-          size={20}
-          color={isDark ? '#FBBF24' : '#1E40AF'}
-        />
+      <Animated.View style={[styles.ring, { transform: [{ rotate }], borderColor: colors.outline }]}>
+        <MaterialCommunityIcons name={iconName} size={20} color={colors.onSurface} />
       </Animated.View>
     </TouchableOpacity>
   );
@@ -46,12 +43,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.16)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
   },
 });

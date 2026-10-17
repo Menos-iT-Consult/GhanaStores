@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import LottieView from 'lottie-react-native';
 import { useRouter } from 'expo-router';
 import { ONBOARDING_SLIDES, type OnboardingSlide } from '@/onboarding/slides';
@@ -17,6 +17,7 @@ import { setOnboarded } from '@/onboarding/onboarded';
  */
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { width, height } = useWindowDimensions();
   const listRef = useRef<FlatList<OnboardingSlide>>(null);
   const [index, setIndex] = useState(0);
@@ -58,10 +59,10 @@ export default function WelcomeScreen() {
         <View style={[styles.artWrap, { width: artSize, height: artSize }]}>
           <LottieView source={item.source} autoPlay loop style={{ width: artSize, height: artSize }} />
         </View>
-        <Text variant="headlineSmall" style={[styles.title, { fontSize: titleSize }]}>
+        <Text variant="headlineSmall" style={[styles.title, { fontSize: titleSize, color: colors.onSurface }]}>
           {item.title}
         </Text>
-        <Text variant="bodyMedium" style={[styles.body, { fontSize: bodySize }]}>
+        <Text variant="bodyMedium" style={[styles.body, { fontSize: bodySize, color: colors.onSurfaceVariant }]}>
           {item.body}
         </Text>
       </View>
@@ -70,12 +71,12 @@ export default function WelcomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text variant="titleSmall" style={styles.brand}>DiDwa Seller</Text>
+        <Text variant="titleSmall" style={[styles.brand, { color: colors.onSurfaceVariant }]}>DiDwa Seller</Text>
         {!isLast && (
           <Pressable onPress={goToLogin} hitSlop={12} accessibilityRole="button">
-            <Text variant="labelLarge" style={styles.skip}>Skip</Text>
+            <Text variant="labelLarge" style={[styles.skip, { color: colors.onSurfaceVariant }]}>Skip</Text>
           </Pressable>
         )}
       </View>
@@ -100,15 +101,15 @@ export default function WelcomeScreen() {
           onPress={goNext}
           accessibilityRole="button"
           accessibilityLabel={isLast ? 'Get started' : 'Next'}
-          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+          style={({ pressed }) => [styles.cta, { backgroundColor: colors.primary }, pressed && styles.ctaPressed]}
         >
-          <Text variant="titleMedium" style={styles.ctaText}>
+          <Text variant="titleMedium" style={[styles.ctaText, { color: colors.onPrimary }]}>
             {isLast ? 'Get Started' : 'Next'}
           </Text>
         </Pressable>
         {!isLast && (
           <Pressable onPress={() => goToSlide(ONBOARDING_SLIDES.length - 1)} hitSlop={8} style={styles.allset}>
-            <Text variant="bodySmall" style={styles.allsetText}>I've seen this before</Text>
+            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>I've seen this before</Text>
           </Pressable>
         )}
       </View>
@@ -117,7 +118,7 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -125,24 +126,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
   },
-  brand: { color: '#94A3B8', fontWeight: '600', letterSpacing: 0.4 },
-  skip: { color: '#64748B', fontWeight: '600' },
+  brand: { fontWeight: '600', letterSpacing: 0.4 },
+  skip: { fontWeight: '600' },
   slide: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   artWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: 28 },
-  title: { color: '#0F172A', fontWeight: '800', textAlign: 'center' },
-  body: { color: '#64748B', textAlign: 'center', marginTop: 12, lineHeight: 22 },
+  title: { fontWeight: '800', textAlign: 'center' },
+  body: { textAlign: 'center', marginTop: 12, lineHeight: 22 },
   footer: { alignItems: 'center', paddingHorizontal: 24, paddingBottom: 16 },
   cta: {
     marginTop: 28,
     width: '100%',
     maxWidth: 480,
-    backgroundColor: '#0066FF',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
   },
   ctaPressed: { opacity: 0.85 },
-  ctaText: { color: '#FFFFFF', fontWeight: '700' },
+  ctaText: { fontWeight: '700' },
   allset: { marginTop: 16, padding: 4 },
-  allsetText: { color: '#94A3B8' },
 });

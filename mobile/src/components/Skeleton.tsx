@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useTheme } from 'react-native-paper';
 
 /**
- * Lightweight pulsing placeholder blocks. The app prefers skeletons over a
- * centered spinner for first paint so the layout doesn't jump when data lands.
+ * Lightweight pulsing placeholder blocks, tinted from the Paper theme so
+ * they read on both light and dark surfaces (surfaceContainer tiers).
  */
 function Pulse({ style }: { style: StyleProp<ViewStyle> }) {
   const opacity = useRef(new Animated.Value(0.4)).current;
@@ -19,32 +20,35 @@ function Pulse({ style }: { style: StyleProp<ViewStyle> }) {
     return () => loop.stop();
   }, [opacity]);
 
-  return <Animated.View style={[styles.block, style, { opacity }]} />;
+  return <Animated.View style={[style, { opacity }]} />;
 }
 
 /** A single placeholder block (stat card, list row, chart area…). */
 export function SkeletonBlock({ height = 16, width, style }: { height?: number; width?: number | `${number}%`; style?: StyleProp<ViewStyle> }) {
-  return <Pulse style={[{ height }, width != null ? { width } : null, style]} />;
+  const { colors } = useTheme();
+  return <Pulse style={[{ height }, width != null ? { width } : null, style, { backgroundColor: colors.surfaceVariant }]} />;
 }
 
-/** A stat-card-sized skeleton (two per row, matching the StatCard grid). */
+/** A stat-card-sized skeleton (two per row, matching the metric grid). */
 export function StatCardSkeleton() {
+  const { colors } = useTheme();
   return (
     <View style={styles.statRow}>
-      <Pulse style={styles.statCard} />
-      <Pulse style={styles.statCard} />
+      <Pulse style={[styles.statCard, { backgroundColor: colors.surfaceVariant }]} />
+      <Pulse style={[styles.statCard, { backgroundColor: colors.surfaceVariant }]} />
     </View>
   );
 }
 
 /** A list-row skeleton used under section headers. */
 export function RowSkeleton() {
+  const { colors } = useTheme();
   return (
-    <View style={styles.row}>
-      <Pulse style={styles.rowIcon} />
+    <View style={[styles.row, { backgroundColor: colors.surfaceVariant }]}>
+      <Pulse style={[styles.rowIcon, { backgroundColor: colors.surface }]} />
       <View style={styles.rowBody}>
-        <Pulse style={[styles.rowLine, { width: '70%' }]} />
-        <Pulse style={[styles.rowLine, { marginTop: 6, width: '45%' }]} />
+        <Pulse style={[styles.rowLine, { width: '70%', backgroundColor: colors.surface }]} />
+        <Pulse style={[styles.rowLine, { marginTop: 6, width: '45%', backgroundColor: colors.surface }]} />
       </View>
     </View>
   );
@@ -62,12 +66,11 @@ export function SectionSkeleton({ rows = 3 }: { rows?: number }) {
 }
 
 const styles = StyleSheet.create({
-  block: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10 },
   statRow: { flexDirection: 'row', marginHorizontal: -6 },
-  statCard: { flex: 1, height: 92, margin: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10 },
+  statCard: { flex: 1, height: 92, margin: 6, borderRadius: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 14, marginBottom: 10 },
   rowIcon: { width: 38, height: 38, borderRadius: 19, marginRight: 12 },
   rowBody: { flex: 1 },
-  rowLine: { height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.08)' },
+  rowLine: { height: 12, borderRadius: 6 },
 });
 

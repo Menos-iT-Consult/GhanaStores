@@ -4,7 +4,6 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { GlassCard } from './GlassCard';
 import { useGlass, type GlassTokens } from './glass';
 import { useCountUp } from './useCountUp';
-import { ACCENT } from '@/theme';
 
 export interface Metric {
   label: string;
@@ -39,15 +38,14 @@ export function MetricGrid({ metrics }: { metrics: [Metric, Metric, Metric, Metr
 
 function MetricCell({ metric, g }: { metric: Metric; g: GlassTokens }) {
   const animated = useCountUp(metric.value);
-  const chipBg = metric.accent === ACCENT.revenue ? 'rgba(16,185,129,0.18)' :
-                 metric.accent === ACCENT.orders ? 'rgba(139,92,246,0.18)' :
-                 metric.accent === ACCENT.pos ? 'rgba(6,182,212,0.18)' :
-                 'rgba(245,158,11,0.18)';
+  // Soft accent-tinted icon chip: accent at ~10% alpha reads as an M3
+  // tonal container over either surface.
+  const chipBg = metric.accent + '1A';
   return (
     <View style={styles.cell}>
-      <GlassCard variant="light" style={[styles.card, { borderColor: metric.accent + '33' }]}>
-        <View style={[styles.top, { borderColor: metric.accent + '44' }]}>
-          <View style={[styles.iconChip(g), { borderColor: metric.accent + '66', backgroundColor: chipBg }]}>
+      <GlassCard style={styles.card}>
+        <View style={styles.top}>
+          <View style={[styles.iconChip, { backgroundColor: chipBg }]}>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <MaterialCommunityIcons name={metric.icon as any} size={17} color={metric.accent} />
           </View>
@@ -70,16 +68,15 @@ const styles = {
   cell: { flex: 1 },
   card: { padding: 15 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 } satisfies ViewStyle,
-  iconChip: (g: GlassTokens): ViewStyle => ({
+  iconChip: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  }),
-  dot: { width: 9, height: 9, borderRadius: 4.5 },
-  value: (g: GlassTokens): TextStyle => ({ color: g.ink, fontSize: 19, fontWeight: '800' }),
+  } satisfies ViewStyle,
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  value: (g: GlassTokens): TextStyle => ({ color: g.ink, fontSize: 19, fontWeight: '700' }),
   label: (g: GlassTokens): TextStyle => ({ color: g.muted, fontSize: 12, marginTop: 2 }),
 };
 

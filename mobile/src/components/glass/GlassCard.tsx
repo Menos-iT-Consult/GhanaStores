@@ -1,17 +1,18 @@
 import React from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useGlass, type GlassTokens } from './glass';
 
 export type GlassVariant = 'light' | 'blue' | 'emerald' | 'amber';
 
+/** M3 container fills for the accent variants. */
 const VARIANT_FILL = (g: GlassTokens, variant: GlassVariant): string => {
   switch (variant) {
     case 'blue':
       return g.blueFill;
     case 'emerald':
-      return 'rgba(16,185,129,0.16)';
+      return g.emerald;
     case 'amber':
-      return 'rgba(245,158,11,0.16)';
+      return g.amber;
     case 'light':
     default:
       return g.card;
@@ -19,9 +20,8 @@ const VARIANT_FILL = (g: GlassTokens, variant: GlassVariant): string => {
 };
 
 /**
- * Translucent frosted card: theme-aware (dark slate rgba(15,23,42,0.80) in
- * dark mode), 20px rounded corners, 1px color-tinted glowing border, soft
- * floating directional shadow. Faked frost — no new native deps.
+ * Standard Material card: solid surface, 12px corners, outlineVariant
+ * hairline, barely-there shadow. Accent variants use a soft container fill.
  */
 export function GlassCard({
   variant = 'light',
@@ -33,11 +33,16 @@ export function GlassCard({
   children: React.ReactNode;
 }) {
   const g = useGlass();
+  const tinted = variant !== 'light';
   return (
     <View
       style={[
         styles.base(g),
-        { backgroundColor: VARIANT_FILL(g, variant) },
+        {
+          backgroundColor: VARIANT_FILL(g, variant),
+          // Tinted variants stay flat (no border/shadow on a colored fill).
+          borderColor: tinted ? 'transparent' : g.glassBorder,
+        },
         style,
       ]}
     >
@@ -47,10 +52,9 @@ export function GlassCard({
 }
 
 const styles = {
-  base: (g: GlassTokens) => ({
+  base: (g: GlassTokens): ViewStyle => ({
     borderRadius: g.radius,
     borderWidth: 1,
-    borderColor: g.glassBorder,
     ...g.shadow,
   }),
 };

@@ -1,36 +1,23 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { View } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 
 /**
- * Animated micro-sparkline: emerald neon trail with a looping pulse dot
- * riding at the latest value. Pure react-native-svg (already a dep) —
+ * Quiet micro-sparkline: a soft accent trail under a solid accent line with
+ * a small dot at the latest value. Pure react-native-svg (already a dep) —
  * no chart lib needed, so the old BarChart native crash vector is gone.
  */
 export function Sparkline({
   values,
   width = 170,
   height = 52,
-  stroke = '#10B981',
+  stroke = '#0066FF',
 }: {
   values: number[];
   width?: number;
   height?: number;
   stroke?: string;
 }) {
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
   const safe = values.length > 1 ? values : [0, 0];
   const max = Math.max(...safe, 1);
   const min = Math.min(...safe, 0);
@@ -49,46 +36,28 @@ export function Sparkline({
   return (
     <View style={{ width, height }}>
       <Svg width={width} height={height}>
-        {/* soft neon trail */}
+        {/* soft accent trail */}
         <Polyline
           points={pts}
           fill="none"
           stroke={stroke}
-          strokeOpacity={0.3}
-          strokeWidth={7}
+          strokeOpacity={0.2}
+          strokeWidth={6}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* bright core line */}
+        {/* crisp accent line */}
         <Polyline
           points={pts}
           fill="none"
-          stroke="#FFFFFF"
-          strokeOpacity={0.9}
+          stroke={stroke}
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <Circle cx={lastX} cy={lastY} r={6} fill={stroke} opacity={0.35} />
-        <Circle cx={lastX} cy={lastY} r={3} fill="#FFFFFF" />
+        <Circle cx={lastX} cy={lastY} r={4} fill={stroke} opacity={0.25} />
+        <Circle cx={lastX} cy={lastY} r={2.5} fill={stroke} />
       </Svg>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.dot,
-          { left: lastX - 9, top: lastY - 9, opacity: pulse, borderColor: stroke },
-        ]}
-      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  dot: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-  },
-});

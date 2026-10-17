@@ -152,10 +152,10 @@ export default function ProductEditorScreen() {
     return <ErrorState message={listQuery.isError ? apiErrorMessage(listQuery.error) : 'Product not found.'} onRetry={listQuery.refetch} />;
   }
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title={isNew ? 'Add product' : 'Edit product'} titleStyle={styles.title} />
+        <Appbar.Content title={isNew ? 'Add product' : 'Edit product'} />
       </Appbar.Header>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -169,8 +169,8 @@ export default function ProductEditorScreen() {
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text variant="titleSmall" style={styles.label}>Photo</Text>
-              <Text variant="bodySmall" style={styles.muted}>Shown on your storefront and in POS search.</Text>
+              <Text variant="titleSmall" style={[styles.label, { color: colors.onSurface }]}>Photo</Text>
+              <Text variant="bodySmall" style={[styles.muted, { color: colors.onSurfaceVariant }]}>Shown on your storefront and in POS search.</Text>
               <Button mode="outlined" compact icon="image-plus" loading={savingImage} disabled={savingImage} onPress={pickImage} style={{ marginTop: 8, alignSelf: 'flex-start' }}>
                 {imageUrl ? 'Replace image' : 'Upload image'}
               </Button>
@@ -189,10 +189,10 @@ export default function ProductEditorScreen() {
             ) : null}
             <View style={styles.activeRow}>
               <View style={{ flex: 1 }}>
-                <Text variant="bodyLarge" style={styles.label}>Available for sale</Text>
-                <Text variant="bodySmall" style={styles.muted}>Off = hidden and marked sold out everywhere.</Text>
+                <Text variant="bodyLarge" style={[styles.label, { color: colors.onSurface }]}>Available for sale</Text>
+                <Text variant="bodySmall" style={[styles.muted, { color: colors.onSurfaceVariant }]}>Off = hidden and marked sold out everywhere.</Text>
               </View>
-              <Switch value={isActive} onValueChange={setIsActive} color="#0066FF" />
+              <Switch value={isActive} onValueChange={setIsActive} color={colors.primary} />
             </View>
           </View>
         </Card>
@@ -200,12 +200,12 @@ export default function ProductEditorScreen() {
         {!isNew && product ? (
           <Card mode="elevated" style={styles.card}>
             <View style={styles.formBody}>
-              <Text variant="titleSmall" style={styles.sectionTitle}>Stock by option</Text>
+              <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurface }]}>Stock by option</Text>
               {(product.variants ?? []).filter((v) => v.id).map((v, i) => (
-                <View key={v.id} style={[styles.variantRow, i > 0 && styles.divider]}>
+                <View key={v.id} style={[styles.variantRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.outlineVariant }]}>
                   <View style={{ flex: 1 }}>
-                    <Text variant="bodyLarge" style={styles.label}>{v.optionValue}</Text>
-                    <Text variant="bodySmall" style={[styles.muted, { color: Number(v.stockQuantity) <= 5 ? '#DC2626' : undefined }]}>
+                    <Text variant="bodyLarge" style={[styles.label, { color: colors.onSurface }]}>{v.optionValue}</Text>
+                    <Text variant="bodySmall" style={[styles.muted, { color: Number(v.stockQuantity) <= 5 ? colors.error : colors.onSurfaceVariant }]}>
                       {v.stockQuantity} in stock
                     </Text>
                   </View>
@@ -266,21 +266,19 @@ export default function ProductEditorScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
-  card: { backgroundColor: '#FFFFFF', marginBottom: 14 },
+  card: { marginBottom: 14 },
   formBody: { padding: 16 },
-  label: { color: '#0F172A', fontWeight: '600' },
-  muted: { color: '#64748B', marginTop: 2 },
-  input: { backgroundColor: '#FFFFFF', marginBottom: 12 },
-  sectionTitle: { color: '#0F172A', fontWeight: '700', marginBottom: 8 },
+  label: { fontWeight: '600' },
+  muted: { marginTop: 2 },
+  input: { marginBottom: 12 },
+  sectionTitle: { fontWeight: '700', marginBottom: 8 },
   activeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  saveBtn: { marginTop: 4, backgroundColor: '#0066FF' },
+  saveBtn: { marginTop: 4 },
   imageRow: { flexDirection: 'row', padding: 16, alignItems: 'center' },
   image: { width: 84, height: 84, borderRadius: 12, marginRight: 16 },
-  imagePlaceholder: { backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
+  imagePlaceholder: { backgroundColor: '#EEF1F5', alignItems: 'center', justifyContent: 'center' },
   thumbLetter: { color: '#94A3B8', fontSize: 28, fontWeight: '700' },
   variantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  divider: { borderTopWidth: 1, borderTopColor: '#F1F5F9' },
 });

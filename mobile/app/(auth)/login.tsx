@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Text, TextInput, Snackbar, ActivityIndicator } from 'react-native-paper';
+import { Button, Card, Text, TextInput, Snackbar, ActivityIndicator, useTheme } from 'react-native-paper';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
 
@@ -28,6 +28,7 @@ function openExternal(url: string) {
  */
 export default function LoginScreen() {
   const { signIn, completeTwoFactor } = useAuth();
+  const { colors } = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -93,22 +94,22 @@ export default function LoginScreen() {
   const footerAnim = { opacity: footer };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Animated.View style={[styles.brand, brandAnim]}>
           <View style={styles.logoShadow}>
             <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="cover" />
           </View>
-          <Text variant="headlineMedium" style={styles.logoWord}>DiDwa</Text>
-          <Text variant="bodyMedium" style={styles.tagline}>Seller App</Text>
+          <Text variant="headlineMedium" style={[styles.logoWord, { color: colors.onSurface }]}>DiDwa</Text>
+          <Text variant="bodyMedium" style={[styles.tagline, { color: colors.onSurfaceVariant }]}>Seller App</Text>
         </Animated.View>
         <Animated.View style={cardAnim}>
           <Card mode="elevated" style={styles.card}>
             <View style={styles.cardBody}>
               {twoFactor ? (
                 <>
-                  <Text variant="titleLarge" style={styles.heading}>Two-factor verification</Text>
-                  <Text variant="bodyMedium" style={styles.subheading}>
+                  <Text variant="titleLarge" style={[styles.heading, { color: colors.onSurface }]}>Two-factor verification</Text>
+                  <Text variant="bodyMedium" style={[styles.subheading, { color: colors.onSurfaceVariant }]}>
                     Enter the 6-digit code from your authenticator app.
                   </Text>
                   <TextInput
@@ -120,7 +121,6 @@ export default function LoginScreen() {
                     maxLength={8}
                     mode="outlined"
                     style={styles.input}
-                    theme={inputTheme}
                     autoFocus
                   />
                   <Button
@@ -139,15 +139,15 @@ export default function LoginScreen() {
                       setCode('');
                     }}
                     style={styles.back}
-                    textColor="#64748B"
+                    textColor={colors.onSurfaceVariant}
                   >
                     Back to sign in
                   </Button>
                 </>
               ) : (
                 <>
-                  <Text variant="titleLarge" style={styles.heading}>Welcome back 👋</Text>
-                  <Text variant="bodyMedium" style={styles.subheading}>
+                  <Text variant="titleLarge" style={[styles.heading, { color: colors.onSurface }]}>Welcome back 👋</Text>
+                  <Text variant="bodyMedium" style={[styles.subheading, { color: colors.onSurfaceVariant }]}>
                     Sign in to manage your store on the go.
                   </Text>
                   <TextInput
@@ -159,7 +159,6 @@ export default function LoginScreen() {
                     keyboardType="email-address"
                     mode="outlined"
                     style={styles.input}
-                    theme={inputTheme}
                   />
                   <TextInput
                     label="Password"
@@ -169,11 +168,10 @@ export default function LoginScreen() {
                     autoCapitalize="none"
                     mode="outlined"
                     style={styles.input}
-                    theme={inputTheme}
                     right={<TextInput.Icon icon={secure ? 'eye' : 'eye-off'} onPress={() => setSecure((s) => !s)} />}
                   />
                   <Pressable onPress={() => openExternal(RESET_URL)} hitSlop={8} style={styles.forgot}>
-                    <Text variant="bodySmall" style={styles.forgotText}>Forgot password?</Text>
+                    <Text variant="bodySmall" style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
                   </Pressable>
                   <Button
                     mode="contained"
@@ -191,9 +189,9 @@ export default function LoginScreen() {
         </Animated.View>
 
         <Animated.View style={[styles.signup, footerAnim]}>
-          <Text variant="bodyMedium" style={styles.signupPrompt}>No account yet?</Text>
+          <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>No account yet?</Text>
           <Pressable onPress={() => openExternal(SIGNUP_URL)} hitSlop={8} accessibilityRole="link">
-            <Text variant="bodyMedium" style={styles.signupLink}>Create one on DiDwa Web</Text>
+            <Text variant="bodyMedium" style={[styles.signupLink, { color: colors.primary }]}>Create one on DiDwa Web</Text>
           </Pressable>
         </Animated.View>
 
@@ -205,18 +203,9 @@ export default function LoginScreen() {
   );
 }
 
-/** Subtle brand-tinted outline + white field background for the text inputs. */
-const inputTheme = {
-  colors: {
-    primary: '#0066FF',
-    background: '#FFFFFF',
-  },
-  roundness: 12,
-};
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8FAFC' },
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  safe: { flex: 1 },
+  root: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 },
   brand: { alignItems: 'center', marginBottom: 28 },
   logoShadow: {
@@ -228,19 +217,18 @@ const styles = StyleSheet.create({
     borderRadius: 26,
   },
   logo: { width: 96, height: 96, borderRadius: 26 },
-  logoWord: { color: '#0F172A', fontWeight: '800', letterSpacing: 0.5, marginTop: 14 },
-  tagline: { color: '#64748B', marginTop: 2 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 20 },
+  logoWord: { fontWeight: '800', letterSpacing: 0.5, marginTop: 14 },
+  tagline: { marginTop: 2 },
+  card: { borderRadius: 20 },
   cardBody: { padding: 22 },
-  heading: { color: '#0F172A', fontWeight: '700' },
-  subheading: { color: '#64748B', marginTop: 4, marginBottom: 18 },
-  input: { marginBottom: 14, backgroundColor: '#FFFFFF' },
+  heading: { fontWeight: '700' },
+  subheading: { marginTop: 4, marginBottom: 18 },
+  input: { marginBottom: 14 },
   forgot: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 8 },
-  forgotText: { color: '#0066FF', fontWeight: '600' },
-  button: { marginTop: 6, backgroundColor: '#0066FF', borderRadius: 12 },
+  forgotText: { fontWeight: '600' },
+  button: { marginTop: 6, borderRadius: 12 },
   buttonContent: { height: 50 },
   back: { marginTop: 10 },
   signup: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 26, flexWrap: 'wrap' },
-  signupPrompt: { color: '#64748B' },
-  signupLink: { color: '#0066FF', fontWeight: '700', marginLeft: 6 },
+  signupLink: { fontWeight: '700', marginLeft: 6 },
 });

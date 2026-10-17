@@ -46,7 +46,7 @@ export function OpsWidget({
 const styles = {
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 } satisfies ViewStyle,
   card: (g: GlassTokens): ViewStyle => ({ marginTop: 12, padding: 16 }),
-  alert: (g: GlassTokens): ViewStyle => ({ borderColor: 'rgba(245,158,11,0.45)', borderWidth: 1 }),
+  alert: (g: GlassTokens): ViewStyle => ({ backgroundColor: 'rgba(245,158,11,0.14)', borderColor: 'transparent' }),
   title: (g: GlassTokens): TextStyle => ({ color: g.ink, fontWeight: '700' }),
   muted: (g: GlassTokens): TextStyle => ({ color: g.muted }),
 };

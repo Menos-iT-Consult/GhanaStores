@@ -40,7 +40,7 @@ export function OrdersWidget({
         </Text>
       ) : (
         orders.slice(0, 3).map((o, i) => (
-          <View key={o.id} style={[styles.row, i > 0 && styles.divider]}>
+          <View key={o.id} style={[styles.row, i > 0 && styles.divider(g)]}>
             <View style={styles.main}>
               <Text variant="bodyMedium" style={styles.name(g)} numberOfLines={1}>
                 #{o.orderNumber} · {o.customerName}
@@ -62,7 +62,7 @@ export function OrdersWidget({
 const styles = {
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 } satisfies ViewStyle,
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 } satisfies ViewStyle,
-  divider: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' } satisfies ViewStyle,
+  divider: (g: GlassTokens): ViewStyle => ({ borderTopWidth: 1, borderTopColor: g.glassBorder }),
   main: { flex: 1, marginRight: 10 } satisfies ViewStyle,
   title: (g: GlassTokens): TextStyle => ({ color: g.ink, fontWeight: '700' }),
   muted: (g: GlassTokens): TextStyle => ({ color: g.muted }),

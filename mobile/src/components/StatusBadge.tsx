@@ -1,10 +1,12 @@
 import React from 'react';
 import { Chip } from 'react-native-paper';
 import { statusTone } from '@/theme';
+import { useThemeMode } from '@/theme/ThemeContext';
 
-/** Colour-coded status pill (Pending amber / Processing blue / Completed green). */
+/** Colour-coded status pill with solid tonal colours per light/dark mode. */
 export function StatusBadge({ status }: { status: string }) {
-  const tone = statusTone(status);
+  const { isDark } = useThemeMode();
+  const tone = statusTone(status, isDark);
   return (
     <Chip
       compact

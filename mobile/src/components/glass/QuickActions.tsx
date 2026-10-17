@@ -1,8 +1,7 @@
 import React, { useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Animated, Pressable, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useGlass, type GlassTokens } from './glass';
-import { ACCENT } from '@/theme';
 
 export interface QuickAction {
   label: string;
@@ -14,9 +13,8 @@ export interface QuickAction {
 }
 
 /**
- * Floating glass action chips with a fluid 3D press-lift (scale spring).
- * Dark-mode pills are translucent dark slate with tinted borders; icons pick
- * up the action's category accent (POS & Transactions -> Electric Cyan).
+ * Standard M3 outlined quick-action buttons: surface fill, outlineVariant
+ * hairline, 12px corners, category-tinted icons, soft press feedback.
  */
 export function QuickActions({ actions }: { actions: QuickAction[] }) {
   const g = useGlass();
@@ -68,11 +66,11 @@ const styles = {
     gap: 6,
     backgroundColor: g.card,
     borderWidth: 1,
-    borderRadius: 999,
+    borderColor: g.glassBorder,
+    borderRadius: g.radius,
     paddingVertical: 11,
     paddingHorizontal: 10,
-    ...g.shadow,
   }),
-  label: (g: GlassTokens): TextStyle => ({ color: g.ink, fontSize: 12.5, fontWeight: '700' }),
+  label: (g: GlassTokens): TextStyle => ({ color: g.ink, fontSize: 12.5, fontWeight: '600' }),
 };
 

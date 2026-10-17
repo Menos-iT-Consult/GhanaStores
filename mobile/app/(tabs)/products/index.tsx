@@ -47,9 +47,9 @@ export default function ProductsScreen() {
   const products = data ?? [];
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.Content title="Products" titleStyle={styles.title} />
+        <Appbar.Content title="Products" />
       </Appbar.Header>
 
       {isLoading ? (
@@ -70,7 +70,7 @@ export default function ProductsScreen() {
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
           renderItem={({ item }) => (
-            <Card mode="elevated" style={styles.card} onPress={() => router.push(`/products/${item.id}`)}>
+            <Card mode="elevated" onPress={() => router.push(`/products/${item.id}`)}>
               <View style={styles.cardBody}>
                 {item.imageUrl ? (
                   <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
@@ -84,13 +84,13 @@ export default function ProductsScreen() {
                   <Text variant="bodySmall" style={styles.meta}>
                     {item.category || 'Uncategorised'} · {formatGhs(item.price)}
                   </Text>
-                  <Text variant="bodySmall" style={[styles.stock, { color: item.isActive ? '#16A34A' : '#DC2626' }]}>
+                  <Text variant="bodySmall" style={[styles.stock, { color: item.isActive ? colors.tertiary : colors.error }]}>
                     {item.isActive ? 'In stock' : 'Sold out'}
                   </Text>
                 </View>
                 <Switch
                   value={item.isActive}
-                  color="#0066FF"
+                  color={colors.primary}
                   onValueChange={(v) => stockMutation.mutate({ id: item.id, isActive: v })}
                 />
               </View>
@@ -114,16 +114,14 @@ export default function ProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   list: { padding: 16, gap: 12, paddingBottom: 96 },
-  card: { backgroundColor: '#FFFFFF' },
   cardBody: { flexDirection: 'row', alignItems: 'center', padding: 12 },
   thumb: { width: 52, height: 52, borderRadius: 10, marginRight: 12 },
-  thumbPlaceholder: { backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
+  thumbPlaceholder: { backgroundColor: '#EEF1F5', alignItems: 'center', justifyContent: 'center' },
   thumbLetter: { color: '#475569', fontWeight: '700', fontSize: 20 },
-  name: { color: '#0F172A', fontWeight: '700' },
-  meta: { color: '#64748B', marginTop: 2 },
+  name: { fontWeight: '700' },
+  meta: { marginTop: 2 },
   stock: { marginTop: 4, fontWeight: '700' },
-  fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: '#0066FF' },
+  fab: { position: 'absolute', right: 16, bottom: 16 },
 });

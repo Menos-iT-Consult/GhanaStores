@@ -33,9 +33,9 @@ export default function OrdersScreen() {
   const orders: Order[] = data?.pages.flatMap((p) => p.orders) ?? [];
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.Content title="Orders" titleStyle={styles.title} />
+        <Appbar.Content title="Orders" />
       </Appbar.Header>
 
       <View style={styles.filters}>
@@ -64,18 +64,22 @@ export default function OrdersScreen() {
             if (hasNextPage && !isFetchingNextPage) fetchNextPage();
           }}
           renderItem={({ item }) => (
-            <Card mode="elevated" style={styles.card} onPress={() => router.push(`/orders/${item.id}`)}>
+            <Card mode="elevated" onPress={() => router.push(`/orders/${item.id}`)}>
               <View style={styles.cardBody}>
                 <View style={styles.row}>
-                  <Text variant="titleMedium" style={styles.orderNumber}>
+                  <Text variant="titleMedium" style={[styles.orderNumber, { color: colors.onSurface }]}>
                     #{item.orderNumber}
                   </Text>
-                  <Text variant="titleMedium" style={styles.amount}>
+                  <Text variant="titleMedium" style={[styles.amount, { color: colors.primary }]}>
                     {formatGhs(item.totalAmount)}
                   </Text>
                 </View>
                 <View style={[styles.row, { marginTop: 6 }]}>
-                  <Text variant="bodyMedium" style={styles.customer} numberOfLines={1}>
+                  <Text
+                    variant="bodyMedium"
+                    style={[styles.customer, { color: colors.onSurfaceVariant }]}
+                    numberOfLines={1}
+                  >
                     {item.customer?.name || 'Customer'}
                   </Text>
                   <StatusBadge status={item.status} />
@@ -85,7 +89,7 @@ export default function OrdersScreen() {
           )}
           ListFooterComponent={
             isFetchingNextPage ? (
-              <Text style={styles.footer}>{' '}</Text>
+              <Text style={{ padding: 16, color: colors.onSurfaceVariant, textAlign: 'center' }}>{' '}</Text>
             ) : (
               <View />
             )
@@ -97,15 +101,12 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   filters: { paddingHorizontal: 16, paddingVertical: 10 },
   list: { padding: 16, paddingTop: 4, gap: 12 },
-  card: { backgroundColor: '#FFFFFF' },
   cardBody: { padding: 14 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  orderNumber: { color: '#0F172A', fontWeight: '700' },
-  amount: { color: '#0066FF', fontWeight: '700' },
-  customer: { color: '#64748B', flex: 1, marginRight: 12 },
-  footer: { padding: 16, color: '#94A3B8', textAlign: 'center' },
+  orderNumber: { fontWeight: '700' },
+  amount: { fontWeight: '700' },
+  customer: { flex: 1, marginRight: 12 },
 });

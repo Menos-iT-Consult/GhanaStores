@@ -68,16 +68,16 @@ export default function PaymentsSettingsScreen() {
   if (isError) return <ErrorState message={apiErrorMessage(error)} />;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Payment methods" titleStyle={styles.title} />
+        <Appbar.Content title="Payment methods" />
       </Appbar.Header>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Card mode="elevated" style={styles.card}>
+        <Card mode="elevated">
           <View style={styles.cardBody}>
-            <Text variant="titleSmall" style={styles.sectionTitle}>Paystack</Text>
+            <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Paystack</Text>
             <TextInput label="Public key" value={paystackPublic} onChangeText={setPaystackPublic} autoCapitalize="none" mode="outlined" style={styles.input} />
             <TextInput
               label={settings?.paystack.secretKeyMasked ? `Secret key (${settings.paystack.secretKeyMasked})` : 'Secret key'}
@@ -92,9 +92,9 @@ export default function PaymentsSettingsScreen() {
           </View>
         </Card>
 
-        <Card mode="elevated" style={styles.card}>
+        <Card mode="elevated">
           <View style={styles.cardBody}>
-            <Text variant="titleSmall" style={styles.sectionTitle}>Hubtel</Text>
+            <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Hubtel</Text>
             <TextInput label="Client ID" value={hubtelClientId} onChangeText={setHubtelClientId} autoCapitalize="none" mode="outlined" style={styles.input} />
             <TextInput
               label={settings?.hubtel.clientSecretMasked ? `Client secret (${settings.hubtel.clientSecretMasked})` : 'Client secret'}
@@ -110,17 +110,17 @@ export default function PaymentsSettingsScreen() {
           </View>
         </Card>
 
-        <Card mode="elevated" style={styles.card}>
+        <Card mode="elevated">
           <View style={styles.cardBody}>
             <View style={styles.rowBetween}>
               <View style={{ flex: 1, marginRight: 12 }}>
-                <Text variant="titleSmall" style={styles.sectionTitle}>Cash on Delivery</Text>
-                <Text variant="bodySmall" style={styles.muted}>Let customers pay when the order arrives.</Text>
+                <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Cash on Delivery</Text>
+                <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>Let customers pay when the order arrives.</Text>
               </View>
-              <Switch value={enableCod} onValueChange={setEnableCod} color="#0066FF" />
+              <Switch value={enableCod} onValueChange={setEnableCod} color={colors.primary} />
             </View>
             <Divider style={{ marginVertical: 12 }} />
-            <Text variant="labelLarge" style={styles.sectionTitle}>Active gateway</Text>
+            <Text variant="labelLarge" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Active gateway</Text>
             <View style={styles.gatewayRow}>
               {['COD', 'PAYSTACK', 'HUBTEL'].map((g) => (
                 <Button key={g} mode={activeGateway === g ? 'contained' : 'outlined'} onPress={() => setActiveGateway(g)} style={styles.gatewayBtn} compact>
@@ -132,7 +132,7 @@ export default function PaymentsSettingsScreen() {
         </Card>
 
         {data && !data.storageConfigured ? (
-          <Text variant="bodySmall" style={styles.warn}>
+          <Text variant="bodySmall" style={[styles.warn, { backgroundColor: colors.errorContainer, color: colors.onErrorContainer }]}>
             Secure key storage isn’t configured on the server, so keys can’t be saved yet.
           </Text>
         ) : null}
@@ -150,17 +150,14 @@ export default function PaymentsSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
-  title: { color: '#0F172A', fontWeight: '700' },
+  root: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
-  card: { backgroundColor: '#FFFFFF' },
   cardBody: { padding: 16 },
-  sectionTitle: { color: '#0F172A', fontWeight: '700', marginBottom: 8 },
-  muted: { color: '#64748B' },
+  sectionTitle: { fontWeight: '700', marginBottom: 8 },
   input: { marginBottom: 10 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   gatewayRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   gatewayBtn: { flex: 1 },
-  warn: { color: '#B45309', backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8 },
-  save: { marginTop: 8, backgroundColor: '#0066FF' },
+  warn: { padding: 12, borderRadius: 8 },
+  save: { marginTop: 8 },
 });

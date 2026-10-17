@@ -1,8 +1,10 @@
-import { MD3LightTheme, type MD3Theme } from 'react-native-paper';
+import { MD3LightTheme, MD3DarkTheme, type MD3Theme } from 'react-native-paper';
 
 /**
- * DiDwa brand theme for React Native Paper (MD3).
- * Primary #0066FF / Secondary #1E293B, background #F8FAFC.
+ * DiDwa Material 3 theme for React Native Paper.
+ * Calm, standard M3 roles — plain surfaces, 12px radius, no glow. Light and
+ * dark are both complete so every screen can follow the Paper theme directly.
+ * Primary #0066FF.
  */
 export const theme: MD3Theme = {
   ...MD3LightTheme,
@@ -10,23 +12,28 @@ export const theme: MD3Theme = {
     ...MD3LightTheme.colors,
     primary: '#0066FF',
     onPrimary: '#FFFFFF',
-    primaryContainer: '#DCEBFF',
-    onPrimaryContainer: '#0A2540',
-    secondary: '#1E293B',
+    primaryContainer: '#D6E3FF',
+    onPrimaryContainer: '#001B3F',
+    secondary: '#44546A',
     onSecondary: '#FFFFFF',
     secondaryContainer: '#E2E8F0',
     onSecondaryContainer: '#0F172A',
-    background: '#F8FAFC',
+    tertiary: '#0E6B4F',
+    onTertiary: '#FFFFFF',
+    tertiaryContainer: '#CFEEDE',
+    onTertiaryContainer: '#002117',
+    background: '#F7F8FA',
     onBackground: '#0F172A',
     surface: '#FFFFFF',
     onSurface: '#0F172A',
-    surfaceVariant: '#EEF2F7',
+    surfaceVariant: '#EEF1F5',
     onSurfaceVariant: '#475569',
-    outline: '#CBD5E1',
-    outlineVariant: '#E2E8F0',
-    error: '#DC2626',
+    outline: '#98A2B3',
+    outlineVariant: '#E4E7EC',
+    error: '#D92D20',
     onError: '#FFFFFF',
-    errorContainer: '#FEE2E2',
+    errorContainer: '#FBDCDC',
+    onErrorContainer: '#7F1D1D',
   },
   roundness: 12,
 };
@@ -36,7 +43,7 @@ export const lightTheme: MD3Theme = theme;
 
 /* ------------------------- Status badge palette -------------------------- */
 
-/** Chip colors for a single order status (label + translucent bg + fg). */
+/** Chip colors for a single order status (label + container bg + fg). */
 export interface StatusTone {
   label: string;
   bg: string;
@@ -44,83 +51,103 @@ export interface StatusTone {
 }
 
 /**
- * Maps an order status to a chip tone.
- * Pending -> amber, Paid/Processing/Fulfilled -> blue, Delivered/Completed ->
- * emerald, Cancelled -> red. Translucent fills so the chips read on both
- * light and dark glass canvases.
+ * Maps an order status to an M3 tonal-chip tone. Solid container/onContainer
+ * pairs per mode so the chips hold contrast on light and dark surfaces.
  */
-export function statusTone(status: string): StatusTone {
-  switch (String(status || '').toUpperCase()) {
+export function statusTone(status: string, dark = false): StatusTone {
+  const u = String(status || '').toUpperCase();
+  if (dark) {
+    switch (u) {
+      case 'PENDING':
+        return { label: 'Pending', bg: '#4A3A12', fg: '#F5C86B' };
+      case 'PAID':
+      case 'FULFILLED':
+      case 'PROCESSING':
+        return { label: 'Processing', bg: '#17325C', fg: '#93BFFF' };
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return { label: 'Completed', bg: '#0E3D2E', fg: '#6EE7B7' };
+      case 'CANCELLED':
+        return { label: 'Cancelled', bg: '#4A1B1B', fg: '#FCA5A5' };
+      default:
+        return { label: status || 'Unknown', bg: '#2A3140', fg: '#A7B0C0' };
+    }
+  }
+  switch (u) {
     case 'PENDING':
-      return { label: 'Pending', bg: 'rgba(245,158,11,0.22)', fg: '#FBBF24' };
+      return { label: 'Pending', bg: '#FDE8C3', fg: '#7A4A00' };
     case 'PAID':
     case 'FULFILLED':
     case 'PROCESSING':
-      return { label: 'Processing', bg: 'rgba(59,130,246,0.22)', fg: '#60A5FA' };
+      return { label: 'Processing', bg: '#D6E4FF', fg: '#1B4DB1' };
     case 'DELIVERED':
     case 'COMPLETED':
-      return { label: 'Completed', bg: 'rgba(16,185,129,0.22)', fg: '#34D399' };
+      return { label: 'Completed', bg: '#CFEEDE', fg: '#0B6B45' };
     case 'CANCELLED':
-      return { label: 'Cancelled', bg: 'rgba(239,68,68,0.22)', fg: '#FCA5A5' };
+      return { label: 'Cancelled', bg: '#FBDCDC', fg: '#9B1C1C' };
     default:
-      return { label: status || 'Unknown', bg: 'rgba(148,163,184,0.15)', fg: '#CBD5E1' };
+      return { label: status || 'Unknown', bg: '#E7EAEF', fg: '#475569' };
   }
 }
 
-/* ------------------------- Multi-color accent palette --------------------- */
+/* ------------------------- Category accent palette ----------------------- */
 
 /**
- * Category-specific accent colors for high-contrast data scanning across the
- * dark glass dashboard. Each section of the dashboard picks its accent so a
- * glance tells the merchant what kind of number they're looking at.
+ * Restrained per-category accents, only for metric icon glyphs and tiny
+ * accents — never for glows or full-card borders. M3-consistent, legible on
+ * both light and dark surfaces.
  */
 export const ACCENT = {
-  /** Revenue & Sales — Electric Emerald. */
-  revenue: '#10B981',
-  /** Orders & Fulfillment — Vibrant Purple. */
-  orders: '#8B5CF6',
-  /** POS & Transactions — Electric Cyan. */
-  pos: '#06B6D4',
-  /** Inventory Alerts — Amber Gold. */
-  inventory: '#F59E0B',
-  /** Primary Branding & Actions — Deep Blue. */
+  /** Revenue & Sales. */
+  revenue: '#0E6B4F',
+  /** Orders & Fulfillment. */
+  orders: '#1B4DB1',
+  /** POS & Transactions. */
+  pos: '#0E7490',
+  /** Inventory Alerts. */
+  inventory: '#92400E',
+  /** Primary Branding & Actions. */
   primary: '#0066FF',
 } as const;
 
 /* ------------------------- Dark paper theme ------------------------------ */
 
 /**
- * MD3 dark theme built on Midnight Slate (#090D16). Paper components
- * (Snackbar, Chip, TouchableRipple) fall back to these colors; the custom
- * glass components use the tokens in @/components/glass/glass.
+ * MD3 dark theme built on Midnight Slate (#090D16). Complete M3 role set so
+ * Paper components and every screen that follows the theme render correctly
+ * in dark mode.
  */
 export const darkTheme: MD3Theme = {
-  ...MD3LightTheme,
+  ...MD3DarkTheme,
   dark: true,
   colors: {
-    ...MD3LightTheme.colors,
-    primary: ACCENT.primary,
-    onPrimary: '#FFFFFF',
-    primaryContainer: 'rgba(0,102,255,0.18)',
-    onPrimaryContainer: '#FFFFFF',
-    secondary: ACCENT.orders,
-    onSecondary: '#FFFFFF',
-    secondaryContainer: 'rgba(139,92,246,0.18)',
-    onSecondaryContainer: '#FFFFFF',
+    ...MD3DarkTheme.colors,
+    primary: '#8FB8FF',
+    onPrimary: '#002F67',
+    primaryContainer: '#0B2B66',
+    onPrimaryContainer: '#D6E3FF',
+    secondary: '#C3C9D4',
+    onSecondary: '#263141',
+    secondaryContainer: '#3A4456',
+    onSecondaryContainer: '#E2E8F0',
+    tertiary: '#6EE7B7',
+    onTertiary: '#00382A',
+    tertiaryContainer: '#0E3D2E',
+    onTertiaryContainer: '#8EF0C8',
     background: '#090D16',
-    onBackground: '#F8FAFC',
-    surface: '#0F172A',
-    onSurface: '#F8FAFC',
-    surfaceVariant: '#1E293B',
-    onSurfaceVariant: '#94A3B8',
-    outline: '#334155',
-    outlineVariant: '#1E293B',
-    error: '#DC2626',
-    onError: '#FFFFFF',
-    errorContainer: 'rgba(239,68,68,0.18)',
-    onErrorContainer: '#FCA5A5',
+    onBackground: '#E6EAF0',
+    surface: '#141A24',
+    onSurface: '#E6EAF0',
+    surfaceVariant: '#1E2634',
+    onSurfaceVariant: '#9AA5B5',
+    outline: '#475467',
+    outlineVariant: '#273041',
+    error: '#FF8A80',
+    onError: '#5F1008',
+    errorContainer: '#4A1B1B',
+    onErrorContainer: '#FFB4A8',
   },
-  roundness: 20,
+  roundness: 12,
 };
 
 /** Format an amount as Ghana Cedi, e.g. 250 -> "GH₵ 250.00". */
