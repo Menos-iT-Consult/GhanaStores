@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Card, Divider, List, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { useSafeBack } from '@/lib/useSafeBack';
 import { useAuth } from '@/auth/AuthProvider';
 import { API_BASE_URL } from '@/api/client';
 import { registerDeviceForPush, type PushRegistrationResult } from '@/services/pushNotifications';
@@ -22,6 +23,7 @@ const PUSH_MESSAGES: Record<PushRegistrationResult, string> = {
  */
 export default function SettingsScreen() {
   const router = useRouter();
+  const goBack = useSafeBack('/settings');
   const { store, signOut } = useAuth();
   const { colors } = useTheme();
   const [snack, setSnack] = React.useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={goBack} />
         <Appbar.Content title="Settings" />
       </Appbar.Header>
 

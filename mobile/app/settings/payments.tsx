@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Card, Divider, Snackbar, Switch, Text, TextInput, useTheme } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useSafeBack } from '@/lib/useSafeBack';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { ErrorState, LoadingState } from '@/components/ScreenState';
@@ -14,7 +15,7 @@ import type { PaymentSettings } from '@/types';
  * field means "keep the currently stored value" (the backend merges it).
  */
 export default function PaymentsSettingsScreen() {
-  const router = useRouter();
+  const goBack = useSafeBack('/settings');
   const qc = useQueryClient();
   const { colors } = useTheme();
 
@@ -70,7 +71,7 @@ export default function PaymentsSettingsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={goBack} />
         <Appbar.Content title="Payment methods" />
       </Appbar.Header>
 

@@ -3,6 +3,7 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Card, Menu, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '@/lib/useSafeBack';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as endpoints from '@/api/endpoints';
@@ -56,7 +57,7 @@ async function shareReceipt(orderId: string, orderNumber: string): Promise<void>
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
+  const goBack = useSafeBack('/(tabs)/orders');
   const qc = useQueryClient();
   const { colors } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -104,7 +105,7 @@ export default function OrderDetailScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={goBack} />
         <Appbar.Content title={`Order #${order.orderNumber}`} />
         <Appbar.Action
           icon="share-variant"

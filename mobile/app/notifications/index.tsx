@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { Appbar, Card, List, Text, useTheme } from 'react-native-paper';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useSafeBack } from '@/lib/useSafeBack';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ScreenState';
@@ -41,6 +42,7 @@ function formatWhen(iso: string): string {
  */
 export default function NotificationsScreen() {
   const router = useRouter();
+  const goBack = useSafeBack('/(tabs)/dashboard');
   const { colors } = useTheme();
   const qc = useQueryClient();
 
@@ -75,7 +77,7 @@ export default function NotificationsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={goBack} />
         <Appbar.Content title="Notifications" />
         {unread > 0 ? (
           <Appbar.Action icon="check-all" accessibilityLabel="Mark all as read" onPress={markAllRead} />

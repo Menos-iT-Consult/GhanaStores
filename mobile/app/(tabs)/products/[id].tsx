@@ -15,6 +15,7 @@ import {
 } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '@/lib/useSafeBack';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import * as endpoints from '@/api/endpoints';
@@ -33,7 +34,7 @@ const DEFAULT_VARIANT = { optionName: 'Default', optionValue: 'Standard' };
 export default function ProductEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === 'new';
-  const router = useRouter();
+  const goBack = useSafeBack('/products');
   const { colors } = useTheme();
   const qc = useQueryClient();
 
@@ -154,7 +155,7 @@ export default function ProductEditorScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={goBack} />
         <Appbar.Content title={isNew ? 'Add product' : 'Edit product'} />
       </Appbar.Header>
 

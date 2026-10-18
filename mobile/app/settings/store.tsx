@@ -11,6 +11,7 @@ import {
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useSafeBack } from '@/lib/useSafeBack';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
@@ -26,7 +27,7 @@ import { useAuth } from '@/auth/AuthProvider';
  *   5. Delete account - typed slug + password, irreversible (server cascades)
  */
 export default function StoreSettingsScreen() {
-  const router = useRouter();
+  const goBack = useSafeBack('/settings');
   const qc = useQueryClient();
   const { colors } = useTheme();
   const { store, signOut, updateStoreName } = useAuth();
@@ -108,7 +109,7 @@ export default function StoreSettingsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={goBack} />
         <Appbar.Content title="Store settings" />
       </Appbar.Header>
 

@@ -50,6 +50,8 @@ function RootNavigator() {
   const showSplash = !ready || pathname === '/';
 
   // Reveal our own first frame from under the native splash (idempotent).
+  // Primary signal is the Lottie first decoded frame (onReady); the
+  // ready-effect below is a timeout fallback only.
   const hideNativeSplash = useCallback(() => {
     if (splashHidden.current) return;
     splashHidden.current = true;
@@ -69,6 +71,15 @@ function RootNavigator() {
     if (status === 'signedIn') router.replace('/(tabs)/dashboard');
     if (status === 'signedOut') router.replace(onboarded ? '/(auth)/login' : '/(auth)/welcome');
   }, [ready, pathname, status, onboarded, router]);
+
+  // Signed-in redirect: after signIn()/completeTwoFactor() the auth state flips
+  // while the pathname is still /(auth)/login, so without this nothing moves
+  // until the app is backgrounded and re-rendered. Covers login + 2FA +
+  // session restore. The cold-boot '/' gate above stays untouched.
+  useEffect(() => {
+    if (status !== 'signedIn' || !ready) return;
+    if (pathname.startsWith('/(auth)')) router.replace('/(tabs)/dashboard');
+  }, [status, ready, pathname, router]);
 
   // Mid-session sign-out (explicit, or a hard 401) leaves whatever screen is
   // open — the entry route is long gone by then.
@@ -101,8 +112,8 @@ function RootNavigator() {
         <Stack.Screen name="+not-found" />
       </Stack>
       {showSplash ? (
-        <View style={StyleSheet.absoluteFill} onLayout={hideNativeSplash}>
-          <DidwaLottieSplash />
+        <View style={StyleSheet.absoluteFill}>
+          <DidwaLottieSplash onReady={hideNativeSplash} />
         </View>
       ) : null}
     </>
