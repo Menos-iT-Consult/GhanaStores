@@ -29,6 +29,6 @@ export { useStorefrontData } from './templates/useStorefrontData.js';
  * LiveStorefront + ThemeCustomizer keep working unchanged.
  * (Same props contract; see templates/StorefrontRenderer.jsx.)
  */
-export default function StorefrontRouter(props) {
-  return <StorefrontRenderer {...props} />;
+export default function StorefrontRouter({ viewportWidth = null, ...rest }) {
+  return <StorefrontRenderer viewportWidth={viewportWidth} {...rest} />;
 }

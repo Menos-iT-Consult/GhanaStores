@@ -35,7 +35,9 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
           ) : null}
         </button>
         <form onSubmit={submit} role="search" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 py-1.5">
-          <label className="relative hidden shrink-0 items-center sm:flex">
+          {/* Tier-conditional, NOT sm: - the storefront can render inside a
+              375px customizer frame on a wide window, where sm: would lie. */}
+          <label className={`relative shrink-0 items-center ${compact ? 'hidden' : 'flex'}`}>
             <select
               value={cat}
               onChange={(e) => setCat(e.target.value)}
@@ -46,7 +48,7 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
             </select>
             <ChevronDown size={12} className="pointer-events-none absolute right-1 text-white/50" aria-hidden="true" />
           </label>
-          <span className="hidden h-4 w-px bg-white/15 sm:block" aria-hidden="true" />
+          <span className={`h-4 w-px bg-white/15 ${compact ? 'hidden' : 'block'}`} aria-hidden="true" />
           <Search size={13} className="shrink-0 text-white/50" aria-hidden="true" />
           <input
             type="search"

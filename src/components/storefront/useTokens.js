@@ -5,6 +5,7 @@
  */
 import { FONT_OPTIONS } from '../../theme/config.js';
 import { tierForWidth } from '../../lib/responsive.js';
+import { resolveDevice } from './lib/device.js';
 
 /**
  * Derive the shared render tokens for a theme config at a measured width.
@@ -33,5 +34,9 @@ export function useTokens(config, viewportWidth) {
     fontStack: (FONT_OPTIONS.find((f) => f.value === config.typography.font_family) || FONT_OPTIONS[0]).stack,
     waDigits: String(config.features.whatsapp_number || '').replace(/\D/g, ''),
     btn: () => `${config.buttons?.shadow === false ? '' : 'shadow'} ${config.buttons?.uppercase ? 'uppercase tracking-wide' : ''}`,
+    /* Device tier derived from the SAME width as compact/narrow, so templates
+     * can read one consistent answer (also surfaced to CSS via the root
+     * element's data-device attribute in StorefrontRenderer). */
+    device: resolveDevice(viewportWidth),
   };
 }
