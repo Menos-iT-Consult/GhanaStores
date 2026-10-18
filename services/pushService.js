@@ -13,6 +13,9 @@
  *   - Tenant-scoped: only the push tokens registered for THIS store are used.
  *   - Best effort: Expo returns per-message tickets (ok / error); errors are
  *     logged, never propagated, so a bad or revoked token cannot break a sale.
+ *   - History: every attempt is also mirrored into merchant_notifications (the
+ *     app's Notifications screen); recording + retention pruning are themselves
+ *     fire-and-forget so a failing history table can never break a sale either.
  */
 import axios from 'axios';
 import { query } from '../config/database.js';
@@ -29,42 +32,92 @@ export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
  * @param {object} [args.data]   arbitrary deep-link payload (order ids, etc.)
  * @returns {Promise<{sent:number, error?:string}>} count of messages dispatched
  */
-export async function sendMerchantPushNotification({ storeId, title, body, data }) {
-  try {
-    if (!storeId || !title || !body) return { sent: 0 };
+/** Days of history kept per store in merchant_notifications (pruned on dispatch). */
+const NOTIFICATION_RETENTION_DAYS = 180;
 
+/**
+ * Persist one push attempt into the Notifications history feed, then prune the
+ * store's feed to the retention window (piggy-backed on dispatch, so no extra
+ * scheduler is needed). Callers never await this beyond a `.catch` — a failing
+ * history table must never surface as an error anywhere.
+ *
+ * @param {object} args
+ * @param {string} args.storeId
+ * @param {string} args.title
+ * @param {string} args.body
+ * @param {object} [args.data]
+ * @param {number} args.sent devices the dispatch reached (0 when none/error)
+ */
+async function recordNotification({ storeId, title, body, data, sent }) {
+  await query(
+    `INSERT INTO merchant_notifications (store_id, title, body, type, data, sent_count)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+    [
+      storeId,
+      String(title),
+      String(body),
+      data && data.type ? String(data.type) : null,
+      JSON.stringify(data && typeof data === 'object' ? data : {}),
+      Number(sent) || 0,
+    ],
+  );
+  await query(
+    `DELETE FROM merchant_notifications
+      WHERE store_id = $1
+        AND created_at < NOW() - ($2 || ' days')::interval`,
+    [storeId, String(NOTIFICATION_RETENTION_DAYS)],
+  );
+}
+
+export async function sendMerchantPushNotification({ storeId, title, body, data }) {
+  // Nothing valid to say -> nothing dispatched, nothing recorded (unchanged).
+  if (!storeId || !title || !body) return { sent: 0 };
+
+  let sent = 0;
+  let pushError;
+  try {
     const { rows } = await query(
       'SELECT expo_push_token, platform FROM device_tokens WHERE store_id = $1',
       [storeId],
     );
-    if (rows.length === 0) return { sent: 0 };
 
     // Expo accepts a single message object or an array of message objects; we
     // always send the array form so one call reaches every logged-in device.
-    const messages = rows.map((r) => ({
-      to: r.expo_push_token,
-      sound: 'default',
-      title: String(title),
-      body: String(body),
-      data: data || {},
-      // Android decides visibility by channel. Since Expo's FCM V1 migration a
-      // message with no channelId is dropped into an auto-created fallback
-      // channel (fcm_fallback_notification_channel) which is often silent, so
-      // the notification arrives but is never seen. Target the high-importance
-      // 'orders' channel the client creates on permission grant. Ignored on iOS.
-      ...(r.platform === 'android' ? { channelId: 'orders' } : {}),
-    }));
+    if (rows.length > 0) {
+      const messages = rows.map((r) => ({
+        to: r.expo_push_token,
+        sound: 'default',
+        title: String(title),
+        body: String(body),
+        data: data || {},
+        // Android decides visibility by channel. Since Expo's FCM V1 migration a
+        // message with no channelId is dropped into an auto-created fallback
+        // channel (fcm_fallback_notification_channel) which is often silent, so
+        // the notification arrives but is never seen. Target the high-importance
+        // 'orders' channel the client creates on permission grant. Ignored on iOS.
+        ...(r.platform === 'android' ? { channelId: 'orders' } : {}),
+      }));
 
-    await axios.post(EXPO_PUSH_URL, messages, {
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      timeout: 10_000,
-    });
-    return { sent: rows.length };
+      await axios.post(EXPO_PUSH_URL, messages, {
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        timeout: 10_000,
+      });
+      sent = rows.length;
+    }
   } catch (err) {
+    pushError = err?.message || 'push_failed';
     console.error(
       `[push] failed to notify store ${storeId}:`,
       err?.response?.data || err?.message || err,
     );
-    return { sent: 0, error: err?.message || 'push_failed' };
   }
+
+  // History: recorded even when zero devices were registered — the event still
+  // happened and the merchant should find it in the app's inbox on next login.
+  // Fire-and-forget so history can never reject the caller's flow.
+  await recordNotification({ storeId, title, body, data, sent }).catch((err) =>
+    console.warn('[push] could not record notification history:', err?.message || err),
+  );
+
+  return pushError ? { sent, error: pushError } : { sent };
 }

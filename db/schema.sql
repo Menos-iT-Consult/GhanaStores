@@ -817,6 +817,26 @@ CREATE TABLE IF NOT EXISTS mobile_refresh_tokens (
 CREATE INDEX IF NOT EXISTS mobile_refresh_tokens_store_idx
   ON mobile_refresh_tokens (store_id, created_at DESC);
 
+-- Server-backed push history for the seller app's Notifications screen. Every
+-- dispatch from services/pushService.js records one row (fire-and-forget), so
+-- what fired while the phone was offline - or the banner the merchant swiped
+-- away - is still readable later. Pruned to 180 days inside the push service.
+CREATE TABLE IF NOT EXISTS merchant_notifications (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id    UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  type        TEXT,                                -- payload type (order_created, plan_past_due, ...)
+  data        JSONB NOT NULL DEFAULT '{}'::jsonb,  -- deep-link payload forwarded to devices
+  sent_count  INTEGER NOT NULL DEFAULT 0,          -- devices the push was dispatched to
+  read_at     TIMESTAMPTZ,                         -- NULL = unread
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS merchant_notifications_store_idx
+  ON merchant_notifications (store_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS merchant_notifications_unread_idx
+  ON merchant_notifications (store_id) WHERE read_at IS NULL;
+
 
 
 

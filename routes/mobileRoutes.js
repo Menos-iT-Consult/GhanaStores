@@ -524,6 +524,101 @@ router.get('/orders/:id/receipt', authenticateMobileToken, async (req, res, next
   }
 });
 
+/* ----------------------------- Notifications -------------------------------- */
+// Server-backed history of every push dispatched by services/pushService.js,
+// for the app's Notifications screen. The store always comes from the mobile
+// token (req.storeId) — a device can only ever read its own store's feed.
+
+/** GET /notifications — newest first, store-scoped, paginated + unread count. */
+router.get('/notifications', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const [totalRes, unreadRes, feed] = await Promise.all([
+      query('SELECT COUNT(*)::int AS total FROM merchant_notifications WHERE store_id = $1', [req.storeId]),
+      query(
+        'SELECT COUNT(*)::int AS unread FROM merchant_notifications WHERE store_id = $1 AND read_at IS NULL',
+        [req.storeId],
+      ),
+      query(
+        `SELECT id, title, body, type, data, read_at, created_at
+           FROM merchant_notifications
+          WHERE store_id = $1
+          ORDER BY created_at DESC, id DESC
+          LIMIT $2 OFFSET $3`,
+        [req.storeId, limit, (page - 1) * limit],
+      ),
+    ]);
+    const total = totalRes.rows[0].total;
+    res.json({
+      notifications: feed.rows.map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        type: n.type,
+        data: n.data,
+        readAt: n.read_at,
+        createdAt: n.created_at,
+      })),
+      page,
+      limit,
+      total,
+      hasMore: page * limit < total,
+      unread: unreadRes.rows[0].unread,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /notifications/unread-count — badge polling (one cheap count). */
+router.get('/notifications/unread-count', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      'SELECT COUNT(*)::int AS unread FROM merchant_notifications WHERE store_id = $1 AND read_at IS NULL',
+      [req.storeId],
+    );
+    res.json({ unread: rows[0].unread });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /notifications/read-all — bulk mark-as-read for the signed-in store. */
+router.post('/notifications/read-all', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `UPDATE merchant_notifications SET read_at = NOW()
+        WHERE store_id = $1 AND read_at IS NULL
+        RETURNING id`,
+      [req.storeId],
+    );
+    res.json({ ok: true, updated: rows.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /notifications/:id/read — idempotent single read, own store only. */
+router.post('/notifications/:id/read', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const id = String(req.params.id || '');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return res.status(400).json({ error: 'Invalid notification id.' });
+    }
+    const { rows } = await query(
+      `UPDATE merchant_notifications SET read_at = COALESCE(read_at, NOW())
+        WHERE id = $1 AND store_id = $2
+        RETURNING id`,
+      [id, req.storeId],
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Notification not found.' });
+    res.json({ ok: true, read: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
 
 

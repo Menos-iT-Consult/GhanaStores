@@ -40,7 +40,7 @@ export function StoreWidget({ snapshot }: { snapshot?: WidgetSnapshot }) {
         width: 'match_parent',
         flexDirection: 'column',
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 12,
       }}
       clickAction="OPEN_APP"

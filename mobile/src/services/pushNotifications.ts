@@ -130,6 +130,9 @@ export function addNotificationResponseListener(handler: (data: Record<string, u
  *   order_created, order_status (orderRoutes/mobileRoutes)
  *   order_paid (paymentWebhooks)
  *   subscription_active (paymentWebhooks)
+ *   low_stock (inventoryRoutes), plan_* (billingCron), security (password
+ *   reset), welcome — also replayed when tapping a row in the Notifications
+ *   screen, so keep this the single source of truth for both paths.
  */
 export function routeForNotification(data: Record<string, unknown>): string | null {
   const type = data?.type;
@@ -137,6 +140,11 @@ export function routeForNotification(data: Record<string, unknown>): string | nu
     const id = data?.orderId ?? data?.order_id;
     return id ? `/orders/${id}` : '/orders';
   }
+  if (type === 'low_stock') return '/products';
   if (type === 'subscription_active') return '/settings';
+  // Billing lifecycle (trial reminder / past due / renewal / suspension) and
+  // security events all live in Settings. welcome + contact_message have no
+  // dedicated screen yet — they stay read-only rows in the inbox.
+  if (typeof type === 'string' && (type.startsWith('plan_') || type === 'security')) return '/settings';
   return null;
 }

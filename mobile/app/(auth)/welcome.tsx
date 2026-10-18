@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
     width: '100%',
     maxWidth: 480,
-    borderRadius: 14,
+    borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
   },

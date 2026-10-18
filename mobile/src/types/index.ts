@@ -192,6 +192,31 @@ export interface TopProductsPayload {
   products: TopProduct[];
 }
 
+/* ----------------------------- Notifications ------------------------------- */
+
+/** One row of GET /api/mobile/v1/notifications (server-backed push history). */
+export interface MerchantNotification {
+  id: string;
+  title: string;
+  body: string;
+  /** Payload type (order_created, low_stock, plan_past_due, …) or null. */
+  type: string | null;
+  /** Deep-link payload the push carried ({ type, orderId, … }). */
+  data: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+/** GET /api/mobile/v1/notifications page envelope. */
+export interface NotificationsPage {
+  notifications: MerchantNotification[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+  unread: number;
+}
+
 /* ---------------------------- Orders: detail ------------------------------ */
 
 /** GET /api/mobile/v1/orders/:id — the slim order plus its line items. */

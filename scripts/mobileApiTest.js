@@ -223,6 +223,78 @@ test('customers feed is store-scoped, searchable and paginated', () => {
   assert.ok(src.includes('OFFSET $'), 'pagination missing');
 });
 
+/* ------------------------- Notifications + push parity ---------------------- */
+test('schema defines the merchant notifications history table', () => {
+  const schema = read('db/schema.sql');
+  assert.ok(schema.includes('CREATE TABLE IF NOT EXISTS merchant_notifications'));
+  assert.ok(schema.includes('merchant_notifications_store_idx'));
+  assert.ok(schema.includes('merchant_notifications_unread_idx'));
+  assert.ok(/read_at\s+TIMESTAMPTZ/.test(schema), 'read_at column missing');
+});
+
+test('push dispatch records history + prunes to 180 days', () => {
+  const push = read('services/pushService.js');
+  assert.ok(push.includes('INSERT INTO merchant_notifications'), 'every push must be recorded');
+  assert.ok(push.includes('NOTIFICATION_RETENTION_DAYS = 180'), 'retention window missing');
+  assert.ok(push.includes('recordNotification'), 'history helper missing');
+});
+
+test('notifications endpoints are authenticated and store-scoped', () => {
+  const src = read('routes/mobileRoutes.js');
+  assert.ok(src.includes("router.get('/notifications', authenticateMobileToken"));
+  assert.ok(src.includes("router.get('/notifications/unread-count', authenticateMobileToken"));
+  assert.ok(src.includes("router.post('/notifications/read-all', authenticateMobileToken"));
+  assert.ok(src.includes("router.post('/notifications/:id/read', authenticateMobileToken"));
+  assert.ok(src.includes('merchant_notifications WHERE store_id'), 'feed must be store-scoped');
+});
+
+test('every SMS/email trigger also fires a merchant push', () => {
+  const cron = read('jobs/billingCron.js');
+  assert.ok(cron.includes('function notifyPush('), 'billing cron push helper missing');
+  assert.ok((cron.match(/notifyPush\(store,/g) || []).length >= 5, 'all 5 billing loops must push');
+  const billing = read('routes/billingRoutes.js');
+  assert.ok(billing.includes('sendMerchantPushNotification'), 'signup welcome must push');
+  assert.ok(billing.includes("type: 'welcome'"));
+  const inventory = read('routes/inventoryRoutes.js');
+  assert.ok(inventory.includes('sendMerchantPushNotification'), 'low stock must push');
+  assert.ok(inventory.includes("type: 'low_stock'"));
+  const site = read('routes/siteSettingsRoutes.js');
+  assert.ok(site.includes('sendMerchantPushNotification'), 'password reset must push');
+  assert.ok(site.includes("type: 'security'"));
+  const contact = read('routes/contactRoutes.js');
+  assert.ok(contact.includes('sendMerchantPushNotification'), 'contact message must push');
+  assert.ok(contact.includes("type: 'contact_message'"));
+  // Order checkout already pushes alongside its customer SMS — untouched.
+  const orders = read('routes/orderRoutes.js');
+  assert.ok(orders.includes('sendMerchantPushNotification'));
+});
+
+test('theme keeps Paper cards at the 12px M3 radius (roundness x3)', () => {
+  const theme = read('mobile/src/theme.ts');
+  assert.equal((theme.match(/roundness: 4/g) || []).length, 2, 'light + dark must both be roundness 4');
+  assert.ok(!theme.includes('roundness: 12'), 'roundness 12 renders 36px Paper cards');
+});
+
+test('root layout always mounts the stack behind the splash overlay', () => {
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'mobile', 'app', 'index.tsx')), 'root index route required');
+  const layout = read('mobile/app/_layout.tsx');
+  assert.ok(layout.includes('usePathname'), 'entry redirect must be pathname-gated');
+  assert.ok(layout.includes('name="notifications"'), 'notifications screen must be registered');
+  assert.ok(!layout.includes('return <DidwaLottieSplash />'), 'stack must never be swapped out for the splash');
+  const screen = read('mobile/app/notifications/index.tsx');
+  assert.ok(screen.includes('endpoints.getNotifications'));
+  assert.ok(screen.includes('markAllNotificationsRead'));
+});
+
+test('dashboard header order is ThemeToggle, bell, gear', () => {
+  const dash = read('mobile/app/(tabs)/dashboard/index.tsx');
+  const themeIdx = dash.indexOf('<ThemeToggle');
+  const bellIdx = dash.indexOf('<NotificationBell');
+  const gearIdx = dash.indexOf('icon="cog"');
+  assert.ok(themeIdx >= 0 && bellIdx > themeIdx && gearIdx > bellIdx,
+    'header order must be ThemeToggle → Notification → Settings');
+});
+
 /* ---------------------------------- Report -------------------------------- */
 if (failed > 0) {
   console.log(`\n${passed} passed, ${failed} FAILED`);

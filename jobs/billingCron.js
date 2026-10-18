@@ -22,6 +22,7 @@ import {
   sendRenewalReminderSms,
 } from '../services/smsService.js';
 import { sendLifecycleEmail } from '../services/emailService.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 
 /**
  * Fire the matching lifecycle email alongside each SMS.
@@ -39,6 +40,23 @@ function notifyEmail(store, template, extra) {
   sendLifecycleEmail(store, template, extra).catch(() => {});
 }
 
+/**
+ * Third channel next to notifyEmail: the same push the app already gets for
+ * orders, now for billing lifecycle events. Same rules as email — NOT awaited,
+ * NOT counted in the sent totals, no retry. A push failure (or an Expo outage)
+ * must never fail a billing transition, and the merchant still has SMS + email.
+ * Each call is also recorded in merchant_notifications by pushService, so it
+ * shows up in the app's Notifications screen even if the banner is missed.
+ *
+ * @param {{id: string}} store  store row (id is the push tenant)
+ * @param {string} title        notification title
+ * @param {string} body         notification body
+ * @param {string} type         payload type (drives the app's deep link)
+ */
+function notifyPush(store, title, body, type) {
+  sendMerchantPushNotification({ storeId: store.id, title, body, data: { type } }).catch(() => {});
+}
+
 /** Day 11: nudge merchants before expiry. */
 export async function runRenewalReminders() {
   const { rows } = await query(
@@ -50,6 +68,8 @@ export async function runRenewalReminders() {
   let sent = 0;
   for (const store of rows) {
     notifyEmail(store, 'trial-reminder');
+    notifyPush(store, 'Trial ending soon',
+      'Your free trial ends tomorrow. Subscribe to keep your storefront online.', 'plan_trial_reminder');
     const res = await sendTrialReminderSms(store);
     if (res?.ok) sent += 1;
   }
@@ -69,6 +89,8 @@ export async function runExpireTrials() {
   );
   for (const store of rows) {
     notifyEmail(store, 'past-due');
+    notifyPush(store, 'Trial ended',
+      'Your free trial has ended. Your store is in a 3-day grace period — subscribe to restore it.', 'plan_past_due');
     await sendPastDueSms(store);
   }
   console.log(`[cron] trials moved to PAST_DUE: ${rows.length}`);
@@ -93,6 +115,8 @@ export async function runSendRenewalReminders() {
   let sent = 0;
   for (const store of rows) {
     notifyEmail(store, 'renewal-reminder');
+    notifyPush(store, 'Plan expiring soon',
+      'Your subscription ends in 3 days. Renew to keep your storefront online.', 'plan_renewal_reminder');
     const res = await sendRenewalReminderSms(store);
     if (res?.ok) sent += 1;
   }
@@ -124,6 +148,8 @@ export async function runExpireRenewals() {
   );
   for (const store of rows) {
     notifyEmail(store, 'past-due');
+    notifyPush(store, 'Subscription past due',
+      'Your plan has lapsed. A 3-day grace period is running — renew to avoid suspension.', 'plan_past_due');
     await sendPastDueSms(store);
   }
   console.log(`[cron] paid plans moved to PAST_DUE: ${rows.length}`);
@@ -141,6 +167,8 @@ export async function runSuspendOverdue() {
   );
   for (const store of rows) {
     notifyEmail(store, 'past-due', { suspended: true });
+    notifyPush(store, 'Store suspended',
+      'Your store was suspended after the grace period. Renew to bring it back online.', 'plan_suspended');
     await sendSuspensionSms(store);
   }
   console.log(`[cron] stores suspended after grace period: ${rows.length}`);

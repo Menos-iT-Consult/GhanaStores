@@ -35,7 +35,10 @@ export const theme: MD3Theme = {
     errorContainer: '#FBDCDC',
     onErrorContainer: '#7F1D1D',
   },
-  roundness: 12,
+  // Paper v3 scales roundness: Card renders at roundness × 3. 4 is the M3 base,
+  // so list cards land on the standard 12px (not 36px) — keep this in sync with
+  // darkTheme below.
+  roundness: 4,
 };
 
 /** Alias so the theme context can import the light theme by name. */
@@ -147,7 +150,8 @@ export const darkTheme: MD3Theme = {
     errorContainer: '#4A1B1B',
     onErrorContainer: '#FFB4A8',
   },
-  roundness: 12,
+  // See lightTheme: 4 × Paper's ×3 scale = 12px cards, matching GlassCard.
+  roundness: 4,
 };
 
 /** Format an amount as Ghana Cedi, e.g. 250 -> "GH₵ 250.00". */

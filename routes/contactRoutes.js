@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { notifyNewMessage } from '../services/emailService.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 import {
   parseSubmission, saveMessage, publicShape,
   listForStore, countForStore, setStatusForStore,
@@ -58,6 +59,19 @@ async function capture(req, res, source, storeId, storeName) {
     ? (await query('SELECT email FROM stores WHERE id = $1', [storeId])).rows[0]?.email
     : null;
   notifyNewMessage(saved, recipient, storeName).catch(() => {});
+
+  /* Push mirrors the seller email for storefront messages (platform messages
+     land in the platform inbox, not a store). Fire-and-forget like the email,
+     and recorded in merchant_notifications for the app's Notifications screen. */
+  if (storeId) {
+    const preview = String(parsed.value.message || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    sendMerchantPushNotification({
+      storeId,
+      title: `New message from ${parsed.value.name || 'a customer'}`,
+      body: preview + (preview.length >= 120 ? '…' : ''),
+      data: { type: 'contact_message' },
+    }).catch(() => {});
+  }
 
   return res.status(201).json({ ok: true, id: saved.id });
 }

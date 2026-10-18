@@ -6,6 +6,7 @@ import type {
   DashboardStats,
   LoginResult,
   LoyaltyLookup,
+  NotificationsPage,
   Order,
   OrderDetail,
   OrdersPage,
@@ -111,6 +112,34 @@ export function registerDevice(token: string, platform: 'ios' | 'android') {
 
 export function unregisterDevice(token: string) {
   return api.delete('/api/mobile/devices/unregister', { data: { token } }).then((r) => r.data);
+}
+
+/* ------------------------------- Notifications ----------------------------- */
+
+/** Server-backed push history for the Notifications screen (newest first). */
+export function getNotifications(page = 1, limit = 20) {
+  return api
+    .get<NotificationsPage>('/api/mobile/v1/notifications', { params: { page, limit } })
+    .then((r) => r.data);
+}
+
+/** Unread badge for the dashboard bell (cheap single count). */
+export function getUnreadNotificationCount() {
+  return api.get<{ unread: number }>('/api/mobile/v1/notifications/unread-count').then((r) => r.data);
+}
+
+/** Idempotent single read; 404 if the id belongs to another store. */
+export function markNotificationRead(id: string) {
+  return api
+    .post<{ ok: boolean; read: boolean }>(`/api/mobile/v1/notifications/${id}/read`)
+    .then((r) => r.data);
+}
+
+/** Bulk "mark all as read" for the signed-in store. */
+export function markAllNotificationsRead() {
+  return api
+    .post<{ ok: boolean; updated: number }>('/api/mobile/v1/notifications/read-all')
+    .then((r) => r.data);
 }
 
 /* ============================ v1.1 (command center) ======================== */

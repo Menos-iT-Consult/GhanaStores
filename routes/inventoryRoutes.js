@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { query, withTransaction } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { sendLowStockAlertSms } from '../services/smsService.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 import { money, toIntOr } from '../utils/helpers.js';
 
 const router = Router();
@@ -71,6 +72,20 @@ export async function dispatchLowStockAlerts(storeId, candidates) {
       console.warn(`[inventory] low-stock alert skipped: store ${storeId} not found`);
       return;
     }
+
+    // Push fires alongside the SMS regardless of the gateway outcome below: a
+    // restock warning must reach the merchant even when mNotify is down (the
+    // SMS latch re-arms and retries — push is the immediate channel, and it is
+    // recorded in merchant_notifications for the app's inbox either way).
+    const first = unique[0];
+    const more = unique.length > 1 ? ` +${unique.length - 1} more` : '';
+    sendMerchantPushNotification({
+      storeId,
+      title: 'Low stock alert',
+      body: `${first?.name || 'A variant'} is at or below its reorder threshold${more}.`,
+      data: { type: 'low_stock' },
+    }).catch(() => {});
+
     res = await sendLowStockAlertSms(rows[0], unique);
   } catch (err) {
     console.error('[inventory] low-stock SMS threw:', err.message);

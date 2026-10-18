@@ -9,6 +9,7 @@ import { pool, query, withTransaction } from '../config/database.js';
 import { issueStoreToken, requireSeller, requireAdmin, optionalSeller, issueTwoFactorChallenge, verifyTwoFactorChallenge } from '../middleware/authMiddleware.js';
 import { sendWelcomeSms } from '../services/smsService.js';
 import { sendLifecycleEmail } from '../services/emailService.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../services/subdomainSlug.js';
@@ -130,11 +131,18 @@ router.post('/register', async (req, res, next) => {
     }
     const token = issueStoreToken(store);
 
-    // Welcome SMS + email (Module 1) - never blocks registration on gateway hiccups.
-    // Email is fire-and-forget and independent of the SMS: if one gateway is
-    // down the other still delivers.
+    // Welcome SMS + email + app push (Module 1) - none of the three blocks
+    // registration on gateway hiccups: each channel is fire-and-forget and
+    // independent of the others, so if one is down the others still deliver.
+    // The push is also recorded in merchant_notifications (the app's inbox).
     sendWelcomeSms(store).catch(() => {});
     sendLifecycleEmail(store, 'welcome').catch(() => {});
+    sendMerchantPushNotification({
+      storeId: store.id,
+      title: 'Welcome to DiDwa',
+      body: `Your store "${store.name}" is live — your 14-day free trial has started.`,
+      data: { type: 'welcome' },
+    }).catch(() => {});
 
     res.status(201).json({
       message: 'Store created. Your 14-day free trial has started.',

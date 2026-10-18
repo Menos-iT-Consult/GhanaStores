@@ -23,6 +23,7 @@ import { query, pool } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { encryptSecret, decryptSecret, encryptionConfigured } from '../services/secretBox.js';
 import { sendEmail } from '../services/emailService.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 import { passwordResetTemplate } from '../services/emailTemplates.js';
 import { generateSecret, verifyTotp, otpauthUri, qrDataUrl } from '../services/totpService.js';
 
@@ -134,6 +135,16 @@ router.post('/password/forgot', async (req, res, next) => {
       text: mail.text,
       html: mail.html,
     });
+
+    // Security push mirrors the reset email (anything that emails the merchant
+    // also pushes): the seller hears about a reset attempt even away from the
+    // inbox. Store-scoped via store.id; no token or link in the payload.
+    sendMerchantPushNotification({
+      storeId: store.id,
+      title: 'Password reset requested',
+      body: 'A password reset was requested for your store account. If this was not you, change your password now.',
+      data: { type: 'security' },
+    }).catch(() => {});
 
     res.json(GENERIC);
   } catch (err) {

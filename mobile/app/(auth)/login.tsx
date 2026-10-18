@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   logo: { width: 96, height: 96, borderRadius: 26 },
   logoWord: { fontWeight: '800', letterSpacing: 0.5, marginTop: 14 },
   tagline: { marginTop: 2 },
-  card: { borderRadius: 20 },
+  card: { borderRadius: 12 },
   cardBody: { padding: 22 },
   heading: { fontWeight: '700' },
   subheading: { marginTop: 4, marginBottom: 18 },

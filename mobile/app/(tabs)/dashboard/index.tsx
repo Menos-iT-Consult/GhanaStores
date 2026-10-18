@@ -15,6 +15,7 @@ import { refreshAndroidWidget } from '@/widgets/refreshAndroidWidget';
 
 import { GlassCard } from '@/components/glass/GlassCard';
 import { ThemeToggle } from '@/components/glass/ThemeToggle';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useGlass } from '@/components/glass/glass';
 import { HeroRevenueCard, type HeroRange } from '@/components/glass/HeroRevenueCard';
 import { QuickActions } from '@/components/glass/QuickActions';
@@ -139,6 +140,7 @@ export default function DashboardScreen() {
         </View>
         <View style={styles.headerActions}>
           <ThemeToggle />
+          <NotificationBell iconColor={g.muted} onPress={() => router.push('/notifications')} />
           <IconButton
             icon="cog"
             size={22}
