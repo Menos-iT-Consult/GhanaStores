@@ -16,6 +16,7 @@ import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../ser
 import { isMtnNumber } from '../services/paymentRouter.js';
 import { mtnCollect } from '../services/mtnMomoService.js';
 import { initCheckout } from '../services/hubtelService.js';
+import { initPaystackCheckout, paystackPlatformReady } from '../services/paystackPlatform.js';
 import { decryptSecret } from '../services/secretBox.js';
 import { verifyTotp } from '../services/totpService.js';
 import { billingCronHandler } from './billingCronRoute.js';
@@ -315,9 +316,28 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
     await client.query('COMMIT');
     client.release();
 
-    // Record the subscription attempt before the gateway call so a crash
-    // after collection leaves an auditable PENDING row (never a silent ACTIVE).
-    const reference = `GS-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Idempotency: the comment above promises a client-supplied key, but the
+    // code generated a fresh reference every call — a retried tap on
+    // "Activate" charged twice. Honour the supplied key when present so a
+    // replay returns the original attempt instead of a second charge.
+    const rawKey = String(req.body?.idempotencyKey || '').trim().slice(0, 120);
+    const reference = rawKey || `GS-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if (rawKey) {
+      const prior = await query(
+        `SELECT id, status, reference FROM subscription_payments
+          WHERE store_id = $1 AND reference = $2 LIMIT 1`,
+        [req.auth.sub, reference],
+      );
+      if (prior.rows[0]) {
+        return res.json({
+          success: prior.rows[0].status === 'PAID',
+          replayed: true,
+          reference: prior.rows[0].reference,
+          status: prior.rows[0].status,
+          message: 'This subscription attempt was already recorded.',
+        });
+      }
+    }
     const attempt = await query(
       `INSERT INTO subscription_payments
           (store_id, plan_id, amount, momo_number, network, provider, reference, cycle, status)
@@ -423,7 +443,35 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
         dryRun: Boolean(checkout.dryRun),
       });
     } catch (err) {
-      // Both legs failed. Record it and return an actionable JSON error instead
+      // Hubtel hosted checkout could not be created. Paystack is Fallback 2:
+      // the SAME reference is offered as a Paystack payment page, so the
+      // webhook activates the plan from whichever gateway confirms. The row
+      // stays PENDING either way - never a silent ACTIVE. Only when every leg
+      // has failed does the attempt close as FAILED.
+      if (paystackPlatformReady()) {
+        try {
+          const ps = await initPaystackCheckout({
+            amountGhs,
+            email: req.store.email,
+            reference,
+            callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
+            metadata: { kind: 'SUBSCRIPTION', storeId: req.auth.sub, planId: plan.id, cycle },
+          });
+          return res.json({
+            success: true,
+            provider: 'paystack',
+            checkoutUrl: ps.checkoutUrl,
+            checkoutId: ps.checkoutId,
+            reference,
+            message: 'Complete your payment on the secure checkout page to activate your plan.',
+          });
+        } catch (psErr) {
+          console.error(`[billing] Paystack fallback failed for ${reference}: ${psErr.message}`);
+          err = psErr; // the seller sees whichever leg failed last
+        }
+      }
+
+      // Every leg failed. Record it and return an actionable JSON error instead
       // of crashing - the UI displays this message verbatim.
       await query(
         `UPDATE subscription_payments

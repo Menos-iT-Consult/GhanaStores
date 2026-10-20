@@ -37,7 +37,10 @@ import {
  */
 export async function runPosSale({ storeId, storePhone, body = {} }) {
   const b = body;
-  const clientReference = String(b.idempotencyKey || '').trim().slice(0, 120) || null;
+  // PWA sends idempotencyKey; the seller app sends saleId (see mobile
+  // posOutbox.ts / PosSalePayload). Both mean "offline idempotency key".
+  const rawKey = b.idempotencyKey ?? b.saleId ?? '';
+  const clientReference = String(rawKey || '').trim().slice(0, 120) || null;
   const client = await pool.connect();
   const release = () => { try { client.release(); } catch { /* noop */ } };
   try {
@@ -172,11 +175,9 @@ export async function runPosSale({ storeId, storePhone, body = {} }) {
       if (cust && cust.loyalty_points > 0) {
         pointsRedeemed = Math.max(0, Math.min(toIntOr(b.redeemPoints, 0), cust.loyalty_points));
         discount = Math.min(redeemValue(pointsRedeemed, loyalty_point_value), subtotal);
+        // NOTE: no early UPDATE here — the earn+redeem land atomically in the
+        // upsert below. Deducting here AND in the upsert double-charged redemption.
         if (pointsRedeemed > 0) {
-          await client.query(
-            'UPDATE customers SET loyalty_points = loyalty_points - $2 WHERE id = $1',
-            [cust.id, pointsRedeemed],
-          );
           customerId = cust.id;
         }
       }
@@ -215,8 +216,9 @@ export async function runPosSale({ storeId, storePhone, body = {} }) {
        RETURNING id, order_number, total`,
       [storeId, orderNumber, customerId, b.customerName || 'Walk-in customer',
         customerPhone, paymentMethod, subtotal, discount,
-        pointsEarned, pointsRedeemed, total, clientReference,
-        momoRef ? `MoMo ref ${momoRef} via ${momoProvider || 'HUBTEL'}` : (b.notes || null)],
+        pointsEarned, pointsRedeemed, total,
+        momoRef ? `MoMo ref ${momoRef} via ${momoProvider || 'HUBTEL'}` : (b.notes || null),
+        clientReference],
     );
     const order = orderIns.rows[0];
 
@@ -270,6 +272,41 @@ export async function runPosSale({ storeId, storePhone, body = {} }) {
     };
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch { /* noop */ }
+    // Concurrent offline replay race: two requests with the same idempotencyKey
+    // both passed the pre-check above, and the loser hit the
+    // orders_client_reference_idx unique constraint. That is a replay, not a
+    // 500 — fetch the winner's row (on a fresh pooled client, since this one
+    // just rolled back) and return it as a 200 replay.
+    if (err?.code === '23505' && clientReference) {
+      release();
+      try {
+        const { rows } = await pool.query(
+          `SELECT id, order_number, total, subtotal, discount_amount,
+                  points_earned, points_redeemed, notes
+             FROM orders WHERE store_id = $1 AND client_reference = $2`,
+          [storeId, clientReference],
+        );
+        if (rows[0]) {
+          return {
+            status: 200,
+            replayed: true,
+            json: {
+              message: `Sale ${rows[0].order_number} was already recorded.`,
+              order: {
+                ...rows[0],
+                total: Number(rows[0].total),
+                subtotal: Number(rows[0].subtotal),
+                discount: Number(rows[0].discount_amount),
+                pointsEarned: rows[0].points_earned,
+                pointsRedeemed: rows[0].points_redeemed,
+              },
+            },
+            alertCandidates: [],
+          };
+        }
+      } catch { /* fall through to the original error */ }
+      throw err;
+    }
     release();
     throw err;
   }

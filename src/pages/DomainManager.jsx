@@ -279,6 +279,10 @@ function HubtelCheckoutDrawer({ domain, priceGhs, storeId = null, onClose }) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // One key per drawer session: a double-tap or a timeout-and-retry reuses it,
+  // so the server returns the SAME purchase reference instead of opening a
+  // second payment session behind a second pending purchase.
+  const [idemKey] = useState(() => `ui-${Math.random().toString(36).slice(2, 12)}`);
 
   async function handleProceed() {
     setError('');
@@ -287,7 +291,8 @@ function HubtelCheckoutDrawer({ domain, priceGhs, storeId = null, onClose }) {
     setBusy(true);
     try {
       const res = await api.post('/api/domains/buy/initialize-hubtel', {
-        amountGhs: priceGhs, domainName: domain, customerPhone: phone, customerEmail: email, ...(storeId ? { storeId } : {}),
+        amountGhs: priceGhs, domainName: domain, customerPhone: phone, customerEmail: email,
+        idempotencyKey: idemKey, ...(storeId ? { storeId } : {}),
       });
       if (res.checkoutUrl) { window.location.href = res.checkoutUrl; }
       else { setError('Payment gateway did not return a checkout URL.'); }

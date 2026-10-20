@@ -670,27 +670,79 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
     }
     const amountGhs = priced.priceGhs;
 
-    const result = await domainService.initializeHubtelCheckout({
-      amountGhs,
-      domainName: clean,
-      customerPhone,
-      customerEmail: customerEmail || req.store?.email || '',
-      storeId: req.auth.sub,
-    });
+    /* Idempotency: a retried tap reuses the client's key, so the SAME
+       business reference and the SAME pending row back a second checkout
+       session - a duplicate purchase cannot be stranded behind a second
+       reference. A purchase that already settled answers here instead. */
+    const idem = String(req.body?.idempotencyKey || '').trim()
+      .replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
+    const reference = `GSD-${req.auth.sub}-${idem || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`}`;
 
-    // Pre-create store_domains record with pending status
+    if (idem) {
+      const prior = await query(
+        `SELECT status, domain_name FROM store_domains
+          WHERE store_id = $1 AND purchase_reference = $2 LIMIT 1`,
+        [req.auth.sub, reference],
+      );
+      if (prior.rows[0]) {
+        if (prior.rows[0].status === 'ACTIVE') {
+          return res.status(409).json({
+            error: `${prior.rows[0].domain_name} was already purchased on this attempt.`,
+            alreadyOwned: true,
+            reference,
+          });
+        }
+        // PENDING_DNS (or FAILED): fall through and reopen a checkout session
+        // for the SAME reference below.
+      }
+    }
+
+    /* Hubtel is the primary hosted checkout; Paystack is Fallback 2 when the
+       Hubtel session could not be created. Both settle later through their
+       webhooks against this same reference, with the server-resolved price
+       recorded on the pending row so the callback can be amount-checked. */
+    let result;
+    try {
+      result = await domainService.initializeHubtelCheckout({
+        amountGhs,
+        domainName: clean,
+        customerPhone,
+        customerEmail: customerEmail || req.store?.email || '',
+        storeId: req.auth.sub,
+        reference,
+      });
+    } catch (err) {
+      if (!paystackPlatformReady()) throw err;
+      try {
+        const ps = await initPaystackCheckout({
+          amountGhs,
+          email: customerEmail || req.store?.email || '',
+          reference,
+          callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/domains`,
+          metadata: { storeId: req.auth.sub, domainName: clean },
+        });
+        result = { checkoutUrl: ps.checkoutUrl, checkoutId: ps.checkoutId, reference };
+      } catch (psErr) {
+        console.error(`[domain] Paystack fallback failed for ${reference}: ${psErr.message}`);
+        throw err; // surface the original Hubtel failure to the seller
+      }
+    }
+
+    // Pre-create store_domains record with pending status. The resolved price
+    // travels with it (price_paid_ghs) so the webhook can compare the paid
+    // amount against what this purchase actually cost.
     await query(
-      `INSERT INTO store_domains (store_id, domain_name, provider, status, purchase_reference)
-       VALUES ($1, $2, 'PURCHASED', 'PENDING_DNS', $3)
+      `INSERT INTO store_domains (store_id, domain_name, provider, status, purchase_reference, price_paid_ghs)
+       VALUES ($1, $2, 'PURCHASED', 'PENDING_DNS', $3, $4)
        ON CONFLICT (LOWER(domain_name)) DO NOTHING`,
-      [req.auth.sub, clean, result.reference],
+      [req.auth.sub, clean, reference, amountGhs],
     );
 
     return res.json({
       success: true,
       checkoutUrl: result.checkoutUrl,
       checkoutId: result.checkoutId,
-      reference: result.reference,
+      reference,
       // The price actually charged, resolved server-side. Echoed so the seller
       // can see what they were billed even if their search result was stale.
       amountGhs,
@@ -715,7 +767,12 @@ import {
   findOrderByReference,
   findSubscriptionByReference,
   handleSubscriptionWebhook,
+  findSmsPackByReference,
+  handleSmsPackWebhook,
 } from '../services/paymentWebhooks.js';
+import {
+  paystackPlatformReady, verifyPlatformSignature, platformReferenceKind,
+} from '../services/paystackPlatform.js';
 
 export const webhookRouter = WebhookRouter();
 
@@ -775,18 +832,176 @@ function verifyWebhook(req) {
 }
 
 /**
+ * Close the loop on a PAID domain purchase: mark the pending row ACTIVE and
+ * attach the hostname to the tenant that bought it. Shared by the Hubtel and
+ * Paystack webhook branches so both enforce the same two ownership rules: only
+ * a real PURCHASED row for this store can activate, and a hostname already
+ * attached to another tenant is never stolen.
+ */
+async function activatePurchasedDomain(storeId, domainName) {
+  /* Guard: a successfully paid purchase may only activate the domain for a
+     store that actually created the pending purchase, and the domain must
+     stay exclusively owned (stores.custom_domain is UNIQUE). */
+  const owned = await query(
+    `SELECT 1 FROM store_domains
+      WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)
+        AND provider = 'PURCHASED'
+      LIMIT 1`,
+    [storeId, domainName],
+  );
+  if (!owned.rows[0]) {
+    console.warn('[webhook] no pending purchase for', domainName, '-> ignoring');
+    return { activated: false, reason: 'unknown_purchase' };
+  }
+
+  await query(
+    `UPDATE store_domains SET status = 'ACTIVE', registered_at = NOW(), updated_at = NOW()
+      WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)`,
+    [storeId, domainName],
+  );
+
+  // Never steal a domain already attached to a different tenant. LOWER() on
+  // both sides: this is the only ownership check on the purchase path, so a
+  // case-sensitive comparison here let a differently-cased row through.
+  const taken = await query(
+    'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
+    [domainName, storeId],
+  );
+  if (taken.rows[0]) {
+    console.warn('[webhook] domain already attached to another store:', domainName);
+    return { activated: false, reason: 'domain_taken' };
+  }
+  await query(
+    `UPDATE stores SET custom_domain = LOWER($1) WHERE id = $2`,
+    [String(domainName).toLowerCase().trim(), storeId],
+  );
+  return { activated: true };
+}
+
+/**
+ * Look up the pending purchase a platform callback refers to - by reference
+ * first (unique), then by domain + store for callbacks that lost theirs - so
+ * the replay and amount guards can run BEFORE any registrar side effects.
+ */
+async function findPendingDomainPurchase(reference, storeId, domainName) {
+  if (reference) {
+    const { rows } = await query(
+      `SELECT status, price_paid_ghs FROM store_domains
+        WHERE purchase_reference = $1 AND provider = 'PURCHASED' LIMIT 1`,
+      [String(reference).trim()],
+    );
+    if (rows[0]) return rows[0];
+  }
+  if (storeId && domainName) {
+    const { rows } = await query(
+      `SELECT status, price_paid_ghs FROM store_domains
+        WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2) AND provider = 'PURCHASED'
+        LIMIT 1`,
+      [storeId, String(domainName).trim()],
+    );
+    return rows[0] || null;
+  }
+  return null;
+}
+
+/**
+ * Pre-fulfilment guards shared by the Hubtel and Paystack domain branches:
+ * a replayed callback must not re-register a domain that is already live, and
+ * a callback whose amount does not match the price recorded on the pending
+ * row is refused before any money-adjacent state moves. Runs BEFORE the
+ * registrar call - registration is a side effect we cannot cheaply undo.
+ *
+ * @returns {null|{reason: string}} a refusal to relay to the caller, or null
+ *   when the callback may proceed.
+ */
+async function domainPaymentGuards(pending, paidAmountGhs) {
+  if (pending?.status === 'ACTIVE') {
+    return { reason: 'Already settled.' };
+  }
+  // Legacy pending rows (created before the price was recorded) carry NULL and
+  // are not amount-checked - they must still be able to settle.
+  if (pending?.price_paid_ghs != null && paidAmountGhs !== null
+      && Math.abs(Number(paidAmountGhs) - Number(pending.price_paid_ghs)) > 0.01) {
+    console.warn(`[webhook] domain amount ${paidAmountGhs} != ${pending.price_paid_ghs} - refused`);
+    return { reason: 'Amount mismatch.' };
+  }
+  return null;
+}
+
+/**
  * POST /api/webhooks/paystack
  *
- * Net-new endpoint. Paystack is a per-store BYOK gateway, so there is no
- * platform-wide secret here: the store is resolved from data.reference and the
- * signature is checked with that store's own secret key.
+ * Serves two callers on one path, disambiguated by the reference prefix:
+ *   - a PLATFORM DOMAIN purchase (GSD-...) -> Paystack is the Fallback 2 for
+ *     the Hubtel hosted checkout. Signed with the platform-wide
+ *     PAYSTACK_SECRET_KEY, then guarded (replay, amount) and fulfilled exactly
+ *     like the Hubtel domain branch below.
+ *   - anything else -> a per-store BYOK gateway order (or a platform
+ *     subscription/SMS pack), where the store is resolved from data.reference
+ *     and the signature is checked with that merchant's own secret key.
  */
 webhookRouter.post('/paystack', async (req, res) => {
   try {
-    const result = await handlePaystackWebhook(
-      req.rawBody ?? JSON.stringify(req.body || {}),
-      req.get('x-paystack-signature') || '',
-    );
+    const rawBody = req.rawBody ?? JSON.stringify(req.body || {});
+    const reference = req.body?.data?.reference;
+
+    if (platformReferenceKind(reference) === 'domain') {
+      // Authenticated by the PLATFORM secret, never a merchant's key: this is
+      // DiDwa's own domain sale, exactly like the Hubtel platform flow.
+      if (paystackPlatformReady()) {
+        if (!verifyPlatformSignature(rawBody, req.get('x-paystack-signature') || '')) {
+          console.warn('[webhook] rejected unverified Paystack domain webhook:', reference);
+          return res.status(401).json({ received: false, error: 'Invalid signature.' });
+        }
+      } else if (process.env.NODE_ENV === 'production') {
+        return res.status(400).json({ received: false, error: 'Paystack is not configured on this platform.' });
+      } else {
+        console.warn('[webhook] PAYSTACK_SECRET_KEY is not set - accepting domain webhook unverified (development only).');
+      }
+
+      const event = req.body?.event;
+      if (event !== 'charge.success') {
+        console.log('[webhook] paystack domain callback: non-success event ignored:', event);
+        return res.json({ received: true, processed: false, reason: 'Not a successful transaction.' });
+      }
+
+      const metadata = req.body?.data?.metadata || {};
+      const domainName = String(metadata.domainName || '').trim();
+      const storeId = String(metadata.storeId || '').trim();
+      if (!domainName || !storeId) {
+        console.error('[webhook] paystack domain webhook: missing metadata.', { reference });
+        return res.json({ received: true, processed: false, reason: 'Missing metadata.' });
+      }
+
+      // Pre-fulfilment guards, shared with the Hubtel branch: replay and
+      // amount, BEFORE the registrar side effects below.
+      const pending = await findPendingDomainPurchase(reference, storeId, domainName);
+      const rawAmount = req.body?.data?.amount;
+      // Paystack reports pesewas - convert before comparing to the GHS price.
+      const paidAmountGhs = rawAmount == null ? null : Number(rawAmount) / 100;
+      const refusal = await domainPaymentGuards(pending, paidAmountGhs);
+      if (refusal) {
+        return res.json({ received: true, processed: false, reason: refusal.reason });
+      }
+
+      let result;
+      try {
+        result = await domainService.fulfilDomainPurchase({ domainName, storeId, metadata });
+      } catch (err) {
+        console.error('[domain] paystack fulfil error:', err.message);
+        return res.status(202).json({ received: true, processed: false, reason: 'Handler error.' });
+      }
+
+      if (result.processed && result.domainName) {
+        const activation = await activatePurchasedDomain(result.storeId, result.domainName);
+        if (!activation.activated) {
+          return res.json({ received: true, processed: false, reason: activation.reason });
+        }
+      }
+      return res.json({ received: true, processed: result.processed });
+    }
+
+    const result = await handlePaystackWebhook(rawBody, req.get('x-paystack-signature') || '');
     return res.status(result.status).json(result.body);
   } catch (err) {
     // Always 200: a non-2xx makes Paystack retry the same event forever, and a
@@ -799,13 +1014,16 @@ webhookRouter.post('/paystack', async (req, res) => {
 /**
  * POST /api/webhooks/hubtel
  *
- * Serves two callers on one path, disambiguated by whether the payload carries
- * a ClientReference that matches a DiDwa order:
+ * Serves four callers on one path, disambiguated by whether the payload carries
+ * a ClientReference that matches a DiDwa order, a subscription, or an SMS pack:
  *   - a STORE ORDER payment  -> per-store BYOK handling, signed with that
  *     merchant's own client secret (handleHubtelWebhook).
- *   - a PLATFORM DOMAIN purchase -> the pre-existing flow below, signed with
- *     the platform-wide HUBTEL_WEBHOOK_SECRET.
+ *   - a PLATFORM SUBSCRIPTION checkout (GS-SUB-...) -> handleSubscriptionWebhook.
+ *   - a PLATFORM SMS PACK checkout (GS-SMS-...) -> handleSmsPackWebhook.
+ *   - a PLATFORM DOMAIN purchase (GSD-...) -> the pre-existing flow below.
  * The order lookup runs first so domain provisioning keeps working unchanged.
+ * All three platform flows are authenticated by the platform-wide
+ * HUBTEL_WEBHOOK_SECRET - never left as unverified self-asserted callbacks.
  */
 webhookRouter.post('/hubtel', async (req, res) => {
   // Resolve which flow this belongs to BEFORE the try below. Deciding inside a
@@ -877,6 +1095,44 @@ webhookRouter.post('/hubtel', async (req, res) => {
     return res.json({ received: true, processed: result.processed, reason: result.reason || undefined });
   }
 
+  // PLATFORM SMS PACK checkout (the hosted fallback for POST /api/sms-packs/
+  // buy). Its reference is a GS-SMS-... sms_pack_payments row, not an order,
+  // not a subscription and not a domain, so it is disambiguated here and the
+  // segments are credited by handleSmsPackWebhook - atomically with the PAID
+  // row, and only after the platform webhook secret authenticates the call.
+  const smsRef = req.body?.ClientReference ?? req.body?.clientReference
+    ?? req.body?.Reference ?? req.body?.reference;
+  let smsPack = null;
+  try {
+    smsPack = smsRef ? await findSmsPackByReference(smsRef) : null;
+  } catch (err) {
+    console.error('[webhook] hubtel sms pack lookup failed:', err.message);
+    return res.status(202).json({ received: true, processed: false, reason: 'Lookup unavailable.' });
+  }
+
+  if (smsPack) {
+    let auth;
+    try {
+      auth = verifyWebhook(req);
+    } catch (err) {
+      console.error('[webhook] hubtel sms pack auth error:', err.message);
+      return res.status(202).json({ received: true, processed: false, reason: 'Auth unavailable.' });
+    }
+    if (!auth.ok) {
+      console.warn('[webhook] rejected unverified Hubtel sms pack webhook:', auth.reason);
+      return res.status(401).json({ received: false, error: auth.reason });
+    }
+
+    let result;
+    try {
+      result = await handleSmsPackWebhook(req.body || {});
+    } catch (err) {
+      console.error('[payment-webhook] sms pack handler error:', err.message);
+      return res.status(202).json({ received: true, processed: false, reason: 'Handler error.' });
+    }
+    return res.json({ received: true, processed: result.processed, reason: result.reason || undefined });
+  }
+
   try {
     const auth = verifyWebhook(req);
     if (!auth.ok) {
@@ -884,45 +1140,26 @@ webhookRouter.post('/hubtel', async (req, res) => {
       return res.status(401).json({ received: false, error: auth.reason });
     }
 
-    const result = await domainService.handleHubtelWebhook(req.body || {});
+    /* Pre-fulfilment guards. handleHubtelWebhook registers the domain with
+       the registrar, so the replay and amount checks must run BEFORE it: a
+       replayed callback must not re-register a domain that is already live. */
+    const payload = req.body || {};
+    const reference = payload?.Data?.ClientReference || payload?.reference || '';
+    const meta = payload?.Data?.Metadata || payload?.metadata || {};
+    const pending = await findPendingDomainPurchase(reference, meta.storeId, meta.domainName);
+    const paidAmount = payload?.Data?.Amount ?? payload?.Amount ?? null;
+    const refusal = await domainPaymentGuards(pending, paidAmount === null ? null : Number(paidAmount));
+    if (refusal) {
+      return res.json({ received: true, processed: false, reason: refusal.reason });
+    }
+
+    const result = await domainService.handleHubtelWebhook(payload);
 
     if (result.processed && result.domainName) {
-      /* Guard: a successfully paid purchase may only activate the domain for a
-         store that actually created the pending purchase, and the domain must
-         stay exclusively owned (stores.custom_domain is UNIQUE). */
-      const owned = await query(
-        `SELECT 1 FROM store_domains
-          WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)
-            AND provider = 'PURCHASED'
-          LIMIT 1`,
-        [result.storeId, result.domainName],
-      );
-      if (!owned.rows[0]) {
-        console.warn('[webhook] no pending purchase for', result.domainName, '-> ignoring');
-        return res.json({ received: true, processed: false, reason: 'unknown_purchase' });
+      const activation = await activatePurchasedDomain(result.storeId, result.domainName);
+      if (!activation.activated) {
+        return res.json({ received: true, processed: false, reason: activation.reason });
       }
-
-      await query(
-        `UPDATE store_domains SET status = 'ACTIVE', registered_at = NOW(), updated_at = NOW()
-          WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)`,
-        [result.storeId, result.domainName],
-      );
-
-      // Never steal a domain already attached to a different tenant. LOWER() on
-      // both sides: this is the only ownership check on the purchase path, so a
-      // case-sensitive comparison here let a differently-cased row through.
-      const taken = await query(
-        'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
-        [result.domainName, result.storeId],
-      );
-      if (taken.rows[0]) {
-        console.warn('[webhook] domain already attached to another store:', result.domainName);
-        return res.json({ received: true, processed: false, reason: 'domain_taken' });
-      }
-      await query(
-        `UPDATE stores SET custom_domain = LOWER($1) WHERE id = $2`,
-        [String(result.domainName).toLowerCase().trim(), result.storeId],
-      );
     }
 
     return res.json({ received: true, processed: result.processed });

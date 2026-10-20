@@ -142,7 +142,13 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
   try {
-    req.auth = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    // A 2FA challenge (purpose '2fa') is proof of password, not a session:
+    // it must never pass a general auth check nor load a store.
+    if (payload?.purpose === '2fa') {
+      return res.status(401).json({ error: 'Two-factor verification required.' });
+    }
+    req.auth = payload;
     next();
   } catch {
     return res.status(401).json({ error: 'Session expired or invalid. Please sign in again.' });
@@ -227,7 +233,7 @@ export async function loadSellerStore(req, res, next) {
 /** requireAuth + loadSellerStore combined for seller API mounts. */
 export function requireSeller(req, res, next) {
   requireAuth(req, res, (err) => {
-    if (err) return err;
+    if (err) return next(err);
     loadSellerStore(req, res, next);
   });
 }
@@ -254,7 +260,9 @@ export async function authenticateMobileToken(req, res, next) {
   if (payload?.role !== 'SELLER') {
     return res.status(403).json({ error: 'Merchant access required.' });
   }
-  if (payload?.typ && payload.typ !== 'mobile-access') {
+  // Mobile API requires a mobile-access token: a web session, a 2FA challenge,
+  // or a refresh token must never open a mobile API session.
+  if (payload?.typ !== 'mobile-access' || payload?.purpose === '2fa') {
     return res.status(401).json({ error: 'This token cannot access the API. Please sign in again.' });
   }
 
@@ -306,7 +314,7 @@ export function requireOperationalStore(req, res, next) {
 /** Convenience wrapper: seller auth + operational gate in one line. */
 export function requireActiveSeller(req, res, next) {
   requireSeller(req, res, (err) => {
-    if (err) return err;
+    if (err) return next(err);
     requireOperationalStore(req, res, next);
   });
 }

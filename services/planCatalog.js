@@ -28,9 +28,9 @@ const CACHE_MS = 60_000;
  * let a missing `plans` table silently change what merchants can actually do.
  */
 const FALLBACK_PLANS = [
-  { id: 'starter', name: 'Starter', tagline: '14-day free trial', monthly_price_ghs: 0, yearly_price_ghs: 0, features: ['Up to 20 products', 'Mobile money payments', 'Order tracking', 'Email support'], max_products: 20, smsMonthlySegments: 0, is_enabled: true, sort_order: 1 },
-  { id: 'growth', name: 'Growth', tagline: 'For growing shops', monthly_price_ghs: 79, yearly_price_ghs: 790, features: ['Up to 500 products', 'Mobile money payments', 'Domain name included', 'Theme marketplace', 'Priority support'], max_products: 500, smsMonthlySegments: 50, is_enabled: true, sort_order: 2 },
-  { id: 'scale', name: 'Scale', tagline: 'High-volume merchants', monthly_price_ghs: 199, yearly_price_ghs: 1990, features: ['Unlimited products', 'Multi-currency pricing', 'Team seats', 'Dedicated account manager'], max_products: 100000, smsMonthlySegments: 100, is_enabled: true, sort_order: 3 },
+  { id: 'starter', name: 'Starter', tagline: '14-day free trial', monthly_price_ghs: 0, yearly_price_ghs: 0, features: ['Up to 20 products', 'Mobile money payments', 'Order tracking', 'Email support'], max_products: 20, sms_monthly_segments: 0, is_enabled: true, sort_order: 1 },
+  { id: 'growth', name: 'Growth', tagline: 'For growing shops', monthly_price_ghs: 79, yearly_price_ghs: 790, features: ['Up to 500 products', 'Mobile money payments', 'Domain name included', 'Theme marketplace', 'Priority support'], max_products: 500, sms_monthly_segments: 50, is_enabled: true, sort_order: 2 },
+  { id: 'scale', name: 'Scale', tagline: 'High-volume merchants', monthly_price_ghs: 199, yearly_price_ghs: 1990, features: ['Unlimited products', 'Multi-currency pricing', 'Team seats', 'Dedicated account manager'], max_products: 100000, sms_monthly_segments: 100, is_enabled: true, sort_order: 3 },
 ];
 
 /** Billing cycles a seller may choose. */
@@ -82,9 +82,10 @@ export async function loadPlanCatalog({ force = false } = {}) {
     };
   } catch {
     // A missing table must not break the pricing page or the upgrade flow.
+    // FALLBACK rows are raw DB-shaped, so normalise through toPlan like live rows.
     data = {
-      plans: FALLBACK_PLANS,
-      byId: new Map(FALLBACK_PLANS.map((p) => [p.id, p])),
+      plans: FALLBACK_PLANS.map(toPlan),
+      byId: new Map(FALLBACK_PLANS.map((p) => [p.id, toPlan(p)])),
       catalogued: false,
     };
   }

@@ -539,7 +539,7 @@ CREATE TABLE IF NOT EXISTS sms_pack_payments (
   amount           NUMERIC(12,2) NOT NULL CHECK (amount > 0),
   momo_number      TEXT NOT NULL,
   network          TEXT NOT NULL CHECK (network IN ('MTN','VODAFONE','AT')),
-  provider         TEXT NOT NULL DEFAULT 'PENDING' CHECK (provider IN ('MTN','HUBTEL','PENDING')),
+  provider         TEXT NOT NULL DEFAULT 'PENDING' CHECK (provider IN ('MTN','HUBTEL','PAYSTACK','PENDING')),
   reference        TEXT,
   gateway_reference TEXT,
   -- The per-segment price at purchase time. Recorded rather than re-read later:
@@ -554,6 +554,14 @@ CREATE TABLE IF NOT EXISTS sms_pack_payments (
 -- insert a second payment row for the same tap.
 CREATE UNIQUE INDEX IF NOT EXISTS sms_pack_payments_reference_idx
   ON sms_pack_payments (reference);
+
+-- Paystack is the platform's Fallback 2 (after Hubtel) for these payments, so
+-- its label must be storable too. CREATE TABLE is a no-op on an existing
+-- database, hence the constraint swap below. Idempotent; safe on rows that
+-- only ever carry MTN/HUBTEL/PENDING.
+ALTER TABLE sms_pack_payments DROP CONSTRAINT IF EXISTS sms_pack_payments_provider_check;
+ALTER TABLE sms_pack_payments ADD CONSTRAINT sms_pack_payments_provider_check
+  CHECK (provider IN ('MTN','HUBTEL','PAYSTACK','PENDING'));
 
 -- Widen plans for the SMS allowance. CREATE TABLE IF NOT EXISTS is a no-op on an
 -- existing database, so the column has to be added separately. Idempotent.
@@ -695,7 +703,7 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
   momo_number       TEXT NOT NULL,
   network           TEXT NOT NULL CHECK (network IN ('MTN','VODAFONE','AT')),
   provider          TEXT NOT NULL DEFAULT 'PENDING'
-                      CHECK (provider IN ('MTN','HUBTEL','PENDING')),
+                      CHECK (provider IN ('MTN','HUBTEL','PAYSTACK','PENDING')),
   reference         TEXT,
   gateway_reference TEXT,
   -- Which cycle was bought, so a later reconciliation knows how long the paid
@@ -713,6 +721,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS subscription_payments_ref_idx
   ON subscription_payments (reference) WHERE reference IS NOT NULL;
 CREATE INDEX IF NOT EXISTS subscription_payments_store_idx
   ON subscription_payments (store_id, initiated_at DESC);
+
+-- Paystack is the platform's Fallback 2 (after Hubtel) for these payments.
+-- Idempotent constraint swap - see the note on sms_pack_payments above.
+ALTER TABLE subscription_payments DROP CONSTRAINT IF EXISTS subscription_payments_provider_check;
+ALTER TABLE subscription_payments ADD CONSTRAINT subscription_payments_provider_check
+  CHECK (provider IN ('MTN','HUBTEL','PAYSTACK','PENDING'));
 
 -- Cycle and the paid period, added after this table already existed (see the
 -- same ALTER on stores above).
@@ -757,6 +771,11 @@ CREATE TABLE IF NOT EXISTS store_domains (
 CREATE UNIQUE INDEX IF NOT EXISTS store_domains_name_idx ON store_domains (LOWER(domain_name));
 CREATE INDEX IF NOT EXISTS store_domains_store_idx ON store_domains (store_id, status);
 CREATE INDEX IF NOT EXISTS store_domains_status_idx ON store_domains (status, created_at DESC);
+-- A purchase reference identifies exactly ONE pending purchase: the idempotent
+-- checkout reuses the same reference across retried payment sessions, and the
+-- webhook resolves the reference back to the row it may activate.
+CREATE UNIQUE INDEX IF NOT EXISTS store_domains_purchase_reference_idx
+  ON store_domains (purchase_reference) WHERE purchase_reference IS NOT NULL;
 
 -- ------------------------------------------------- store account settings (Site Settings tab)
 -- Two additions to `stores` and one new table, all idempotent:

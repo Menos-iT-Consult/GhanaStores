@@ -33,16 +33,19 @@ export const SETUP_HELP =
   + 'and restart the server.';
 
 let cachedKey = null;
+let cachedRaw = null;
 
 /**
  * Resolve the 32-byte master key, or null when unconfigured.
  * Memoised so the parse happens once, but a bad length still throws per call
  * so a misconfiguration is reported by whoever triggers it.
+ * The raw env value is part of the cache key so key rotation (or tests that
+ * swap PAYMENT_KEYS_ENCRYPTION_SECRET) can never keep decrypting with a stale key.
  */
 function masterKey() {
-  if (cachedKey) return cachedKey;
   const raw = String(process.env.PAYMENT_KEYS_ENCRYPTION_SECRET || '').trim();
   if (!raw) return null;
+  if (cachedKey && cachedRaw === raw) return cachedKey;
 
   // Accept 64 hex chars, or any other string long enough to stretch to 32 bytes.
   // Hex is the documented form, but refusing a base64/UUID-style value would
@@ -52,6 +55,7 @@ function masterKey() {
     : crypto.createHash('sha256').update(raw, 'utf8').digest();
   if (key.length !== 32) throw new Error('PAYMENT_KEYS_ENCRYPTION_SECRET must decode to 32 bytes.');
   cachedKey = key;
+  cachedRaw = raw;
   return key;
 }
 
@@ -163,6 +167,7 @@ if (process.argv[1] && process.argv[1].endsWith('secretBox.js')) {
   process.env.PAYMENT_KEYS_ENCRYPTION_SECRET = KEY;
   // Re-import-free reset: the memoised key must not survive a key change.
   cachedKey = null;
+  cachedRaw = null;
 
   const sealed = encryptSecret('sk_live_abc123');
   check('ciphertext is versioned envelope', /^v1:[^:]+:[^:]+:[^:]+$/.test(sealed));
@@ -185,12 +190,14 @@ if (process.argv[1] && process.argv[1].endsWith('secretBox.js')) {
   // A different master key must fail loudly, not return garbage.
   process.env.PAYMENT_KEYS_ENCRYPTION_SECRET = 'b'.repeat(64);
   cachedKey = null;
+  cachedRaw = null;
   let wrongErr = null;
   try { decryptSecret(sealed); } catch (e) { wrongErr = e; }
   check('wrong master key is detected', !!wrongErr && /does not match/.test(wrongErr.message));
 
   process.env.PAYMENT_KEYS_ENCRYPTION_SECRET = KEY;
   cachedKey = null;
+  cachedRaw = null;
   check('empty input encrypts to null', encryptSecret('') === null && encryptSecret(null) === null);
   check('null envelope decrypts to null', decryptSecret(null) === null);
   check('malformed envelope is rejected', (() => {

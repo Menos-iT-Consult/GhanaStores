@@ -477,20 +477,23 @@ export async function searchDomains(query) {
   }
 }
 
-export async function initializeHubtelCheckout({ amountGhs, domainName, customerPhone, customerEmail, storeId }) {
+export async function initializeHubtelCheckout({ amountGhs, domainName, customerPhone, customerEmail, storeId, reference }) {
   if (!domainName || !amountGhs || !customerPhone) {
     throw new Error('Domain name, amount, and phone number are required.');
   }
 
-  const reference = `GSD-${storeId}-${Date.now()}`;
+  // Callers may pin the reference (an idempotent retry reuses the SAME one, so
+  // a second checkout session cannot strand a second pending purchase behind a
+  // second reference). Without one, a timestamp keeps each session unique.
+  const checkoutRef = String(reference || '').trim() || `GSD-${storeId}-${Date.now()}`;
 
   if (domainDryRun) {
     console.log(`[domain:DRY_RUN] Init Hubtel checkout: ${domainName} @ GHS ${amountGhs} for ${customerPhone}`);
     return {
       dryRun: true,
-      checkoutUrl: `https://checkout.hubtel.com/dry-run/${reference}`,
-      checkoutId: reference,
-      reference,
+      checkoutUrl: `https://checkout.hubtel.com/dry-run/${checkoutRef}`,
+      checkoutId: checkoutRef,
+      reference: checkoutRef,
     };
   }
 
@@ -504,7 +507,7 @@ export async function initializeHubtelCheckout({ amountGhs, domainName, customer
         merchantAccountNumber: process.env.HUBTEL_MERCHANT_ACCOUNT || undefined,
         cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/domains`,
         returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/domains`,
-        clientReference: reference,
+        clientReference: checkoutRef,
         items: [{
           name: domainName,
           quantity: 1,
@@ -522,8 +525,8 @@ export async function initializeHubtelCheckout({ amountGhs, domainName, customer
 
     return {
       checkoutUrl: data?.checkoutUrl || data?.data?.checkoutUrl || data?.response?.checkoutUrl,
-      checkoutId: data?.checkoutId || data?.data?.reference || reference,
-      reference,
+      checkoutId: data?.checkoutId || data?.data?.reference || checkoutRef,
+      reference: checkoutRef,
     };
   } catch (err) {
     const detail = err.response?.data || err.message;
@@ -532,23 +535,20 @@ export async function initializeHubtelCheckout({ amountGhs, domainName, customer
   }
 }
 
-export async function handleHubtelWebhook(payload) {
-  const status = payload?.Data?.Status || payload?.status || '';
-  if (String(status).toLowerCase() !== 'success') {
-    console.log('[domain] Hubtel webhook: non-success status ignored:', status);
-    return { processed: false, reason: 'Not a successful transaction.' };
-  }
-
-  const reference = payload?.Data?.ClientReference || payload?.reference || '';
-  const metadata = payload?.Data?.Metadata || payload?.metadata || {};
-  const domainName = metadata.domainName || '';
-  const storeId = metadata.storeId || '';
-
-  if (!domainName || !storeId) {
-    console.error('[domain] Hubtel webhook: missing domainName or storeId.', { reference });
-    return { processed: false, reason: 'Missing metadata.' };
-  }
-
+/**
+ * Register the domain with Openprovider and provision its Cloudflare hostname
+ * + SSL after a purchase payment is CONFIRMED. Extracted from the Hubtel
+ * webhook handler so the Paystack Fallback 2 callback (routes/domainRoutes.js)
+ * performs exactly the same side effects - a second implementation here is how
+ * the two confirmation paths would drift apart.
+ *
+ * The caller owns the payment guards (replay, amount, pending-row ownership);
+ * this function only does the registrar + CDN work.
+ *
+ * @param {{domainName: string, storeId: string, metadata?: object}} args
+ * @returns {Promise<{processed: boolean, dryRun?: boolean, domainName, storeId, action: string}>}
+ */
+export async function fulfilDomainPurchase({ domainName, storeId, metadata = {} }) {
   if (domainDryRun) {
     console.log(`[domain:DRY_RUN] Webhook auto-register ${domainName} for store ${storeId}`);
     return { processed: true, dryRun: true, domainName, storeId, action: 'REGISTERED' };
@@ -581,6 +581,26 @@ export async function handleHubtelWebhook(payload) {
   }
 
   return { processed: true, domainName, storeId, action: 'REGISTERED' };
+}
+
+export async function handleHubtelWebhook(payload) {
+  const status = payload?.Data?.Status || payload?.status || '';
+  if (String(status).toLowerCase() !== 'success') {
+    console.log('[domain] Hubtel webhook: non-success status ignored:', status);
+    return { processed: false, reason: 'Not a successful transaction.' };
+  }
+
+  const reference = payload?.Data?.ClientReference || payload?.reference || '';
+  const metadata = payload?.Data?.Metadata || payload?.metadata || {};
+  const domainName = metadata.domainName || '';
+  const storeId = metadata.storeId || '';
+
+  if (!domainName || !storeId) {
+    console.error('[domain] Hubtel webhook: missing domainName or storeId.', { reference });
+    return { processed: false, reason: 'Missing metadata.' };
+  }
+
+  return fulfilDomainPurchase({ domainName, storeId, metadata });
 }
 
 export async function registerDomainOnOpenprovider({ domainName, ownerEmail, ownerName }) {
@@ -635,6 +655,7 @@ export default {
   searchDomains,
   initializeHubtelCheckout,
   handleHubtelWebhook,
+  fulfilDomainPurchase,
   registerDomainOnOpenprovider,
   provisionCloudflareHostname,
   get dryRun() { return domainDryRun; },

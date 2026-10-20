@@ -217,6 +217,13 @@ function BuySegments({ onPurchased }) {
       const res = await api.post('/api/sms-packs/buy', {
         segments: count, network, momoNumber, idempotencyKey: idemKey,
       });
+      // Hosted-checkout fallback: the direct MoMo legs could not complete, so
+      // the server handed back a payment page (Hubtel, then Paystack).
+      // Redirect there; the segments are credited when the webhook confirms.
+      if (res?.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+        return;
+      }
       setMsg(res.message);
       setSegments('');
       onPurchased?.();

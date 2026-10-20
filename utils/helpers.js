@@ -9,7 +9,8 @@
  * Returns "233XXXXXXXXX" or null when invalid.
  */
 export function normalizeGhPhone(input) {
-  if (!input || typeof input !== 'string') return null;
+  if (input === null || input === undefined) return null;
+  if (typeof input !== 'string' && typeof input !== 'number') return null;
   let digits = String(input).replace(/[^\d]/g, '');
   if (digits.startsWith('00233')) digits = digits.slice(5);
   else if (digits.startsWith('233')) digits = digits.slice(3);

@@ -27,6 +27,8 @@ import { Router } from 'express';
 import { pool, query, withTransaction } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { routeCollection } from '../services/paymentRouter.js';
+import { initCheckout } from '../services/hubtelService.js';
+import { initPaystackCheckout, paystackPlatformReady } from '../services/paystackPlatform.js';
 import { normalizeGhPhone } from '../utils/helpers.js';
 import {
   creditPurchase,
@@ -145,14 +147,74 @@ router.post('/buy', requireSeller, async (req, res, next) => {
     });
 
     if (!collected.success) {
+      /* Direct collection declined/failed. Fallback 1: a Hubtel HOSTED
+         checkout for the SAME GS-SMS- reference - the seller completes it by
+         card or any MoMo network and the webhook credits the segments when it
+         confirms. The row stays PENDING behind a live checkout session; it is
+         only closed as FAILED when every leg is exhausted. */
+      let decline = collected.message || 'MoMo payment was not approved. No segments were added.';
+      try {
+        const checkout = await initCheckout({
+          amountGhs: offer.amountGhs,
+          description: `DiDwa SMS ${offer.segments} segments - ${reference}`,
+          clientReference: reference,
+          customerPhone: momoNumber,
+          returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
+          cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
+          metadata: { kind: 'SMS_PACK', storeId: req.store.id, segments: String(offer.segments) },
+        });
+        return res.json({
+          checkoutUrl: checkout.checkoutUrl,
+          checkoutId: checkout.checkoutId,
+          provider: 'hubtel',
+          reference,
+          segments: offer.segments,
+          amountGhs: offer.amountGhs,
+          message: `Complete your payment on the secure checkout page. Your ${offer.segments} `
+            + 'segments are added when the payment confirms - they carry over until used.',
+          dryRun: Boolean(checkout.dryRun),
+        });
+      } catch (checkoutErr) {
+        console.warn(`[sms-packs] Hubtel checkout fallback failed for ${reference}: ${checkoutErr.message}`);
+        decline = checkoutErr.message || decline;
+      }
+
+      /* Fallback 2: Paystack, same reference, same webhook activation. */
+      if (paystackPlatformReady()) {
+        try {
+          const ps = await initPaystackCheckout({
+            amountGhs: offer.amountGhs,
+            email: req.store.email,
+            reference,
+            callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
+            metadata: { kind: 'SMS_PACK', storeId: req.store.id, segments: String(offer.segments) },
+          });
+          return res.json({
+            checkoutUrl: ps.checkoutUrl,
+            checkoutId: ps.checkoutId,
+            provider: 'paystack',
+            reference,
+            segments: offer.segments,
+            amountGhs: offer.amountGhs,
+            message: `Complete your payment on the secure checkout page. Your ${offer.segments} `
+              + 'segments are added when the payment confirms - they carry over until used.',
+          });
+        } catch (psErr) {
+          console.warn(`[sms-packs] Paystack fallback failed for ${reference}: ${psErr.message}`);
+          decline = psErr.message || decline;
+        }
+      }
+
+      // Every leg failed. Close the row so the idempotent replay path can
+      // answer honestly, and return an actionable error.
       await query(
         `UPDATE sms_pack_payments
             SET status = 'FAILED', provider = $2, failure_reason = $3
           WHERE id = $1`,
-        [attemptId, collected.provider || 'HUBTEL', (collected.message || 'Collection declined').slice(0, 300)],
+        [attemptId, collected.provider || 'HUBTEL', String(decline).slice(0, 300)],
       );
       return res.status(402).json({
-        error: collected.message || 'MoMo payment was not approved. No segments were added.',
+        error: decline,
         provider: collected.provider || 'HUBTEL',
       });
     }
