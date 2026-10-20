@@ -87,6 +87,26 @@ log('subscribe tries Paystack after the Hubtel checkout fails',
 log('subscribe only closes FAILED after every leg (Paystack leg precedes the FAILED update)',
   billing.indexOf('await initPaystackCheckout(') < billing.indexOf("status = 'FAILED'"));
 
+/* ------------- Unconfigured Hubtel: no dry-run, switch to Paystack -------- */
+
+log('subscribe skips the Hubtel dry-run page when Paystack can charge for real',
+  /if \(!\(hubtelDryRun && paystackPlatformReady\(\)\)\)/.test(billing));
+
+log('SMS packs refuse a Hubtel dry-run collection when Paystack can charge',
+  /let collected = await routeCollection\(/.test(packs)
+  && /collected\.dryRun && collected\.provider === 'HUBTEL' && paystackPlatformReady\(\)/.test(packs));
+
+log('SMS packs skip the hosted dry-run page too (Hubtel leg guarded)',
+  /if \(!\(hubtelDryRun && paystackPlatformReady\(\)\)\)/.test(packs));
+
+log('the domain checkout skips the Hubtel dry-run when Paystack can charge for real',
+  /if \(!\(hubtelDryRun && paystackPlatformReady\(\)\)\)/.test(domainRoutes));
+
+log('all three flows import the real hubtelDryRun flag (not a local guess)',
+  /import \{ initCheckout, hubtelDryRun \}/.test(billing)
+  && /import \{ initCheckout, hubtelDryRun \}/.test(packs)
+  && /import \{ hubtelDryRun \}/.test(domainRoutes));
+
 /* ----------------------------- SMS pack chain ----------------------------- */
 
 log('SMS packs fall back to a Hubtel hosted checkout on a failed collection',

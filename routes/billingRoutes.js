@@ -15,7 +15,7 @@ import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../services/subdomainSlug.js';
 import { isMtnNumber } from '../services/paymentRouter.js';
 import { mtnCollect } from '../services/mtnMomoService.js';
-import { initCheckout } from '../services/hubtelService.js';
+import { initCheckout, hubtelDryRun } from '../services/hubtelService.js';
 import { initPaystackCheckout, paystackPlatformReady } from '../services/paystackPlatform.js';
 import { decryptSecret } from '../services/secretBox.js';
 import { verifyTotp } from '../services/totpService.js';
@@ -422,17 +422,30 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
       );
     }
 
-    try {
-      const checkout = await initCheckout({
-        amountGhs,
-        description: `DiDwa ${plan.name} ${cycle} plan - ${reference}`,
-        clientReference: reference,
-        customerPhone: momoNumber,
-        returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
-        cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
-        metadata: { kind: 'SUBSCRIPTION', storeId: req.auth.sub, planId: plan.id, cycle },
-      });
+    /* When Hubtel is NOT configured but Paystack is, do not dry-run a fake
+       checkout page - a simulated checkoutUrl is a dead end and the seller's
+       money would never move. Skip straight to the real Paystack leg below.
+       Both unconfigured keeps the dry-run so local development still works. */
+    let checkout = null;
+    let hubtelError = null;
+    if (!(hubtelDryRun && paystackPlatformReady())) {
+      try {
+        checkout = await initCheckout({
+          amountGhs,
+          description: `DiDwa ${plan.name} ${cycle} plan - ${reference}`,
+          clientReference: reference,
+          customerPhone: momoNumber,
+          returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
+          cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
+          metadata: { kind: 'SUBSCRIPTION', storeId: req.auth.sub, planId: plan.id, cycle },
+        });
+      } catch (err) {
+        hubtelError = err;
+        console.error(`[billing] Hubtel checkout failed for ${reference}: ${err.message}`);
+      }
+    }
 
+    if (checkout) {
       return res.json({
         success: true,
         provider: 'hubtel',
@@ -442,49 +455,49 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
         message: 'Complete your payment on the secure checkout page to activate your plan.',
         dryRun: Boolean(checkout.dryRun),
       });
-    } catch (err) {
-      // Hubtel hosted checkout could not be created. Paystack is Fallback 2:
-      // the SAME reference is offered as a Paystack payment page, so the
-      // webhook activates the plan from whichever gateway confirms. The row
-      // stays PENDING either way - never a silent ACTIVE. Only when every leg
-      // has failed does the attempt close as FAILED.
-      if (paystackPlatformReady()) {
-        try {
-          const ps = await initPaystackCheckout({
-            amountGhs,
-            email: req.store.email,
-            reference,
-            callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
-            metadata: { kind: 'SUBSCRIPTION', storeId: req.auth.sub, planId: plan.id, cycle },
-          });
-          return res.json({
-            success: true,
-            provider: 'paystack',
-            checkoutUrl: ps.checkoutUrl,
-            checkoutId: ps.checkoutId,
-            reference,
-            message: 'Complete your payment on the secure checkout page to activate your plan.',
-          });
-        } catch (psErr) {
-          console.error(`[billing] Paystack fallback failed for ${reference}: ${psErr.message}`);
-          err = psErr; // the seller sees whichever leg failed last
-        }
-      }
-
-      // Every leg failed. Record it and return an actionable JSON error instead
-      // of crashing - the UI displays this message verbatim.
-      await query(
-        `UPDATE subscription_payments
-            SET status = 'FAILED', provider = 'HUBTEL', failure_reason = $2
-          WHERE id = $1`,
-        [attemptId, (err.message || 'Checkout could not be created').slice(0, 300)],
-      );
-      return res.status(402).json({
-        error: err.message || 'Payment could not be completed. Please try again or contact support.',
-        provider: 'HUBTEL',
-        reference,
-      });
     }
+
+    // Hubtel leg failed or was skipped. Paystack is Fallback 2: the SAME
+    // reference is offered as a Paystack payment page, so the webhook
+    // activates the plan from whichever gateway confirms. The row stays
+    // PENDING either way - never a silent ACTIVE.
+    let lastError = hubtelError || new Error('The payment gateway is unavailable right now.');
+    if (paystackPlatformReady()) {
+      try {
+        const ps = await initPaystackCheckout({
+          amountGhs,
+          email: req.store.email,
+          reference,
+          callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/plan`,
+          metadata: { kind: 'SUBSCRIPTION', storeId: req.auth.sub, planId: plan.id, cycle },
+        });
+        return res.json({
+          success: true,
+          provider: 'paystack',
+          checkoutUrl: ps.checkoutUrl,
+          checkoutId: ps.checkoutId,
+          reference,
+          message: 'Complete your payment on the secure checkout page to activate your plan.',
+        });
+      } catch (psErr) {
+        console.error(`[billing] Paystack fallback failed for ${reference}: ${psErr.message}`);
+        lastError = psErr; // the seller sees whichever leg failed last
+      }
+    }
+
+    // Every leg failed. Record it and return an actionable JSON error instead
+    // of crashing - the UI displays this message verbatim.
+    await query(
+      `UPDATE subscription_payments
+          SET status = 'FAILED', provider = 'HUBTEL', failure_reason = $2
+        WHERE id = $1`,
+      [attemptId, (lastError.message || 'Checkout could not be created').slice(0, 300)],
+    );
+    return res.status(402).json({
+      error: lastError.message || 'Payment could not be completed. Please try again or contact support.',
+      provider: 'HUBTEL',
+      reference,
+    });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch { /* noop */ }
     try { client.release(); } catch { /* noop */ }

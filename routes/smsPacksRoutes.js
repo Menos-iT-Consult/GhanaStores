@@ -27,7 +27,7 @@ import { Router } from 'express';
 import { pool, query, withTransaction } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { routeCollection } from '../services/paymentRouter.js';
-import { initCheckout } from '../services/hubtelService.js';
+import { initCheckout, hubtelDryRun } from '../services/hubtelService.js';
 import { initPaystackCheckout, paystackPlatformReady } from '../services/paystackPlatform.js';
 import { normalizeGhPhone } from '../utils/helpers.js';
 import {
@@ -138,7 +138,7 @@ router.post('/buy', requireSeller, async (req, res, next) => {
     );
     const attemptId = attempt.rows[0].id;
 
-    const collected = await routeCollection({
+    let collected = await routeCollection({
       customerMsisdn: momoNumber,
       amount: offer.amountGhs,
       network,
@@ -146,23 +146,47 @@ router.post('/buy', requireSeller, async (req, res, next) => {
       clientReference: reference,
     });
 
+    /* A Hubtel DRY-RUN success is not a payment. When the platform's Hubtel
+       account is not configured and Paystack can charge for real, refuse the
+       simulated collection and drop into the hosted fallbacks below instead of
+       handing out paid value against a fake charge. */
+    if (collected.dryRun && collected.provider === 'HUBTEL' && paystackPlatformReady()) {
+      console.warn(`[sms-packs] Hubtel is not configured - refusing dry-run collection for ${reference}, switching to Paystack.`);
+      collected = {
+        success: false,
+        provider: 'HUBTEL',
+        status: 'NOT_CONFIGURED',
+        message: 'Hubtel is not configured on this server. Continue on the payment page instead.',
+      };
+    }
+
     if (!collected.success) {
       /* Direct collection declined/failed. Fallback 1: a Hubtel HOSTED
          checkout for the SAME GS-SMS- reference - the seller completes it by
          card or any MoMo network and the webhook credits the segments when it
          confirms. The row stays PENDING behind a live checkout session; it is
-         only closed as FAILED when every leg is exhausted. */
+         only closed as FAILED when every leg is exhausted. When Hubtel is not
+         configured and Paystack is, the dry-run page is SKIPPED - a simulated
+         checkoutUrl is a dead end - and Paystack is offered immediately. */
       let decline = collected.message || 'MoMo payment was not approved. No segments were added.';
-      try {
-        const checkout = await initCheckout({
-          amountGhs: offer.amountGhs,
-          description: `DiDwa SMS ${offer.segments} segments - ${reference}`,
-          clientReference: reference,
-          customerPhone: momoNumber,
-          returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
-          cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
-          metadata: { kind: 'SMS_PACK', storeId: req.store.id, segments: String(offer.segments) },
-        });
+      let checkout = null;
+      if (!(hubtelDryRun && paystackPlatformReady())) {
+        try {
+          checkout = await initCheckout({
+            amountGhs: offer.amountGhs,
+            description: `DiDwa SMS ${offer.segments} segments - ${reference}`,
+            clientReference: reference,
+            customerPhone: momoNumber,
+            returnUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
+            cancellationUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/settings/notifications`,
+            metadata: { kind: 'SMS_PACK', storeId: req.store.id, segments: String(offer.segments) },
+          });
+        } catch (checkoutErr) {
+          console.warn(`[sms-packs] Hubtel checkout fallback failed for ${reference}: ${checkoutErr.message}`);
+          decline = checkoutErr.message || decline;
+        }
+      }
+      if (checkout) {
         return res.json({
           checkoutUrl: checkout.checkoutUrl,
           checkoutId: checkout.checkoutId,
@@ -174,9 +198,6 @@ router.post('/buy', requireSeller, async (req, res, next) => {
             + 'segments are added when the payment confirms - they carry over until used.',
           dryRun: Boolean(checkout.dryRun),
         });
-      } catch (checkoutErr) {
-        console.warn(`[sms-packs] Hubtel checkout fallback failed for ${reference}: ${checkoutErr.message}`);
-        decline = checkoutErr.message || decline;
       }
 
       /* Fallback 2: Paystack, same reference, same webhook activation. */

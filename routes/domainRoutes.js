@@ -700,19 +700,30 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
     /* Hubtel is the primary hosted checkout; Paystack is Fallback 2 when the
        Hubtel session could not be created. Both settle later through their
        webhooks against this same reference, with the server-resolved price
-       recorded on the pending row so the callback can be amount-checked. */
-    let result;
-    try {
-      result = await domainService.initializeHubtelCheckout({
-        amountGhs,
-        domainName: clean,
-        customerPhone,
-        customerEmail: customerEmail || req.store?.email || '',
-        storeId: req.auth.sub,
-        reference,
-      });
-    } catch (err) {
-      if (!paystackPlatformReady()) throw err;
+       recorded on the pending row so the callback can be amount-checked. When
+       Hubtel is NOT configured and Paystack is, the dry-run checkout is
+       SKIPPED entirely - a simulated checkoutUrl never moves money - and the
+       real Paystack page is opened immediately. (Both unconfigured keeps the
+       dry-run so local development still works.) */
+    let result = null;
+    let hubtelError = null;
+    if (!(hubtelDryRun && paystackPlatformReady())) {
+      try {
+        result = await domainService.initializeHubtelCheckout({
+          amountGhs,
+          domainName: clean,
+          customerPhone,
+          customerEmail: customerEmail || req.store?.email || '',
+          storeId: req.auth.sub,
+          reference,
+        });
+      } catch (err) {
+        hubtelError = err;
+        if (!paystackPlatformReady()) throw err;
+        console.warn(`[domain] Hubtel checkout failed for ${reference}: ${err.message} - falling back to Paystack.`);
+      }
+    }
+    if (!result) {
       try {
         const ps = await initPaystackCheckout({
           amountGhs,
@@ -724,7 +735,7 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
         result = { checkoutUrl: ps.checkoutUrl, checkoutId: ps.checkoutId, reference };
       } catch (psErr) {
         console.error(`[domain] Paystack fallback failed for ${reference}: ${psErr.message}`);
-        throw err; // surface the original Hubtel failure to the seller
+        throw hubtelError || psErr;
       }
     }
 
@@ -773,6 +784,7 @@ import {
 import {
   paystackPlatformReady, verifyPlatformSignature, platformReferenceKind,
 } from '../services/paystackPlatform.js';
+import { hubtelDryRun } from '../services/hubtelService.js';
 
 export const webhookRouter = WebhookRouter();
 
