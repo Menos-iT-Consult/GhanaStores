@@ -9,6 +9,7 @@
  */
 import axios from 'axios';
 import { loadPricingCatalog, resolveDomainPrice } from './domainPricing.js';
+import { verifyHubtelTransaction } from './hubtelService.js';
 
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 const CLOUDFLARE_ZONE_ID = process.env.CLOUDFLARE_ZONE_ID || '';
@@ -591,6 +592,7 @@ export async function handleHubtelWebhook(payload) {
   }
 
   const reference = payload?.Data?.ClientReference || payload?.reference || '';
+  const transactionId = payload?.Data?.TransactionId ?? payload?.TransactionId ?? null;
   const metadata = payload?.Data?.Metadata || payload?.metadata || {};
   const domainName = metadata.domainName || '';
   const storeId = metadata.storeId || '';
@@ -598,6 +600,12 @@ export async function handleHubtelWebhook(payload) {
   if (!domainName || !storeId) {
     console.error('[domain] Hubtel webhook: missing domainName or storeId.', { reference });
     return { processed: false, reason: 'Missing metadata.' };
+  }
+
+  const verified = await verifyHubtelTransaction({ transactionId, reference });
+  if (!verified.success) {
+    console.warn(`[domain] Hubtel webhook ${reference} rejected: ${verified.message || 'Hubtel verification failed'}`);
+    return { processed: false, reason: 'Transaction not confirmed by Hubtel.' };
   }
 
   return fulfilDomainPurchase({ domainName, storeId, metadata });

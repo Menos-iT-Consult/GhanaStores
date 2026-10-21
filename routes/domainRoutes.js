@@ -770,7 +770,6 @@ export { router as domainRouter };
 
 /** Standalone webhook router — mounted at /api/webhooks in server.js */
 import { Router as WebhookRouter } from 'express';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { normalizeGhPhone } from '../utils/helpers.js';
 import {
   handlePaystackWebhook,
@@ -1072,7 +1071,7 @@ webhookRouter.post('/hubtel', async (req, res) => {
   // subscribe). Its reference is a GS-SUB-... subscription_payments row, not an
   // order and not a domain, so it is disambiguated here and activated by
   // handleSubscriptionWebhook. Like the domain flow it is a platform-level
-  // Hubtel transaction, so it is authenticated by the platform webhook secret
+  // Hubtel transaction, so it is authenticated by Hubtel's own status API -
   // below - never left as an unverified self-asserted callback.
   const subRef = req.body?.ClientReference ?? req.body?.clientReference
     ?? req.body?.Reference ?? req.body?.reference;
@@ -1085,20 +1084,10 @@ webhookRouter.post('/hubtel', async (req, res) => {
   }
 
   if (sub) {
-    let auth;
-    try {
-      auth = verifyWebhook(req);
-    } catch (err) {
-      console.error('[webhook] hubtel subscription auth error:', err.message);
-      return res.status(202).json({ received: true, processed: false, reason: 'Auth unavailable.' });
-    }
-    if (!auth.ok) {
-      console.warn('[webhook] rejected unverified Hubtel subscription webhook:', auth.reason);
-      return res.status(401).json({ received: false, error: auth.reason });
-    }
-
     let result;
     try {
+      // Hubtel does not sign callbacks; handleSubscriptionWebhook confirms the
+      // payment with Hubtel's own status API before activating the plan.
       result = await handleSubscriptionWebhook(req.body || {});
     } catch (err) {
       console.error('[payment-webhook] subscription handler error:', err.message);
@@ -1111,7 +1100,7 @@ webhookRouter.post('/hubtel', async (req, res) => {
   // buy). Its reference is a GS-SMS-... sms_pack_payments row, not an order,
   // not a subscription and not a domain, so it is disambiguated here and the
   // segments are credited by handleSmsPackWebhook - atomically with the PAID
-  // row, and only after the platform webhook secret authenticates the call.
+  // row, and only after Hubtel's own status API confirms the call.
   const smsRef = req.body?.ClientReference ?? req.body?.clientReference
     ?? req.body?.Reference ?? req.body?.reference;
   let smsPack = null;
@@ -1123,20 +1112,10 @@ webhookRouter.post('/hubtel', async (req, res) => {
   }
 
   if (smsPack) {
-    let auth;
-    try {
-      auth = verifyWebhook(req);
-    } catch (err) {
-      console.error('[webhook] hubtel sms pack auth error:', err.message);
-      return res.status(202).json({ received: true, processed: false, reason: 'Auth unavailable.' });
-    }
-    if (!auth.ok) {
-      console.warn('[webhook] rejected unverified Hubtel sms pack webhook:', auth.reason);
-      return res.status(401).json({ received: false, error: auth.reason });
-    }
-
     let result;
     try {
+      // Hubtel does not sign callbacks; handleSmsPackWebhook confirms the
+      // payment with Hubtel's own status API before crediting segments.
       result = await handleSmsPackWebhook(req.body || {});
     } catch (err) {
       console.error('[payment-webhook] sms pack handler error:', err.message);
@@ -1146,15 +1125,11 @@ webhookRouter.post('/hubtel', async (req, res) => {
   }
 
   try {
-    const auth = verifyWebhook(req);
-    if (!auth.ok) {
-      console.warn('[webhook] rejected Unverified Hubtel webhook:', auth.reason);
-      return res.status(401).json({ received: false, error: auth.reason });
-    }
-
     /* Pre-fulfilment guards. handleHubtelWebhook registers the domain with
        the registrar, so the replay and amount checks must run BEFORE it: a
-       replayed callback must not re-register a domain that is already live. */
+       replayed callback must not re-register a domain that is already live.
+       Hubtel does not sign callbacks; domainService.handleHubtelWebhook
+       confirms the payment with Hubtel's own status API before registering. */
     const payload = req.body || {};
     const reference = payload?.Data?.ClientReference || payload?.reference || '';
     const meta = payload?.Data?.Metadata || payload?.metadata || {};

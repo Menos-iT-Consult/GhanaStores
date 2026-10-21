@@ -204,6 +204,57 @@ export async function initCheckout({
   }
 }
 
+/* ----------------------- Transaction verification ----------------------- */
+/**
+ * Confirm a Hubtel transaction actually succeeded by querying Hubtel's
+ * checktransactionstatus endpoint with the platform's own credentials.
+ *
+ * Hubtel does NOT sign its callbacks, so a webhook body alone cannot be
+ * trusted. This is the only way to authenticate a platform-level Hubtel
+ * callback (subscription, SMS pack and domain purchases).
+ *
+ * Returns { success, amount, reference, transactionId, message }.
+ */
+export async function verifyHubtelTransaction({ transactionId, reference } = {}) {
+  if (hubtelDryRun) {
+    console.log('[hubtel:DRY_RUN] verify transaction skipped - no live credentials');
+    return {
+      success: true,
+      amount: null,
+      reference: reference || null,
+      transactionId: transactionId || null,
+      message: 'dry run - not verified',
+    };
+  }
+  if (!transactionId) {
+    return { success: false, amount: null, reference: reference || null, transactionId: null, message: 'No transaction id to verify.' };
+  }
+  try {
+    const { data } = await http.get(
+      `/v1/merchantaccount/merchants/${encodeURIComponent(MERCHANT_ACCOUNT)}/checktransactionstatus/${encodeURIComponent(transactionId)}`,
+      { timeout: ON_VERCEL ? 8_000 : 20_000 },
+    );
+    const d = data?.Data || data?.data || {};
+    const code = String(data?.ResponseCode ?? data?.responseCode ?? d?.ResponseCode ?? '');
+    const status = String(d?.Status ?? data?.Status ?? data?.status ?? '').toLowerCase();
+    const settled = code === '0000' || status === 'success' || status === 'successful';
+    const amount = Number(d?.Amount ?? data?.Amount ?? d?.ChargedAmount ?? NaN);
+    return {
+      success: settled,
+      amount: Number.isFinite(amount) ? amount : null,
+      reference: d?.ClientReference ?? d?.Reference ?? reference ?? null,
+      transactionId: d?.TransactionId ?? transactionId,
+      message: d?.Message ?? data?.Message ?? null,
+    };
+  } catch (err) {
+    const detail = err.response?.data || err.message;
+    console.error('[hubtel] verify transaction failed:', typeof detail === 'object' ? JSON.stringify(detail).slice(0, 400) : String(detail).slice(0, 400));
+    return { success: false, amount: null, reference: reference || null, transactionId, message: 'Hubtel verification unavailable.' };
+  }
+}
+
+/* ------------------------- Disbursements (Send) ---------------------------- */
+
 /* ------------------------- Disbursements (Send) ---------------------------- */
 /**
  * Instant MoMo payout to a seller's wallet (Module 3).
@@ -255,6 +306,7 @@ export default {
   collectMoMo,
   disburseMoMo,
   initCheckout,
+  verifyHubtelTransaction,
   channelFor,
   get dryRun() { return hubtelDryRun; },
 };

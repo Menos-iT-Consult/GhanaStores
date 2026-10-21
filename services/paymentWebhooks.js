@@ -19,6 +19,7 @@ import { query, withTransaction } from '../config/database.js';
 import {
   getSettings, paystackClient, hubtelClient, isPaystackReady, isHubtelReady,
 } from './storePayments.js';
+import { verifyHubtelTransaction } from './hubtelService.js';
 import {
   paystackPlatformReady, verifyPlatformSignature, platformReferenceKind,
 } from './paystackPlatform.js';
@@ -330,12 +331,25 @@ async function settleSubscription(sub, { provider, paidAmountGhs = null, gateway
  * @returns {Promise<{processed: boolean, reason?: string, storeId?: string}>}
  */
 export async function handleSubscriptionWebhook(payload = {}) {
-  const status = String(payload?.Data?.Status || payload?.status || '').toLowerCase();
   const reference = payload?.Data?.ClientReference || payload?.reference || '';
+  const transactionId = payload?.Data?.TransactionId ?? payload?.TransactionId ?? null;
   const sub = await findSubscriptionByReference(reference);
   if (!sub) {
     return { processed: false, reason: 'Unknown subscription reference.' };
   }
+
+  // Hubtel does NOT sign callbacks, so confirm the payment with Hubtel's own
+  // status API before activating anything. A self-asserted "success" payload is
+  // not sufficient - this is what makes hosted-checkout callbacks trustworthy.
+  const verified = await verifyHubtelTransaction({ transactionId, reference });
+  if (!verified.success) {
+    console.warn(
+      `[payment-webhook] subscription ${reference} rejected: ${verified.message || 'Hubtel verification failed'}`,
+    );
+    return { processed: false, reason: 'Transaction not confirmed by Hubtel.' };
+  }
+
+  const status = String(payload?.Data?.Status || payload?.status || '').toLowerCase();
 
   if (status !== 'success') {
     console.log('[payment-webhook] subscription callback: non-success status ignored:', status);
@@ -436,12 +450,22 @@ async function settleSmsPack(pack, { provider, paidAmountGhs = null, gatewayRefe
  * @param {object} payload parsed Hubtel callback body
  */
 export async function handleSmsPackWebhook(payload = {}) {
-  const status = String(payload?.Data?.Status || payload?.status || '').toLowerCase();
   const reference = payload?.Data?.ClientReference || payload?.reference || '';
+  const transactionId = payload?.Data?.TransactionId ?? payload?.TransactionId ?? null;
   const pack = await findSmsPackByReference(reference);
   if (!pack) {
     return { processed: false, reason: 'Unknown SMS pack reference.' };
   }
+
+  const verified = await verifyHubtelTransaction({ transactionId, reference });
+  if (!verified.success) {
+    console.warn(
+      `[payment-webhook] sms pack ${reference} rejected: ${verified.message || 'Hubtel verification failed'}`,
+    );
+    return { processed: false, reason: 'Transaction not confirmed by Hubtel.' };
+  }
+
+  const status = String(payload?.Data?.Status || payload?.status || '').toLowerCase();
   if (status !== 'success') {
     console.log('[payment-webhook] sms pack callback: non-success status ignored:', status);
     return { processed: false, reason: 'Not a successful transaction.' };
@@ -450,7 +474,7 @@ export async function handleSmsPackWebhook(payload = {}) {
   return settleSmsPack(pack, {
     provider: 'HUBTEL',
     paidAmountGhs: paidAmount === null ? null : Number(paidAmount),
-    gatewayReference: payload?.Data?.TransactionId ?? payload?.TransactionId ?? null,
+    gatewayReference: transactionId,
   });
 }
 

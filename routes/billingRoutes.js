@@ -321,7 +321,7 @@ router.post('/subscribe', requireSeller, async (req, res, next) => {
     // "Activate" charged twice. Honour the supplied key when present so a
     // replay returns the original attempt instead of a second charge.
     const rawKey = String(req.body?.idempotencyKey || '').trim().slice(0, 120);
-    const reference = rawKey || `GS-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const reference = rawKey ? `GS-SUB-${rawKey}` : `GS-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     if (rawKey) {
       const prior = await query(
         `SELECT id, status, reference FROM subscription_payments

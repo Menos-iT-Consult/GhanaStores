@@ -111,8 +111,9 @@ log('the Hubtel webhook router has a subscription branch',
   /findSubscriptionByReference/.test(domainRoutes)
   && /handleSubscriptionWebhook/.test(domainRoutes));
 
-log('the subscription webhook branch is authenticated like the platform flow',
-  /rejected unverified Hubtel subscription webhook/.test(domainRoutes));
+log('the subscription webhook branch verifies via Hubtel status API (Hubtel never signs)',
+  /verifyHubtelTransaction/.test(webhooks)
+  && /Transaction not confirmed by Hubtel/.test(webhooks));
 
 /* ---------------------------------- Frontend -------------------------------- */
 
