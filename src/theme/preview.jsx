@@ -78,7 +78,7 @@ function PreviewHeader({ config, pal, fonts, radius, homeContent }) {
   const conv = config?.conversion || {};
   const ticker = conv.urgencyTicker;
   const heading = homeContent?.featured_heading || config?.hero?.heading;
-  const subheading = homeCo
+  const subheading = homeContent?.featured_subheading || config?.hero?.subtitle;
   return (
     <>
       {ticker && (
