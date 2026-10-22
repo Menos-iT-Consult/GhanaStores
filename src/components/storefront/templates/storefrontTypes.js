@@ -64,3 +64,16 @@ export function resolveTemplate(config) {
   // electronics/marketplace + bordered -> catalog
   return 'catalog_grid';
 }
+
+/**
+ * Resolve the dedicated per-theme component for a theme ID.
+ * Returns undefined if the theme ID is not registered, letting callers
+ * fall back to legacy archetype resolution.
+ *
+ * @param {string|undefined} themeId Stable theme ID.
+ * @returns {import('react').ComponentType|undefined}
+ */
+export async function resolveComponent(themeId) {
+  const { THEME_COMPONENT_REGISTRY } = await import('./themeComponents/themeRegistry.js');
+  return themeId ? THEME_COMPONENT_REGISTRY[themeId] : undefined;
+}

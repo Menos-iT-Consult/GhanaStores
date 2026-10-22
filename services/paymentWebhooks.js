@@ -27,6 +27,8 @@ import { creditPurchase } from './smsQuota.js';
 import { cycleInterval } from './planCatalog.js';
 import { formatGhs } from '../utils/helpers.js';
 import { sendMerchantPushNotification } from './pushService.js';
+import { sendSubscriptionActiveSms } from './smsService.js';
+import { sendLifecycleEmail } from './emailService.js';
 
 /**
  * Find the order a gateway callback refers to. The reference we send is the
@@ -312,6 +314,20 @@ async function settleSubscription(sub, { provider, paidAmountGhs = null, gateway
     `[payment-webhook] subscription ${sub.reference || sub.id} settled via ${provider} `
     + `(store ${sub.store_id}, plan ${sub.plan_id}, ${cycle})`,
   );
+
+  // Notify the merchant across SMS, email and push. All fire-and-forget so a
+  // down gateway never unwinds the committed settlement.
+  const store = await query(`SELECT name, email, phone, plan FROM stores WHERE id = $1`, [
+    sub.store_id,
+  ]).then((r) => r.rows[0]);
+
+  if (store) {
+    sendSubscriptionActiveSms(store, { planId: sub.plan_id, cycle }).catch(() => {});
+    sendLifecycleEmail(store, 'subscription-active', {
+      planId: sub.plan_id,
+      cycle,
+    }).catch(() => {});
+  }
 
   // Let the merchant's phone know their plan went live.
   sendMerchantPushNotification({

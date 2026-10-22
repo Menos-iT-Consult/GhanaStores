@@ -351,6 +351,45 @@ export function pastDueTemplate(store, { suspended = false } = {}) {
 }
 
 /**
+ * Subscription activated - fired when a paid plan goes live via webhook.
+ * Confirms the storefront is live and points the seller at their storefront.
+ */
+export function subscriptionActiveTemplate(store, { planId, cycle } = {}) {
+  const url = storefrontUrl(store) || `${platformUrl()}/settings/plan`;
+  const heading = 'Your subscription is active';
+  const text = [
+    `Hi ${store.name || 'there'},`,
+    '',
+    `Your DiDwa ${planId || store.plan || 'paid'} plan is now active.`,
+    `Billing cycle: ${cycle || 'monthly'}. Your storefront is live - start selling.`,
+    '',
+    url ? `Open your storefront: ${url}` : 'Manage your store: ' + `${platformUrl()}/settings`,
+    '',
+    'Renew before your period ends to avoid interruption.',
+  ].filter(Boolean).join('\n');
+
+  const html = shell({
+    preheader: 'Your paid plan is live. Your storefront is online.',
+    tone: 'success',
+    eyebrow: 'Subscription active',
+    heading,
+    introHtml: `Great news, <strong>${esc(store.name || 'there')}</strong> — your ${esc(planId || store.plan || 'paid')} plan is now active and your storefront is live.`,
+    bodyHtml: detailCard([
+      ['Plan', planId || store.plan || 'current'],
+      ['Cycle', cycle || 'monthly'],
+      ['Status', 'ACTIVE'],
+    ])
+      + `<p style="margin:0;font-size:14px;line-height:1.6;color:#334155">
+           Your storefront is online and ready to accept orders. Manage billing anytime in Settings.
+         </p>`,
+    cta: url ? { label: 'Open your storefront', url } : { label: 'Manage billing', url: `${platformUrl()}/settings` },
+    footerNote: 'Renew before your period ends to keep selling without interruption.',
+  });
+
+  return { subject: `${heading} - your store is live`, text, html };
+}
+
+/**
  * Contact / storefront message - tells the seller (or platform admin) someone
  * reached them. `replyTo` is the sender so hitting Reply answers them directly.
  */

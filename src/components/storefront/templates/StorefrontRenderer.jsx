@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { scopeCss } from '../../../theme/config.js';
 import { useTokens } from '../useTokens.js';
-import { resolveTemplate } from './storefrontTypes.js';
+import { resolveTemplate, resolveComponent } from './storefrontTypes.js';
 import { useStorefrontData } from './useStorefrontData.js';
 import { useMediaQuery } from './useMediaQuery.js';
 import StorefrontFooter from '../StorefrontFooter.jsx';
@@ -131,34 +131,49 @@ export default function StorefrontRenderer({
   checkout = null,
   storeSlug = null,
 }) {
-  /* The measured container/frame width is authoritative whenever present: the
-     customizer renders this component inside fixed 375/768/1024 device frames,
-     where a window-level media query reports the HOST window, not the frame.
-     Only while no width is measured does the browser window drive the tier. */
   const mq = useMediaQuery();
-  /* Re-render signal: the window's tier changed (see useMediaQuery.subscribe). */
   const [, setWindowTier] = useState(null);
   useEffect(() => {
     if (viewportWidth != null || !mq.subscribe) return undefined;
     return mq.subscribe((tier) => setWindowTier(tier));
   }, [viewportWidth, mq.subscribe]);
   const effectiveWidth = viewportWidth != null ? viewportWidth : (mq.ready ? mq.width : null);
-  /* One derivation per render: tokens, tier flags and the data-device tier all
-     come from the same width, so they can never disagree with each other. */
   const t = useTokens(config, effectiveWidth);
   const d = t.device;
 
   const ctx = useStorefrontData({ products, cart, productId, onAddToCart, onSetQty, onRemove, checkout, storeSlug });
   const nav = onNavigate || (() => {});
   const scoped = scopeCss(config.advanced?.custom_css);
+
+  /* Resolve a dedicated per-theme component first; fall back to archetype-based
+   * rendering for backward compatibility with themes that have no dedicated
+   * component yet. */
+  const themeId = config?.themeId;
+  const [ThemeComp, setThemeComp] = useState(null);
+  const [themeResolved, setThemeResolved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const Comp = await resolveComponent(themeId);
+      if (!cancelled) setThemeComp(Comp);
+      if (!cancelled) setThemeResolved(true);
+    })();
+    return () => { cancelled = true; };
+  }, [themeId]);
+
+  /* Legacy archetype path (used while the async theme component resolves, or
+   * when no dedicated component exists for this theme ID). */
   const template = resolveTemplate(config);
-  const [shopShortcut, setShopShortcut] = useState(null);
   const Header = HEADERS[template] || DenseHeader;
   const dark = template !== 'catalog_grid';
+  const [shopShortcut, setShopShortcut] = useState(null);
+
   return (
     <div
       data-gs-preview=""
       data-gs-template={template}
+      data-gs-theme={themeId || ''}
       data-device={d}
       className="h-full w-full overflow-y-auto overflow-x-hidden"
       style={{
@@ -175,19 +190,42 @@ export default function StorefrontRenderer({
       aria-label={`Live storefront preview - ${page} page`}
     >
       {scoped ? <style>{scoped}</style> : null}
-      {template === 'catalog_grid'
-        ? <Header t={t} active={page} onNavigate={nav} ctx={ctx} onShopShortcut={setShopShortcut} />
-        : <Header t={t} active={page} onNavigate={nav} ctx={ctx} />}
-      <main style={{ minHeight: '60%' }}>
-        {page === 'home' && template === 'boutique_editorial' ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} /> : null}
-        {page === 'home' && template === 'catalog_grid' ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} /> : null}
-        {page === 'home' && template === 'flash_express' ? <FlashHome t={t} onNavigate={nav} ctx={ctx} /> : null}
-        {page !== 'home' ? (() => {
-          const Body = PAGE_BODIES[page] || ShopBody;
-          return <Body t={t} onNavigate={nav} ctx={ctx} />;
-        })() : null}
-      </main>
-      <StorefrontFooter t={t} onNavigate={nav} />
+
+      {ThemeComp && themeResolved ? (
+        /* Dedicated per-theme component handles header + body + footer. */
+        <ThemeComp
+          viewportWidth={viewportWidth}
+          page={page}
+          onNavigate={nav}
+          products={products}
+          cart={cart}
+          productId={productId}
+          onAddToCart={onAddToCart}
+          onSetQty={onSetQty}
+          onRemove={onRemove}
+          checkout={checkout}
+          storeSlug={storeSlug}
+          shopShortcut={shopShortcut}
+          setShopShortcut={setShopShortcut}
+        />
+      ) : (
+        /* Legacy archetype-based rendering (fallback). */
+        <>
+          {template === 'catalog_grid'
+            ? <Header t={t} active={page} onNavigate={nav} ctx={ctx} onShopShortcut={setShopShortcut} />
+            : <Header t={t} active={page} onNavigate={nav} ctx={ctx} />}
+          <main style={{ minHeight: '60%' }}>
+            {page === 'home' && template === 'boutique_editorial' ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} /> : null}
+            {page === 'home' && template === 'catalog_grid' ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} /> : null}
+            {page === 'home' && template === 'flash_express' ? <FlashHome t={t} onNavigate={nav} ctx={ctx} /> : null}
+            {page !== 'home' ? (() => {
+              const Body = PAGE_BODIES[page] || ShopBody;
+              return <Body t={t} onNavigate={nav} ctx={ctx} />;
+            })() : null}
+          </main>
+          <StorefrontFooter t={t} onNavigate={nav} />
+        </>
+      )}
     </div>
   );
 }

@@ -294,6 +294,15 @@ export function estimateSegments(message) {
 
 
 
+/** Paid plan just went active via webhook - tell the merchant. */
+export async function sendSubscriptionActiveSms(store, { planId, cycle } = {}) {
+  const message =
+    `Hi ${store.name}, your DiDwa ${planId || store.plan || 'plan'} is now active.\\n` +
+    `Billing cycle: ${cycle || 'monthly'}. Your storefront is live - start selling.\\n` +
+    `Renew before your period ends to avoid interruption.`;
+  return sendSms([store.phone], message);
+}
+
 export async function sendPayoutSms(store, payout) {
   const message =
     `PAYOUT ${payout.status}: ${formatGhs(payout.amount)} sent to ${payout.destination}` +
@@ -310,6 +319,7 @@ export default {
   sendLowStockAlertSms,
   sendPayoutSms,
   sendOrderSms,
+  sendSubscriptionActiveSms,
   estimateSegments,
   get dryRun() { return smsDryRun; },
 };

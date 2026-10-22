@@ -22,6 +22,7 @@ import {
   trialReminderTemplate,
   renewalReminderTemplate,
   pastDueTemplate,
+  subscriptionActiveTemplate,
   contactMessageTemplate,
   passwordResetTemplate,
 } from './emailTemplates.js';
@@ -159,6 +160,9 @@ export async function sendLifecycleEmail(store, template, extra = {}) {
       break;
     case 'past-due':
       mail = pastDueTemplate(store, { suspended: extra.suspended === true });
+      break;
+    case 'subscription-active':
+      mail = subscriptionActiveTemplate(store, { planId: extra.planId, cycle: extra.cycle });
       break;
     default:
       return { sent: false, reason: `unknown-template:${template}` };

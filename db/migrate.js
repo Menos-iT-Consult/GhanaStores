@@ -220,6 +220,7 @@ export function buildPresets() {
            01-99; the catalogue query sorts numerically to cover 100 itself. */
         const name = `Theme ${String(globalIndex).padStart(2, '0')}`;
         const config = buildConfig(category, palette, layout, border);
+        config.themeId = id;
 
         presets.push({ id, name, category: category.key, config });
       }
