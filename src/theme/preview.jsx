@@ -345,6 +345,7 @@ export function ThemePreview({ config, className = '' }) {
   const pal = paletteOf(config);
   const fonts = fontsOf(config);
   const radius = config?.borderRadius?.base || config?.layout?.productCardRounded || '0.5rem';
+  const homeContent = config?.home_content || {};
   const keys = orderedSections(config);
 
   return (
@@ -352,7 +353,7 @@ export function ThemePreview({ config, className = '' }) {
       className={`w-full overflow-hidden ${className}`}
       style={{ background: pal.background, color: pal.text, fontFamily: fonts.body }}
     >
-      <PreviewHeader config={config} pal={pal} fonts={fonts} radius={radius} />
+      <PreviewHeader config={config} pal={pal} fonts={fonts} radius={radius} homeContent={homeContent} />
       {keys.map((key) => {
         const Renderer = SECTION_RENDERERS[key];
         const section = (config?.sections || []).find((s) => s?.key === key);
@@ -364,6 +365,7 @@ export function ThemePreview({ config, className = '' }) {
             pal={pal}
             fonts={fonts}
             radius={radius}
+            homeContent={homeContent}
           />
         );
       })}
