@@ -74,9 +74,11 @@ function tintFor(i, pal) {
 
 
 /** Announcement strip + masthead, driven by the template's own tokens. */
-function PreviewHeader({ config, pal, fonts, radius }) {
+function PreviewHeader({ config, pal, fonts, radius, homeContent }) {
   const conv = config?.conversion || {};
   const ticker = conv.urgencyTicker;
+  const heading = homeContent?.featured_heading || config?.hero?.heading;
+  const subheading = homeCo
   return (
     <>
       {ticker && (
@@ -147,8 +149,9 @@ function PreviewHero({ config, pal, fonts, radius }) {
 }
 
 /** Category strip - column count comes from the template's own layout. */
-function PreviewCategories({ config, pal, fonts, radius, section }) {
+function PreviewCategories({ config, pal, fonts, radius, section, homeContent }) {
   const cols = Math.min(section?.columns || config?.layout?.gridColumns || 4, 8);
+  const heading = homeContent?.category_heading || config?.sections?.[0]?.heading;
   return (
     <section className="px-8 py-10" style={{ background: pal.background }}>
       <h2 className="mb-5 text-xl font-extrabold" style={{ color: pal.text, fontFamily: fonts.heading }}>
@@ -171,9 +174,10 @@ function PreviewCategories({ config, pal, fonts, radius, section }) {
 }
 
 /** One product card - honours the template's cardStyle (bordered/compact/minimal). */
-function PreviewCard({ item, index, config, pal, fonts, radius }) {
+function PreviewCard({ item, index, config, pal, fonts, radius, homeContent }) {
   const style = config?.layout?.cardStyle || 'bordered';
   const showImages = config?.layout?.showProductImages !== false;
+  const productName = homeContent?.product_title || item?.name || item?.title;
   const showBadge = config?.layout?.showDiscountBadge !== false && !!item.badge;
   const bordered = style === 'bordered';
   return (
@@ -212,9 +216,10 @@ function PreviewCard({ item, index, config, pal, fonts, radius }) {
 }
 
 /** Product grid - the section the grid-columns and card-style tokens shape. */
-function PreviewProducts({ config, pal, fonts, radius, section }) {
+function PreviewProducts({ config, pal, fonts, radius, section, homeContent }) {
   const cols = Math.min(section?.columns || config?.layout?.gridColumns || 4, 4);
   const gap = config?.layout?.gridGap || '1rem';
+  const sectionHeading = homeContent?.section_heading;
   return (
     <section className="px-8 py-10" style={{ background: pal.background }}>
       <h2 className="mb-5 text-xl font-extrabold" style={{ color: pal.text, fontFamily: fonts.heading }}>
@@ -230,9 +235,11 @@ function PreviewProducts({ config, pal, fonts, radius, section }) {
 }
 
 /** Ratings strip - the template's social-proof section. */
-function PreviewSocialProof({ pal, fonts }) {
+function PreviewSocialProof({ pal, fonts, homeContent }) {
+  const heading = homeContent?.section_heading || 'Social Proof';
   return (
     <section className="px-8 py-10 text-center" style={{ background: `${pal.primary}0D` }}>
+      <h3 className="mb-2 text-lg font-bold text-primarydark">{heading}</h3>
       <p className="text-sm font-bold" style={{ color: pal.text, fontFamily: fonts.heading }}>
         Rated 4.8 out of 5 by 2,400+ Ghanaian shoppers
       </p>
@@ -246,9 +253,12 @@ function PreviewSocialProof({ pal, fonts }) {
 }
 
 /** Closing CTA banner - carries the template's free-shipping promise. */
-function PreviewCta({ config, pal, fonts, radius, section }) {
+function PreviewCta({ config, pal, fonts, radius, section, homeContent }) {
+  const cta = config?.cta || {};
+  const heading = homeContent?.section_heading || cta.heading || 'Free Shipping';
   return (
     <section className="flex flex-col items-center gap-3 px-8 py-12 text-center" style={{ background: pal.primary }}>
+      <h2 className="mb-4 text-2xl font-bold text-white">{heading}</h2>
       <p className="text-xl font-extrabold" style={{ color: '#fff', fontFamily: fonts.heading }}>
         {section?.text || 'Shop the collection today'}
       </p>
@@ -260,8 +270,9 @@ function PreviewCta({ config, pal, fonts, radius, section }) {
 }
 
 /** Footer carrying the template's payment badges. */
-function PreviewFooter({ config, pal, fonts, radius }) {
+function PreviewFooter({ config, pal, fonts, radius, homeContent }) {
   const badges = config?.paymentBadges || [];
+  const heading = homeContent?.section_heading || 'Store Information';
   return (
     <footer className="px-8 py-10" style={{ background: pal.background, borderTop: `1px solid ${pal.text}14` }}>
       <div className="grid grid-cols-3 gap-6">
