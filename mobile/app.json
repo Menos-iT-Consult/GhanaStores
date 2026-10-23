@@ -62,10 +62,10 @@
         "origin": false
       },
       "eas": {
-        "projectId": "37d39de8-d8d0-4f18-b518-39d4910adc29"
+        "projectId": "9af69165-92b3-4b64-ad12-7cf4f3baa683"
       }
     },
-    "owner": "menositconsults-team",
+    "owner": "menositconsult",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
