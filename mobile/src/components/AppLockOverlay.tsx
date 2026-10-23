@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { Fingerprint, Lock } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { authenticateWithBiometrics, biometricTypeLabel } from '@/services/biometricService';
 
 /**
@@ -51,9 +51,9 @@ export function AppLockOverlay({
   if (!isLocked) return null;
 
   const icon = Platform.OS === 'ios' ? (
-    <Lock size={64} color={colors.primary} />
+    <MaterialCommunityIcons name="lock" size={64} color={colors.primary} />
   ) : (
-    <Fingerprint size={64} color={colors.primary} />
+    <MaterialCommunityIcons name="fingerprint" size={64} color={colors.primary} />
   );
 
   return (

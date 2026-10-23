@@ -70,7 +70,7 @@ export async function biometricTypeLabel(): Promise<string> {
   if (Platform.OS === 'ios') {
     return 'Face ID / Touch ID';
   }
-  if (type.includes(LocalAuthentication.AuthenticationType.BIOMETRICS)) {
+  if (type.includes((LocalAuthentication.AuthenticationType as any).BIOMETRICS)) {
     return 'Fingerprint / Face Unlock';
   }
   return 'Biometrics';

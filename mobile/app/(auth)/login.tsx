@@ -12,13 +12,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Modal, Snackbar, TextInput, ActivityIndicator as PaperActivityIndicator, useTheme } from 'react-native-paper';
+import { Modal, Snackbar, Text, TextInput, ActivityIndicator as PaperActivityIndicator, useTheme } from 'react-native-paper';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
   withDelay,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
@@ -113,7 +114,7 @@ export default function LoginScreen() {
     opacity: brandOpacity.value,
     transform: [
       { scale: brandScale.value },
-      { translateY: brandOpacity.value.interpolate({ inputRange: [0, 1], outputRange: [-25, 0] }) },
+      { translateY: brandOpacity.interpolate({ inputRange: [0, 1], outputRange: [-25, 0] }) as number },
     ],
   }));
 
@@ -146,9 +147,6 @@ export default function LoginScreen() {
 
   /* --------------------------------- Auth --------------------------------- */
 
-  async function onSubmit() {
-    setError(null);
-    setBusy(true);
   async function onSubmit() {
     setError(null);
     setBusy(true);
@@ -484,8 +482,6 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-
-}
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -653,6 +649,60 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: ACCENT,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCard: {
+    width: 300,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 24,
+  },
+  modalHeader: {
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalInput: {
+    width: '100%',
+    height: 50,
+    backgroundColor: INPUT_BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    color: TEXT_PRIMARY,
+    fontSize: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  resetErrorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  cancelWrap: {
+    alignSelf: 'flex-end',
+  },
+  cancelText: {
+    color: TEXT_MUTED,
+    fontSize: 14,
+    marginRight: 8,
   },
 });
 
