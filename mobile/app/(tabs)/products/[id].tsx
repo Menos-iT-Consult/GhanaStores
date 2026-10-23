@@ -35,6 +35,7 @@ export default function ProductEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === 'new';
   const goBack = useSafeBack('/products');
+  const router = useRouter();
   const { colors } = useTheme();
   const qc = useQueryClient();
 

@@ -13,14 +13,14 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.didwa.buy",
+      "bundleIdentifier": "com.didwa.seller",
       "icon": "./assets/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.didwa.buy",
+      "package": "com.didwa.seller",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B1120"
