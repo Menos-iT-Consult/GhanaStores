@@ -477,10 +477,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
             </ul>
 
           </div>
-
-          <p className="mt-6 text-center text-[11px] leading-relaxed text-slate-400">
-            Secured by DiDwa. By continuing you agree to our Terms of Service and Privacy Policy.
-          </p>
         </div>
       </main>
     </div>

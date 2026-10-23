@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname, useRouter } from 'expo-router';
@@ -11,6 +11,8 @@ import { ThemeProvider, useThemeMode } from '@/theme/ThemeContext';
 import { addNotificationResponseListener, registerDeviceForPush, routeForNotification } from '@/services/pushNotifications';
 import { hasOnboarded } from '@/onboarding/onboarded';
 import { DidwaLottieSplash } from '@/components/DidwaLottieSplash';
+import { AppLockOverlay } from '@/components/AppLockOverlay';
+import { isBiometricLockEnabled } from '@/services/biometricService';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -37,6 +39,10 @@ function RootNavigator() {
   const prevStatus = useRef(status);
   // null = still checking whether onboarding has been seen on this device.
   const [onboarded, setOnboardedState] = useState<boolean | null>(null);
+  // App lock state
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockChecked, setLockChecked] = useState(false);
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => {
     hasOnboarded()
@@ -44,7 +50,40 @@ function RootNavigator() {
       .catch(() => setOnboardedState(false));
   }, []);
 
-  const ready = status !== 'loading' && onboarded !== null;
+  /* ----------------------------- App lock ----------------------------- */
+
+  // Cold start: check the biometric lock preference once auth is known.
+  useEffect(() => {
+    const checkLock = async () => {
+      if (status !== 'signedIn') {
+        setLockChecked(true);
+        return;
+      }
+      const enabled = await isBiometricLockEnabled();
+      if (enabled) {
+        setIsLocked(true);
+      }
+      setLockChecked(true);
+    };
+    void checkLock();
+  }, [status]);
+
+  // Foreground transition: re-lock when the app returns from background/inactive.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      const wasBackgrounded = appStateRef.current.match(/inactive|background/);
+      if (wasBackgrounded && nextState === 'active' && status === 'signedIn') {
+        const enabled = await isBiometricLockEnabled();
+        if (enabled) {
+          setIsLocked(true);
+        }
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [status]);
+
+  const ready = status !== 'loading' && onboarded !== null && lockChecked;
   // Keep the splash up while boot is unresolved AND until the entry route has
   // been replaced, so the real destination is mounted before it lifts.
   const showSplash = !ready || pathname === '/';
@@ -111,6 +150,12 @@ function RootNavigator() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="+not-found" />
       </Stack>
+      {isLocked ? (
+        <AppLockOverlay
+          isLocked={true}
+          onUnlock={() => setIsLocked(false)}
+        />
+      ) : null}
       {showSplash ? (
         <View style={StyleSheet.absoluteFill}>
           <DidwaLottieSplash onReady={hideNativeSplash} />

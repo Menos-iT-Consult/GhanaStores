@@ -12,6 +12,7 @@ import * as endpoints from '@/api/endpoints';
 import { isTwoFactorChallenge, type LoginResult, type Session, type StoreMeta } from '@/types';
 import { unregisterDeviceForPush } from '@/services/pushNotifications';
 import { clearWidgetSnapshot } from '@/widgets/snapshot';
+import { clearBiometricLockPreference } from '@/services/biometricService';
 
 /**
  * Session + auth state for the seller app. Credentials (access + refresh
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // its "open the app to sync" empty state instead of stale figures.
     await clearWidgetSnapshot();
     await SecureStore.deleteItemAsync(BOOTSTRAP_KEY).catch(() => undefined);
+    await clearBiometricLockPreference().catch(() => undefined);
     setState({ status: 'signedOut', session: null, store: null });
   }, []);
 

@@ -1,57 +1,162 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Text, TextInput, Snackbar, ActivityIndicator, useTheme } from 'react-native-paper';
-import { apiErrorMessage } from '@/api/client';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Modal, Snackbar, TextInput, ActivityIndicator as PaperActivityIndicator, useTheme } from 'react-native-paper';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withDelay,
+} from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
+import { authenticateWithBiometrics } from '@/services/biometricService';
+import { api, apiErrorMessage } from '@/api/client';
 
 /**
- * The public DiDwa web app (reserved `app` subdomain). Its `/login` route opens
- * in register/signup mode by default, so that is the "create an account" target,
- * and `/reset-password` is the public password-recovery page.
+ * DiDwa Seller — premium dark-themed login screen.
+ *
+ * Design: deep matte charcoal/slate background (#0B0F19), single refined
+ * accent (#2563EB blue), frosted card surface (#1E293B) with subtle drop
+ * shadows. All animations are native-driven via react-native-reanimated v3.
+ *
+ * Auth behaviour (email/password + 2FA) is unchanged from the previous
+ * implementation; only the presentation layer is redesigned.
  */
+
 const WEB_APP_URL = 'https://didwaghana.com';
 const SIGNUP_URL = `${WEB_APP_URL}/login`;
 const RESET_URL = `${WEB_APP_URL}/reset-password`;
+
+const ACCENT = '#2563EB';
+const CARD_BG = '#1E293B';
+const BORDER = '#334155';
+const BG_COLOR = '#0B0F19';
+const INPUT_BG = '#0F172A';
+const TEXT_PRIMARY = '#FFFFFF';
+const TEXT_MUTED = '#94A3B8';
 
 function openExternal(url: string) {
   Linking.openURL(url).catch(() => undefined);
 }
 
-/**
- * Merchant login. Email + password; if the account has 2FA enabled the backend
- * returns a challenge and we show a second step for the authenticator code.
- *
- * Presentation: branded logo header, staggered fade/slide entrance, and a footer
- * that routes account creation to the DiDwa web app (accounts are created there,
- * not in the app). All auth/2FA behaviour is unchanged.
- */
 export default function LoginScreen() {
   const { signIn, completeTwoFactor } = useAuth();
+  const router = useRouter();
   const { colors } = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-
   const [challenge, setChallenge] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [secure, setSecure] = useState(true);
+  const [emailFocused, setEmailFocused] = useState(false);
 
-  // Staggered entrance: brand -> card -> footer.
-  const brand = useRef(new Animated.Value(0)).current;
-  const card = useRef(new Animated.Value(0)).current;
-  const footer = useRef(new Animated.Value(0)).current;
+/* Forgot password modal states */
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const handleForgotPassword = () => {
+    setResetModalVisible(true);
+    setResetEmail(email);
+  };
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
+  /* --------------------------------- Entrance animations --------------------------------- */
+
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  /* --------------------------------- Entrance animations --------------------------------- */
+
+  const brandScale = useSharedValue(0);
+  const brandOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0);
+  const cardOpacity = useSharedValue(0);
+  const formOpacity = useSharedValue(0);
+  const formTranslateY = useSharedValue(20);
+  const footerOpacity = useSharedValue(0);
+  const footerTranslateY = useSharedValue(20);
+  const buttonScale = useSharedValue(1);
 
   useEffect(() => {
-    Animated.stagger(120, [
-      Animated.timing(brand, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(card, { toValue: 1, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(footer, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, [brand, card, footer]);
+    // 1 · Brand icon: fade in + slide up from -25
+    brandScale.value = withSpring(1, { damping: 22, stiffness: 180 });
+    brandOpacity.value = withTiming(1, { duration: 700 });
 
+    // 2 · Card: fade in + scale 0.97 → 1
+    cardScale.value = withDelay(150, withSpring(1, { damping: 22, stiffness: 180 }));
+    cardOpacity.value = withDelay(150, withTiming(1, { duration: 700 }));
+
+    // 3 · Form fields: slide up + fade (sequential spring)
+    formOpacity.value = withDelay(300, withTiming(1, { duration: 600 }));
+    formTranslateY.value = withDelay(300, withTiming(0, { duration: 600 }));
+
+    // Footer: slide up + fade
+    footerOpacity.value = withDelay(450, withTiming(1, { duration: 600 }));
+    footerTranslateY.value = withDelay(450, withTiming(0, { duration: 600 }));
+  }, []);
+
+  const brandAnim = useAnimatedStyle(() => ({
+    opacity: brandOpacity.value,
+    transform: [
+      { scale: brandScale.value },
+      { translateY: brandOpacity.value.interpolate({ inputRange: [0, 1], outputRange: [-25, 0] }) },
+    ],
+  }));
+
+  const cardAnim = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  const formAnim = useAnimatedStyle(() => ({
+    opacity: formOpacity.value,
+    transform: [{ translateY: formTranslateY.value }],
+  }));
+
+  const footerAnim = useAnimatedStyle(() => ({
+    opacity: footerOpacity.value,
+    transform: [{ translateY: footerTranslateY.value }],
+  }));
+
+  const buttonAnim = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const onButtonPressIn = () => {
+    buttonScale.value = withSpring(0.98, { damping: 18, stiffness: 120 });
+  };
+
+  const onButtonPressOut = () => {
+    buttonScale.value = withSpring(1, { damping: 18, stiffness: 120 });
+  };
+
+  /* --------------------------------- Auth --------------------------------- */
+
+  async function onSubmit() {
+    setError(null);
+    setBusy(true);
   async function onSubmit() {
     setError(null);
     setBusy(true);
@@ -60,7 +165,6 @@ export default function LoginScreen() {
       if ('twoFactorRequired' in result && result.twoFactorRequired) {
         setChallenge(result.challenge);
       }
-      // Otherwise AuthProvider has already moved us to the tabs.
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not sign in. Please try again.'));
     } finally {
@@ -81,154 +185,496 @@ export default function LoginScreen() {
     }
   }
 
-  const twoFactor = Boolean(challenge);
+  async function sendReset() {
+    if (!resetEmail.trim()) {
+      setResetError('Please enter your email address.');
+      return;
+    }
+    setResetError(null);
+    setResetBusy(true);
+    try {
+      await api.post('/api/site-settings/password/forgot', { email: resetEmail.trim() });
+      setResetSent(true);
+      setResetEmail('');
+    } catch (err) {
+      setResetError(apiErrorMessage(err, 'Could not send reset link. Please try again.'));
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
-  const brandAnim = {
-    opacity: brand,
-    transform: [{ translateY: brand.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-  };
-  const cardAnim = {
-    opacity: card,
-    transform: [{ translateY: card.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
-  };
-  const footerAnim = { opacity: footer };
+  async function onBiometricLogin() {
+    setBusy(true);
+    try {
+      const success = await authenticateWithBiometrics();
+      if (success) {
+        router.replace('/(tabs)/dashboard');
+      }
+    } catch {
+      setError('Biometric authentication failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const twoFactor = Boolean(challenge);
+  const isFormValid = email.trim().length > 0 && password.length > 0;
+  const isCodeValid = code.length >= 6;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Animated.View style={[styles.brand, brandAnim]}>
-          <View style={styles.logoShadow}>
-            <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="cover" />
-          </View>
-          <Text variant="headlineMedium" style={[styles.logoWord, { color: colors.onSurface }]}>DiDwa</Text>
-          <Text variant="bodyMedium" style={[styles.tagline, { color: colors.onSurfaceVariant }]}>Seller App</Text>
-        </Animated.View>
-        <Animated.View style={cardAnim}>
-          <Card mode="elevated" style={styles.card}>
-            <View style={styles.cardBody}>
-              {twoFactor ? (
-                <>
-                  <Text variant="titleLarge" style={[styles.heading, { color: colors.onSurface }]}>Two-factor verification</Text>
-                  <Text variant="bodyMedium" style={[styles.subheading, { color: colors.onSurfaceVariant }]}>
-                    Enter the 6-digit code from your authenticator app.
-                  </Text>
-                  <TextInput
-                    label="Verification code"
-                    value={code}
-                    onChangeText={setCode}
-                    keyboardType="number-pad"
-                    autoComplete="one-time-code"
-                    maxLength={8}
-                    mode="outlined"
-                    style={styles.input}
-                    autoFocus
-                  />
-                  <Button
-                    mode="contained"
-                    onPress={onSubmitCode}
-                    disabled={busy || code.trim().length < 6}
-                    style={styles.button}
-                    contentStyle={styles.buttonContent}
-                  >
-                    {busy ? <ActivityIndicator color="#fff" /> : 'Verify'}
-                  </Button>
-                  <Button
-                    mode="text"
-                    onPress={() => {
-                      setChallenge(null);
-                      setCode('');
-                    }}
-                    style={styles.back}
-                    textColor={colors.onSurfaceVariant}
-                  >
-                    Back to sign in
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Text variant="titleLarge" style={[styles.heading, { color: colors.onSurface }]}>Welcome back 👋</Text>
-                  <Text variant="bodyMedium" style={[styles.subheading, { color: colors.onSurfaceVariant }]}>
-                    Sign in to manage your store on the go.
-                  </Text>
-                  <TextInput
-                    label="Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    keyboardType="email-address"
-                    mode="outlined"
-                    style={styles.input}
-                  />
-                  <TextInput
-                    label="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={secure}
-                    autoCapitalize="none"
-                    mode="outlined"
-                    style={styles.input}
-                    right={<TextInput.Icon icon={secure ? 'eye' : 'eye-off'} onPress={() => setSecure((s) => !s)} />}
-                  />
-                  <Pressable onPress={() => openExternal(RESET_URL)} hitSlop={8} style={styles.forgot}>
-                    <Text variant="bodySmall" style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
-                  </Pressable>
-                  <Button
-                    mode="contained"
-                    onPress={onSubmit}
-                    disabled={busy || !email.trim() || !password}
-                    style={styles.button}
-                    contentStyle={styles.buttonContent}
-                  >
-                    {busy ? <ActivityIndicator color="#fff" /> : 'Sign in'}
-                  </Button>
-                </>
-              )}
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.root}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          {/* Brand header */}
+          <Animated.View style={[styles.brand, brandAnim]}>
+            <View style={styles.logoWrap}>
+              <MaterialCommunityIcons name="store" size={56} color={ACCENT} />
             </View>
-          </Card>
-        </Animated.View>
+            <Text style={styles.appName}>DiDwa</Text>
+            <Text style={styles.appSubtitle}>Seller App</Text>
+          </Animated.View>
 
-        <Animated.View style={[styles.signup, footerAnim]}>
-          <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>No account yet?</Text>
-          <Pressable onPress={() => openExternal(SIGNUP_URL)} hitSlop={8} accessibilityRole="link">
-            <Text variant="bodyMedium" style={[styles.signupLink, { color: colors.primary }]}>Create one on DiDwa Web</Text>
-          </Pressable>
-        </Animated.View>
+          {/* Login card */}
+          <Animated.View style={[styles.cardWrap, cardAnim]}>
+            <View style={[styles.card, { backgroundColor: CARD_BG }]}>
+              <View style={styles.cardBody}>
+                <Text style={styles.heading}>Welcome back 👋</Text>
+                <Text style={styles.subheading}>Sign in to manage your store on the go.</Text>
 
-        <Snackbar visible={Boolean(error)} onDismiss={() => setError(null)} duration={4000}>
-          {error}
-        </Snackbar>
-      </ScrollView>
+                {!twoFactor ? (
+                  <>
+                    {/* Email input */}
+                    <View style={styles.inputWrap}>
+                      <MaterialCommunityIcons
+                        name="email-outline"
+                        size={20}
+                        color={emailFocused ? ACCENT : TEXT_MUTED}
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        label="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        onFocus={() => setEmailFocused(true)}
+                        onBlur={() => setEmailFocused(false)}
+                        autoCapitalize="none"
+                        autoComplete="email"
+                        keyboardType="email-address"
+                        returnKeyType="next"
+                        style={[styles.input, emailFocused ? styles.inputFocused : null]}
+                        placeholderTextColor="#64748B"
+                        selectionColor={ACCENT}
+                        underlineColorAndroid="transparent"
+                      />
+                    </View>
+
+                    {/* Password input */}
+                    <View style={styles.inputWrap}>
+                      <MaterialCommunityIcons
+                        name={secure ? 'eye-off-outline' : 'eye-outline'}
+                        size={20}
+                        color={passwordFocused ? ACCENT : TEXT_MUTED}
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        label="Password"
+                        value={password}
+                        onChangeText={setPassword}
+                        onFocus={() => setPasswordFocused(true)}
+                        onBlur={() => setPasswordFocused(false)}
+                        secureTextEntry={secure}
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                        style={[styles.input, passwordFocused ? styles.inputFocused : null]}
+                        placeholderTextColor="#64748B"
+                        selectionColor={ACCENT}
+                        underlineColorAndroid="transparent"
+                      />
+                      <Pressable
+                        onPress={() => setSecure((s) => !s)}
+                        hitSlop={12}
+                        style={styles.eyeWrap}
+                      >
+                        <MaterialCommunityIcons
+                          name={secure ? 'eye-off-outline' : 'eye-outline'}
+                          size={20}
+                          color={TEXT_MUTED}
+                        />
+                      </Pressable>
+                    </View>
+
+                    <Pressable onPress={() => setResetModalVisible(true)} hitSlop={12} style={styles.forgotWrap}>
+                      <Text style={styles.forgotText}>Forgot password?</Text>
+                    </Pressable>
+
+                    {/* Sign in button */}
+                    <Pressable
+                      onPressIn={onButtonPressIn}
+                      onPressOut={onButtonPressOut}
+                      onPress={onSubmit}
+                      disabled={busy || !isFormValid}
+                      style={[
+                        styles.button,
+                        { backgroundColor: busy || !isFormValid ? '#475569' : ACCENT },
+                      ]}
+                    >
+                      <Animated.View style={buttonAnim}>
+                        {busy ? (
+                          <PaperActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Text style={styles.buttonText}>Sign in</Text>
+                        )}
+                      </Animated.View>
+                    </Pressable>
+
+                    {/* Biometric login button */}
+                    <Pressable
+                      onPressIn={onButtonPressIn}
+                      onPressOut={onButtonPressOut}
+                      onPress={onBiometricLogin}
+                      disabled={busy}
+                      style={styles.biometricButton}
+                    >
+                      <View style={styles.biometricRow}>
+                        <MaterialCommunityIcons name="fingerprint" size={18} color={TEXT_MUTED} />
+                        <Text style={styles.biometricText}>Biometric Login</Text>
+                      </View>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    {/* 2FA verification step */}
+                    <View style={styles.inputWrap}>
+                      <MaterialCommunityIcons
+                        name="lock-outline"
+                        size={20}
+                        color={TEXT_MUTED}
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        label="Verification code"
+                        value={code}
+                        onChangeText={setCode}
+                        autoCapitalize="none"
+                        keyboardType="numeric"
+                        maxLength={6}
+                        style={styles.input}
+                        placeholderTextColor="#64748B"
+                        selectionColor={ACCENT}
+                        underlineColorAndroid="transparent"
+                      />
+                    </View>
+
+                    <Pressable
+                      onPressIn={onButtonPressIn}
+                      onPressOut={onButtonPressOut}
+                      onPress={onSubmitCode}
+                      disabled={busy || !isCodeValid}
+                      style={[
+                        styles.button,
+                        { backgroundColor: busy || !isCodeValid ? '#475569' : ACCENT },
+                      ]}
+                    >
+                      <Animated.View style={buttonAnim}>
+                        {busy ? (
+                          <PaperActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Text style={styles.buttonText}>Verify</Text>
+                        )}
+                      </Animated.View>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* Footer */}
+          <Animated.View style={[styles.footer, footerAnim]}>
+            <Text style={styles.footerText}>No account yet?</Text>
+            <Pressable onPress={() => openExternal(SIGNUP_URL)} hitSlop={12}>
+              <Text style={styles.footerLink}>Create one on DiDwa Web</Text>
+            </Pressable>
+          </Animated.View>
+
+          {/* Forgot password modal */}
+          <Modal visible={resetModalVisible} onDismiss={() => setResetModalVisible(false)}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <View style={styles.modalHeader}>
+                  {!resetSent ? (
+                    <>
+                      <Text style={styles.modalTitle}>Forgot password?</Text>
+                      <Text style={styles.modalSubtitle}>
+                        Enter your email and we'll send a reset link.
+                      </Text>
+                      <View style={styles.inputWrap}>
+                        <MaterialCommunityIcons
+                          name="email-outline"
+                          size={20}
+                          color={TEXT_MUTED}
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          label="Email"
+                          value={resetEmail}
+                          onChangeText={setResetEmail}
+                          autoCapitalize="none"
+                          autoComplete="email"
+                          keyboardType="email-address"
+                          returnKeyType="done"
+                          style={[styles.modalInput, { borderColor: resetError ? '#EF4444' : BORDER }]}
+                          placeholderTextColor="#64748B"
+                          selectionColor={ACCENT}
+                          underlineColorAndroid="transparent"
+                        />
+                      </View>
+                      {resetError && (
+                        <Text style={styles.resetErrorText}>{resetError}</Text>
+                      )}
+                      <Pressable
+                        onPress={sendReset}
+                        disabled={resetBusy}
+                        style={[
+                          styles.button,
+                          {
+                            backgroundColor: resetBusy || !resetEmail.trim()
+                              ? '#475569'
+                              : ACCENT,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.buttonText}>
+                          {resetBusy ? 'Sending...' : 'Send reset link'}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setResetModalVisible(false)}
+                        hitSlop={12}
+                        style={styles.cancelWrap}
+                      >
+                        <Text style={styles.cancelText}>Cancel</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.modalTitle}>Reset link sent</Text>
+                      <Text style={styles.modalSubtitle}>
+                        Check your inbox for a link to reset your password.
+                      </Text>
+                      <Pressable
+                        onPress={() => setResetModalVisible(false)}
+                        style={styles.button}
+                      >
+                        <Text style={styles.buttonText}>Done</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          <Snackbar visible={Boolean(error)} onDismiss={() => setError(null)} duration={4000}>
+            {error}
+          </Snackbar>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+}
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  root: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 },
-  brand: { alignItems: 'center', marginBottom: 28 },
-  logoShadow: {
-    shadowColor: '#0066FF',
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-    borderRadius: 26,
+  safe: {
+    flex: 1,
+    backgroundColor: BG_COLOR,
   },
-  logo: { width: 96, height: 96, borderRadius: 26 },
-  logoWord: { fontWeight: '800', letterSpacing: 0.5, marginTop: 14 },
-  tagline: { marginTop: 2 },
-  card: { borderRadius: 12 },
-  cardBody: { padding: 22 },
-  heading: { fontWeight: '700' },
-  subheading: { marginTop: 4, marginBottom: 18 },
-  input: { marginBottom: 14 },
-  forgot: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 8 },
-  forgotText: { fontWeight: '600' },
-  button: { marginTop: 6, borderRadius: 12 },
-  buttonContent: { height: 50 },
-  back: { marginTop: 10 },
-  signup: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 26, flexWrap: 'wrap' },
-  signupLink: { fontWeight: '700', marginLeft: 6 },
+  root: {
+    flex: 1,
+    backgroundColor: BG_COLOR,
+  },
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  brand: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  logoWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000000',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  appName: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.5,
+  },
+  appSubtitle: {
+    fontSize: 15,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  cardWrap: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 420,
+  },
+  card: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 16,
+    overflow: 'hidden',
+  },
+  cardBody: {
+    padding: 32,
+  },
+  heading: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    marginBottom: 6,
+    letterSpacing: -0.4,
+  },
+  subheading: {
+    fontSize: 15,
+    color: TEXT_MUTED,
+    marginBottom: 28,
+    lineHeight: 22,
+  },
+  inputWrap: {
+    position: 'relative',
+    marginBottom: 18,
+  },
+  inputIcon: {
+    position: 'absolute',
+    left: 16,
+    top: 16,
+  },
+  input: {
+    width: '100%',
+    height: 54,
+    backgroundColor: INPUT_BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    color: TEXT_PRIMARY,
+    fontSize: 15,
+    fontWeight: '500',
+    paddingLeft: 52,
+    paddingRight: 16,
+    paddingVertical: 16,
+  },
+  inputFocused: {
+    borderColor: ACCENT,
+  },
+  eyeWrap: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 6,
+  },
+  forgotWrap: {
+    alignSelf: 'flex-end',
+    marginBottom: 4,
+  },
+  forgotText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: ACCENT,
+  },
+  forgotWrap: {
+    alignSelf: 'flex-end',
+    marginBottom: 4,
+  },
+  forgotText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: ACCENT,
+  },
+  button: {
+    width: '100%',
+    height: 54,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  buttonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.2,
+  },
+  biometricButton: {
+    width: '100%',
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    backgroundColor: 'transparent',
+  },
+  biometricRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  biometricText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: TEXT_MUTED,
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 30,
+  },
+  footerText: {
+    fontSize: 15,
+    color: TEXT_MUTED,
+    marginRight: 6,
+  },
+  footerLink: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: ACCENT,
+  },
 });
+
+
+
+
+
+

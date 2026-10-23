@@ -6,6 +6,7 @@ import { useSafeBack } from '@/lib/useSafeBack';
 import { useAuth } from '@/auth/AuthProvider';
 import { API_BASE_URL } from '@/api/client';
 import { registerDeviceForPush, type PushRegistrationResult } from '@/services/pushNotifications';
+import { BiometricLockSetting } from '@/components/BiometricLockSetting';
 
 /** Human-readable outcome per registration result (see pushNotifications.ts). */
 const PUSH_MESSAGES: Record<PushRegistrationResult, string> = {
@@ -75,8 +76,14 @@ export default function SettingsScreen() {
 
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
+            <Text variant="labelLarge" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Security</Text>
+            <BiometricLockSetting />
+          </View>
+        </Card>
+
+        <Card mode="elevated" style={styles.card}>
+          <View style={styles.cardBody}>
             <Text variant="labelLarge" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Account</Text>
-            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>Connected to {API_BASE_URL}</Text>
             <Button mode="outlined" textColor={colors.error} icon="logout" onPress={signOut} style={{ marginTop: 14 }}>
               Sign out
             </Button>

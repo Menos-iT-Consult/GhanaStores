@@ -17,7 +17,7 @@ import {
   Wallet, Zap,
 } from 'lucide-react';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
-import { api } from '../api.js';
+import { api, getCachedStore } from '../api.js';
 import PlanGrid, { CycleToggle } from '../components/PlanGrid.jsx';
 import { usePlans } from '../lib/plans.js';
 import { getPlatformDomain } from '../config.js';
@@ -25,8 +25,11 @@ import { navigate } from '../router.js';
 import { buildLabel } from '../buildInfo.js';
 
 const UPDATED = 'August 2026';
-/** Contact address, built at render time so the API's apex always wins. */
-const contactEmail = () => `hello@${getPlatformDomain()}`;
+/** Contact address, built at render time so the API's apex always wins.
+ *  Accepts an override (e.g. the signed-in seller's own signup email) so the
+ *  contact page can show the merchant's email instead of the platform address.
+ */
+const contactEmail = (override) => String(override || `hello@${getPlatformDomain()}`);
 const CONTACT_PHONE_RAW = String(import.meta.env.VITE_PLATFORM_PHONE || '+233 20 123 4567').trim();
 const CONTACT_PHONE_E164 = CONTACT_PHONE_RAW.replace(/\s+/g, '');
 
@@ -342,6 +345,11 @@ export function ContactPage({ authed = false }) {
   const [form, setForm] = useState({ name: '', email: '', topic: 'Sales question', message: '' });
   const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  /* When a seller is signed in, show their own signup email on the contact
+     page instead of the generic platform address. Falls back to hello@apex. */
+  const cachedStore = getCachedStore();
+  const effectiveContactEmail = contactEmail(cachedStore?.email || undefined);
+
   async function submitContact(e) {
     e.preventDefault();
     if (sending) return;
@@ -360,7 +368,7 @@ export function ContactPage({ authed = false }) {
     }
   }
   const cards = [
-    { Icon: Mail, label: 'Email us', value: contactEmail(), href: `mailto:${contactEmail()}` },
+    { Icon: Mail, label: 'Email us', value: effectiveContactEmail, href: `mailto:${effectiveContactEmail}` },
         { Icon: Phone, label: 'Call support', value: CONTACT_PHONE_RAW, href: `tel:${CONTACT_PHONE_E164}` },
     { Icon: MessageCircle, label: 'WhatsApp', value: 'Chat with the team', href: `https://wa.me/${CONTACT_PHONE_E164}` },
   ];

@@ -24,13 +24,22 @@ import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '.
 
 const router = Router();
 
-/** Ensure the generated slug is unique; append numeric suffix on collision. */
+/** Ensure the generated slug is unique AND not a platform-reserved slug. */
 async function uniqueSlug(base) {
   let candidate = base;
   for (let i = 2; i < 50; i += 1) {
+    const problem = subdomainProblem(candidate);
     const { rows } = await query('SELECT 1 FROM stores WHERE subdomain_slug = $1', [candidate]);
-    if (rows.length === 0) return candidate;
+    if (rows.length === 0 && !problem) return candidate;
     candidate = `${base}-${i}`;
+  }
+  // Fallback: keep trying random suffixes until one is neither taken nor reserved.
+  for (let i = 0; i < 20; i += 1) {
+    const random = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+    if (!subdomainProblem(random)) {
+      const { rows } = await query('SELECT 1 FROM stores WHERE subdomain_slug = $1', [random]);
+      if (rows.length === 0) return random;
+    }
   }
   return `${base}-${Math.random().toString(36).slice(2, 6)}`;
 }
