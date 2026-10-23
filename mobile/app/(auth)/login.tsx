@@ -312,7 +312,7 @@ export default function LoginScreen() {
                       </Pressable>
                     </View>
 
-                    <Pressable onPress={() => setResetModalVisible(true)} hitSlop={12} style={styles.forgotWrap}>
+                    <Pressable onPress={() => setResetModalVisible(true)} hitSlop={12} style={styles.forgotWrap} disabled={false}>
                       <Text style={styles.forgotText}>Forgot password?</Text>
                     </Pressable>
 
