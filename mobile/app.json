@@ -62,10 +62,10 @@
         "origin": false
       },
       "eas": {
-        "projectId": "37d39de8-d8d0-4f18-b518-39d4910adc29"
+        "projectId": "3f211281-79e1-4a80-97a8-83b1209f7f52"
       }
     },
-    "owner": "menositconsult",
+    "owner": "didwa-seller",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
