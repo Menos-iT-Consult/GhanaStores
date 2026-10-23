@@ -81,14 +81,6 @@ export default function LoginScreen() {
 
   /* --------------------------------- Entrance animations --------------------------------- */
 
-  const [resetModalVisible, setResetModalVisible] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetBusy, setResetBusy] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
-
-  /* --------------------------------- Entrance animations --------------------------------- */
-
   const brandScale = useSharedValue(0);
   const brandOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0);
@@ -602,15 +594,6 @@ const styles = StyleSheet.create({
     right: 16,
     top: 16,
     padding: 6,
-  },
-  forgotWrap: {
-    alignSelf: 'flex-end',
-    marginBottom: 4,
-  },
-  forgotText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: ACCENT,
   },
   forgotWrap: {
     alignSelf: 'flex-end',
