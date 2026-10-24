@@ -32,6 +32,7 @@ import AdminAudit from './AdminAudit.jsx';
 import AdminDomainPricing from './AdminDomainPricing.jsx';
 import AdminPlans from './AdminPlans.jsx';
 import AdminContact from './AdminContact.jsx';
+import AdminNewsletter from './AdminNewsletter.jsx';
 import AdminSmsPricing from './AdminSmsPricing.jsx';
 
 /** Static admin routes, longest-prefix match first (detail routes are dynamic). */
@@ -52,6 +53,7 @@ const ADMIN_ROUTES = [
   ['/admin/system', AdminSystem],
   ['/admin/audit', AdminAudit],
   ['/admin/contact', AdminContact],
+  ['/admin/newsletter', AdminNewsletter],
 ];
 
 function pageFor(route) {
