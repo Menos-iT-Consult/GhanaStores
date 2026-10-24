@@ -114,7 +114,7 @@ router.get('/merchants/:id', requireAdmin, async (req, res, next) => {
                     (SELECT COUNT(*) FROM products WHERE store_id = $1 AND is_active)::int AS active,
                     (SELECT COUNT(*) FROM product_variants
                       WHERE store_id = $1 AND stock_quantity <= low_stock_threshold)::int AS low_stock`,
-        [id, id, id]),
+        [id]),
       query(`SELECT id, domain_name, provider, status, ssl_status, created_at
                FROM store_domains WHERE store_id = $1 ORDER BY created_at DESC`, [id]),
       query(`SELECT plan_id, amount, provider, status, initiated_at
