@@ -3,7 +3,12 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { authenticateWithBiometrics, biometricTypeLabel } from '@/services/biometricService';
+import {
+  authenticateWithBiometrics,
+  biometricTypeLabel,
+  checkBiometricSupport,
+  isBiometricLockEnabled,
+} from '@/services/biometricService';
 
 /**
  * Full-screen biometric lock overlay.
@@ -13,7 +18,7 @@ import { authenticateWithBiometrics, biometricTypeLabel } from '@/services/biome
  *   - `onUnlock` — called when biometric authentication succeeds.
  *
  * Behavior:
- *   - Auto-triggers biometric authentication on mount.
+ *   - Auto-triggers biometric authentication on mount (only if biometric lock is enabled).
  *   - On success → calls `onUnlock`.
  *   - On cancel/failure → stays locked; offers "Sign in with password" link.
  */
@@ -30,6 +35,19 @@ export function AppLockOverlay({
   const [label, setLabel] = useState('Biometrics');
 
   const attemptUnlock = useCallback(async () => {
+    // Safety check: biometrics is for app lock only — if not enabled, redirect to password login.
+    const enabled = await isBiometricLockEnabled();
+    if (!enabled) {
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    const supported = await checkBiometricSupport();
+    if (!supported) {
+      router.replace('/(auth)/login');
+      return;
+    }
+
     setAuthenticating(true);
     try {
       const success = await authenticateWithBiometrics();
@@ -39,7 +57,7 @@ export function AppLockOverlay({
     } finally {
       setAuthenticating(false);
     }
-  }, [onUnlock]);
+  }, [onUnlock, router]);
 
   useEffect(() => {
     void biometricTypeLabel().then(setLabel);

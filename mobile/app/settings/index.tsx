@@ -3,10 +3,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Card, Divider, List, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/lib/useSafeBack';
-import { useAuth } from '@/auth/AuthProvider';
 import { API_BASE_URL } from '@/api/client';
 import { registerDeviceForPush, type PushRegistrationResult } from '@/services/pushNotifications';
 import { BiometricLockSetting } from '@/components/BiometricLockSetting';
+import { useAuth } from '@/auth/AuthProvider';
 
 /** Human-readable outcome per registration result (see pushNotifications.ts). */
 const PUSH_MESSAGES: Record<PushRegistrationResult, string> = {

@@ -9,15 +9,15 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OrdersWidget } from '@/components/widgets/OrdersWidget';
 import { OpsWidget } from '@/components/widgets/OpsWidget';
-import { TrendWidget } from '@/components/widgets/TrendWidget';
 import { writeWidgetSnapshot } from '@/widgets/snapshot';
 import { refreshAndroidWidget } from '@/widgets/refreshAndroidWidget';
 
 import { GlassCard } from '@/components/glass/GlassCard';
 import { ThemeToggle } from '@/components/glass/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
+import { RevenueCarousel } from '@/components/glass/RevenueCarousel';
 import { useGlass } from '@/components/glass/glass';
-import { HeroRevenueCard, type HeroRange } from '@/components/glass/HeroRevenueCard';
+import { type HeroRange } from '@/components/glass/HeroRevenueCard';
 import { QuickActions } from '@/components/glass/QuickActions';
 import { MetricGrid } from '@/components/glass/MetricGrid';
 import { AlertBanner } from '@/components/glass/AlertBanner';
@@ -155,14 +155,18 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={ACCENT.primary} />}
       >
-        {/* 1 · Floating hero revenue card */}
-        <HeroRevenueCard
+        {/* 1 · Revenue carousel: hero card + trend card (swipe horizontally) */}
+        <RevenueCarousel
           storeName={store?.name ?? 'My store'}
-          todayRevenue={heroRevenue}
+          heroRevenue={heroRevenue}
           range={heroRange}
           onRangeChange={setHeroRange}
           sparkValues={sparkValues}
-          periodLabel={heroLabel}
+          heroLabel={heroLabel}
+          trendPoints={safeTrend.map((m) => ({
+            month: String(m?.month ?? ''),
+            revenue: Number(m?.revenue) || 0,
+          }))}
         />
 
         {/* 2 · Quick action glass pills */}
@@ -259,10 +263,7 @@ export default function DashboardScreen() {
         />
         <OpsWidget lowStockCount={safeOps.lowStockCount} transitCash={safeOps.transitCash} onRestock={() => router.push('/products')} />
 
-        <SectionHeader title="Revenue trend" actionLabel="New sale" onAction={() => router.push('/pos')} />
-        <GlassCard style={styles.trendCard}>
-          <TrendWidget points={safeTrend.map((m) => ({ month: String(m?.month ?? ''), revenue: Number(m?.revenue) || 0 }))} />
-        </GlassCard>
+
         <SectionHeader
           title="Top products"
           actionLabel={(top.data?.products.length ?? 0) > 0 ? 'Manage' : undefined}

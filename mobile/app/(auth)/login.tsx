@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -22,8 +23,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
-import { authenticateWithBiometrics } from '@/services/biometricService';
 import { api, apiErrorMessage } from '@/api/client';
+import logoImage from '../../assets/icon.png';
 
 const WEB_APP_URL = 'https://didwaghana.com';
 const SIGNUP_URL = `${WEB_APP_URL}/login`;
@@ -167,20 +168,6 @@ export default function LoginScreen() {
     }
   }
 
-  async function onBiometricLogin() {
-    setBusy(true);
-    try {
-      const success = await authenticateWithBiometrics();
-      if (success) {
-        router.replace('/(tabs)/dashboard');
-      }
-    } catch {
-      setError('Biometric authentication failed.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const twoFactor = Boolean(challenge);
   const isFormValid = email.trim().length > 0 && password.length > 0;
   const isCodeValid = code.length >= 6;
@@ -201,7 +188,7 @@ export default function LoginScreen() {
           {/* Brand header */}
           <Animated.View style={[styles.brand, brandAnim]}>
             <View style={styles.logoWrap}>
-              <MaterialCommunityIcons name="store" size={56} color={ACCENT} />
+              <Image source={logoImage} style={styles.logoImage} />
             </View>
             <Text style={styles.appName}>DiDwa</Text>
             <Text style={styles.appSubtitle}>Seller App</Text>
@@ -294,21 +281,10 @@ export default function LoginScreen() {
                         )}
                       </Animated.View>
                     </Pressable>
-
-                    <Pressable
-                      onPressIn={onButtonPressIn}
-                      onPressOut={onButtonPressOut}
-                      onPress={onBiometricLogin}
-                      disabled={busy}
-                      style={styles.biometricButton}
-                    >
-                      <View style={styles.biometricRow}>
-                        <MaterialCommunityIcons name="fingerprint" size={18} color={TEXT_MUTED} />
-                        <Text style={styles.biometricText}>Biometric Login</Text>
-                      </View>
-                    </Pressable>
                   </>
+
                 ) : (
+
                   <>
                     <View style={styles.inputWrap}>
                       <MaterialCommunityIcons
@@ -473,6 +449,10 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
+  },
+  logoImage: {
+    width: 40,
+    height: 40,
   },
   appName: {
     fontSize: 34,
