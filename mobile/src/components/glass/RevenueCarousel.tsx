@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, type ViewStyle } from 'react-native';
+import { ScrollView, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { useGlass, type GlassTokens } from './glass';
 import { HeroRevenueCard, type HeroRange } from './HeroRevenueCard';
 import { TrendWidget } from '@/components/widgets/TrendWidget';
@@ -27,15 +27,18 @@ export function RevenueCarousel({
   trendPoints: { month: string; revenue: number }[];
 }) {
   const g = useGlass();
+  const { width } = useWindowDimensions();
 
   return (
     <ScrollView
       horizontal
+      pagingEnabled
       showsHorizontalScrollIndicator={false}
+      decelerationRate="fast"
       contentContainerStyle={styles.row(g)}
     >
       {/* Card 1 · Hero revenue (7d / 30d) */}
-      <View style={styles.cardWrap(g)}>
+      <View style={[styles.cardWrap(g), { width }]}>
         <HeroRevenueCard
           storeName={storeName}
           todayRevenue={heroRevenue}
@@ -47,7 +50,7 @@ export function RevenueCarousel({
       </View>
 
       {/* Card 2 · Revenue trend (6-month bars) */}
-      <View style={styles.cardWrap(g)}>
+      <View style={[styles.cardWrap(g), { width }]}>
         <GlassCard style={styles.trendCard(g)}>
           <TrendWidget points={trendPoints} />
         </GlassCard>
@@ -58,9 +61,9 @@ export function RevenueCarousel({
 
 const styles = {
   row: (g: GlassTokens): ViewStyle => ({
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingVertical: 8,
-    gap: 12,
+    gap: 0,
     alignItems: 'flex-start',
   }) satisfies ViewStyle,
   cardWrap: (g: GlassTokens): ViewStyle => ({

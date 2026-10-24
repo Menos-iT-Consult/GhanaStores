@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Image as RNImage } from 'react-native';
 
 const ICON_SIZE = 120;
@@ -7,13 +7,19 @@ const SPLASH_BG = '#F8FAFC';
 /**
  * Full-screen loading screen shown while auth + onboarding state resolve.
  * Displays the DiDwa app icon (static, no Lottie decode overhead).
+ *
+ * `onReady` fires AFTER the first paint (via useEffect) so the native splash
+ * is only hidden once this overlay is actually on screen — prevents the
+ * cold-launch blank flash that occurred when it was invoked synchronously
+ * during render.
  */
 export function DidwaLottieSplash({ onReady }: { onReady?: () => void }): React.JSX.Element {
   const fired = useRef(false);
-  if (!fired.current) {
+  useEffect(() => {
+    if (fired.current) return;
     fired.current = true;
     onReady?.();
-  }
+  }, [onReady]);
 
   return (
     <View style={styles.container}>

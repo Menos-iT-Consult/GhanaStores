@@ -24,7 +24,7 @@ const PUSH_MESSAGES: Record<PushRegistrationResult, string> = {
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const goBack = useSafeBack('/settings');
+  const goBack = useSafeBack('/(tabs)/dashboard');
   const { store, signOut } = useAuth();
   const { colors } = useTheme();
   const [snack, setSnack] = React.useState<string | null>(null);
