@@ -6,7 +6,7 @@
  * <MerchantControls />, which is the only part here that writes.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Globe, Receipt, Wallet } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Globe, Receipt, Users, Wallet } from 'lucide-react';
 import { adminApi, ghs } from '../../api.js';
 import { getPlatformDomain } from '../../config.js';
 import { navigate, usePathname } from '../../router.js';
