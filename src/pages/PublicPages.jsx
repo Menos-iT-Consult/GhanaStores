@@ -229,6 +229,30 @@ function SiteFooter() {
           <a className="text-xs font-bold text-blue-600" href="https://demo.didwaghana.com">
             Checkout A Demo
           </a>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <a href="#" aria-disabled="true" className="inline-flex items-center gap-2 rounded-lg bg-charcoal px-3 py-2 text-white">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+                <path d="M17.05 12.04c-.03-3.14 2.57-4.64 2.69-4.72-1.46-2.14-3.74-2.43-4.55-2.46-1.94-.2-3.78 1.14-4.77 1.14-1 0-2.5-1.11-4.11-1.08-2.11.03-4.06 1.23-5.15 3.12-2.19 3.8-.56 9.42 1.58 12.5 1.04 1.51 2.28 3.2 3.91 3.14 1.57-.06 2.17-1.01 4.06-1.01 1.89 0 2.43 1.01 4.11.98 1.69-.03 2.76-1.53 3.79-3.05 1.2-1.75 1.69-3.45 1.72-3.54-.04-.02-3.29-1.26-3.32-5.02zM14.1 3.13c.86-1.04 1.44-2.5 1.28-3.94-1.24.05-2.74.83-3.63 1.87-.8.93-1.5 2.41-1.31 3.82 1.38.11 2.79-.71 3.66-1.75z" />
+              </svg>
+              <span className="flex flex-col leading-tight">
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-300">Download on the</span>
+                <span className="text-xs font-extrabold">App Store</span>
+              </span>
+            </a>
+            <a href="#" aria-disabled="true" className="inline-flex items-center gap-2 rounded-lg bg-charcoal px-3 py-2 text-white">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+                <path d="M3.6 1.8c-.4.3-.6.8-.6 1.5v17.4c0 .7.2 1.2.6 1.5l.1.1 9.8-9.8v-.2L3.7 1.7l-.1.1z" />
+                <path d="M16.6 15.5l-3.3-3.3v-.2l3.3-3.3.1.1 4 2.3c1.1.6 1.1 1.7 0 2.3l-4 2.1-.1 0z" fill="#FFC107" />
+                <path d="M16.7 15.4L13.3 12 3.6 21.7c.4.4 1 .4 1.7 0l11.4-6.3z" fill="#4CAF50" />
+                <path d="M16.7 8.6L5.3 2.3c-.7-.4-1.3-.4-1.7 0L13.3 12l3.4-3.4z" fill="#03A9F4" />
+              </svg>
+              <span className="flex flex-col leading-tight">
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-300">Get it on</span>
+                <span className="text-xs font-extrabold">Google Play</span>
+              </span>
+            </a>
+          </div>
+          <p className="mt-2 text-[10px] font-semibold text-slate-400">Listings coming soon.</p>
         </div>
 
         <nav className="space-y-1.5 text-xs font-semibold text-slate-500" aria-label="Product links">

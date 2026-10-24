@@ -235,7 +235,80 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
         </div>
       </section>
 
-      {/* Final CTA */}
+      {/* Seller app */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+        <div className="grid items-center gap-10 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12 lg:grid-cols-2">
+          <div>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Seller app</span>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Your store, in your pocket.</h2>
+            <p className="mt-4 text-sm leading-relaxed text-slate-500 sm:text-base">
+              Run the whole shop from your phone: an offline-first POS that keeps selling when the
+              network drops, live order alerts with push notifications, catalog and stock edits,
+              customer loyalty and Mobile Money payouts - all synced to the same account.
+            </p>
+            <ul className="mt-6 grid gap-2 sm:grid-cols-2">
+              {[
+                'Offline POS with outbox sync',
+                'Push alerts for new orders',
+                'Catalog & stock on the go',
+                'Mobile Money payouts',
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <Check size={16} className="shrink-0 text-emerald-500" aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <a
+                href="#"
+                aria-disabled="true"
+                className="inline-flex items-center gap-3 rounded-xl bg-charcoal px-5 py-3 text-white shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden="true">
+                  <path d="M17.05 12.04c-.03-3.14 2.57-4.64 2.69-4.72-1.46-2.14-3.74-2.43-4.55-2.46-1.94-.2-3.78 1.14-4.77 1.14-1 0-2.5-1.11-4.11-1.08-2.11.03-4.06 1.23-5.15 3.12-2.19 3.8-.56 9.42 1.58 12.5 1.04 1.51 2.28 3.2 3.91 3.14 1.57-.06 2.17-1.01 4.06-1.01 1.89 0 2.43 1.01 4.11.98 1.69-.03 2.76-1.53 3.79-3.05 1.2-1.75 1.69-3.45 1.72-3.54-.04-.02-3.29-1.26-3.32-5.02zM14.1 3.13c.86-1.04 1.44-2.5 1.28-3.94-1.24.05-2.74.83-3.63 1.87-.8.93-1.5 2.41-1.31 3.82 1.38.11 2.79-.71 3.66-1.75z" />
+                </svg>
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">Download on the</span>
+                  <span className="text-base font-extrabold">App Store</span>
+                </span>
+              </a>
+              <a
+                href="#"
+                aria-disabled="true"
+                className="inline-flex items-center gap-3 rounded-xl bg-charcoal px-5 py-3 text-white shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden="true">
+                  <path d="M3.6 1.8c-.4.3-.6.8-.6 1.5v17.4c0 .7.2 1.2.6 1.5l.1.1 9.8-9.8v-.2L3.7 1.7l-.1.1z" />
+                  <path d="M16.6 15.5l-3.3-3.3v-.2l3.3-3.3.1.1 4 2.3c1.1.6 1.1 1.7 0 2.3l-4 2.1-.1 0z" fill="#FFC107" />
+                  <path d="M16.7 15.4L13.3 12 3.6 21.7c.4.4 1 .4 1.7 0l11.4-6.3z" fill="#4CAF50" />
+                  <path d="M16.7 8.6L5.3 2.3c-.7-.4-1.3-.4-1.7 0L13.3 12l3.4-3.4z" fill="#03A9F4" />
+                </svg>
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">Get it on</span>
+                  <span className="text-base font-extrabold">Google Play</span>
+                </span>
+              </a>
+            </div>
+            <p className="mt-4 text-xs font-semibold text-slate-400">
+              App Store &amp; Google Play listings coming soon - links will be activated at launch.
+            </p>
+          </div>
+          <div className="flex items-center justify-center">
+            <div className="relative h-72 w-36 rounded-[2.5rem] border-4 border-slate-900 bg-slate-900 shadow-2xl">
+              <div className="absolute inset-2 overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-600 to-emerald-500">
+                <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center text-white">
+                  <Smartphone size={40} aria-hidden="true" />
+                  <span className="text-xs font-extrabold">DiDwa Seller</span>
+                  <span className="text-[10px] font-semibold opacity-80">POS &middot; Orders &middot; Stock</span>
+                </div>
+              </div>
+              <div className="absolute left-1/2 top-2 h-1.5 w-12 -translate-x-1/2 rounded-full bg-slate-700" aria-hidden="true" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-emerald-600 px-8 py-14 text-center text-white sm:px-12">
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
