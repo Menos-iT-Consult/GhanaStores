@@ -347,7 +347,7 @@ function HubtelCheckoutDrawer({ domain, priceGhs, storeId = null, onClose }) {
               <label className="mb-1 block text-xs font-semibold text-slate-500" htmlFor="momo-phone">Mobile Money Phone</label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"><Phone size={15} aria-hidden="true" /></span>
-                <input id="momo-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="233XXXXXXXXX"
+                <input id="momo-phone" type="tel" inputMode="numeric" pattern="[0-9]*" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="233XXXXXXXXX" maxLength={12}
                   className="w-full rounded-xl border border-slate-200 bg-mist/60 py-2.5 pl-10 pr-3 text-sm text-charcoal placeholder:text-slate-400 transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" />
               </div>
             </div>

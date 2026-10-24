@@ -83,7 +83,7 @@ export default function CartBody({ t, onNavigate, ctx }) {
                 </span>
               </div>
               <input required value={ctx.checkout.customer.name} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, name: e.target.value })} placeholder="Full name" aria-label="Full name" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
-              <input required value={ctx.checkout.customer.phone} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, phone: e.target.value })} placeholder="Phone number" aria-label="Phone number" className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
+              <input required value={ctx.checkout.customer.phone} onChange={(e) => ctx.checkout.setCustomer({ ...ctx.checkout.customer, phone: e.target.value.replace(/\D/g, '') })} placeholder="Phone number" aria-label="Phone number" inputMode="numeric" pattern="[0-9]*" maxLength={12} className="w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none" style={{ borderColor: 'rgba(148,163,184,.5)' }} />
               {/* Card gateways require an email, so ask for one whenever the
                   store takes card payment. Optional for COD, where nobody
                   charges an address. */}

@@ -366,12 +366,18 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                     <input
                       id="phone"
                       type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className={inputCls}
                       value={form.phone}
-                      onChange={set('phone')}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, '');
+                        setForm((f) => ({ ...f, phone: v }));
+                        setFieldErrors((fe) => ({ ...fe, phone: undefined }));
+                      }}
                       placeholder="0244123456"
                       required
-                      maxLength={13}
+                      maxLength={12}
                       autoComplete="tel-national"
                     />
                   </Field>

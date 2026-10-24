@@ -20,8 +20,11 @@ export default function CommerceSection({ t, str, b }) {
           <ConditionalGroup tight>
             <input
               type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={12}
               value={t.features.whatsapp_number}
-              onChange={str('features.whatsapp_number')}
+              onChange={(e) => str('features.whatsapp_number')({ target: { value: e.target.value.replace(/\D/g, '') } })}
               placeholder="233201234567"
               aria-label="WhatsApp number"
               className={INPUT_CLS}

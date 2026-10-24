@@ -578,4 +578,120 @@ router.patch('/seller/orders/:id/status', authenticateSeller, async (req, res, n
   }
 });
 
+/* ----------------------------- Public tracking ----------------------------- */
+
+/**
+ * GET /api/public/orders/:orderNumber
+ *
+ * Public, minimally-scoped order tracking. Returns the fulfilment status and a
+ * line-item summary only - no customer address, keys or store internals. An
+ * optional `phone` query parameter, when supplied, must match the order's phone;
+ * omitting it keeps the lookup order-number-only but still scoped to the safe
+ * subset above.
+ */
+router.get('/public/orders/:orderNumber', async (req, res, next) => {
+  try {
+    const orderNumber = String(req.params.orderNumber || '').trim();
+    if (!orderNumber) {
+      return res.status(400).json({ error: 'Order number is required.' });
+    }
+    const phone = String(req.query.phone || req.query.customer_phone || '').trim();
+
+    const orderRes = await query(
+      `SELECT o.id, o.store_id, o.order_number, o.status, o.payment_status,
+              o.payment_method, o.total_amount, o.created_at, o.updated_at,
+              o.customer_phone, s.name AS store_name
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+        WHERE o.order_number = $1
+        LIMIT 1`,
+      [orderNumber],
+    );
+    const order = orderRes.rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+    if (phone) {
+      const norm = (v) => String(v || '').replace(/\D/g, '');
+      if (norm(phone) && norm(phone) !== norm(order.customer_phone)) {
+        return res.status(404).json({ error: 'Order not found.' });
+      }
+    }
+
+    const itemsRes = await query(
+      `SELECT product_name, variant_label, quantity, unit_price, line_total
+         FROM order_items
+        WHERE order_id = $1
+        ORDER BY id ASC`,
+      [order.id],
+    );
+
+    const status = String(order.status || '').toUpperCase();
+    res.json({
+      order: {
+        orderNumber: order.order_number,
+        status,
+        orderStatus: deriveOrderStatus(status),
+        paymentStatus: derivePaymentStatus(status) || order.payment_status,
+        paymentMethod: order.payment_method,
+        totalAmount: Number(order.total_amount || 0),
+        createdAt: order.created_at,
+        updatedAt: order.updated_at,
+        storeName: order.store_name,
+      },
+      items: itemsRes.rows.map((i) => ({
+        name: i.product_name,
+        variant: i.variant_label,
+        quantity: Number(i.quantity || 0),
+        unitPrice: Number(i.unit_price || 0),
+        lineTotal: Number(i.line_total || 0),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/public/orders/:orderNumber', async (req, res, next) => {
+  try {
+    const orderNumber = String(req.params.orderNumber || '').trim();
+    if (!orderNumber) return res.status(400).json({ error: 'Order number is required.' });
+    const phone = String(req.query.phone || req.query.customer_phone || '').trim();
+    const orderRes = await query(
+      `SELECT o.id, o.order_number, o.status, o.payment_status, o.payment_method, o.total_amount, o.created_at, o.updated_at, o.customer_phone, s.name AS store_name FROM orders o JOIN stores s ON s.id = o.store_id WHERE o.order_number = $1 LIMIT 1`,
+      [orderNumber],
+    );
+    const order = orderRes.rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (phone) {
+      const norm = (v) => String(v || '').replace(/\\D/g, '');
+      if (norm(phone) && norm(phone) !== norm(order.customer_phone)) return res.status(404).json({ error: 'Order not found.' });
+    }
+    const itemsRes = await query(
+      `SELECT product_name, variant_label, quantity, unit_price, line_total FROM order_items WHERE order_id = $1 ORDER BY id ASC`,
+      [order.id],
+    );
+    const status = String(order.status || '').toUpperCase();
+    res.json({
+      order: {
+        orderNumber: order.order_number,
+        status,
+        orderStatus: deriveOrderStatus(status),
+        paymentStatus: derivePaymentStatus(status) || order.payment_status,
+        paymentMethod: order.payment_method,
+        totalAmount: Number(order.total_amount || 0),
+        createdAt: order.created_at,
+        updatedAt: order.updated_at,
+        storeName: order.store_name,
+      },
+      items: itemsRes.rows.map((i) => ({
+        name: i.product_name,
+        variant: i.variant_label,
+        quantity: Number(i.quantity || 0),
+        unitPrice: Number(i.unit_price || 0),
+        lineTotal: Number(i.line_total || 0),
+      })),
+    });
+  } catch (err) { next(err); }
+});
+
 export default router;

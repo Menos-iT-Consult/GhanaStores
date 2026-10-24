@@ -318,8 +318,9 @@ export default function PosScreen() {
             dense
             label="Customer phone (optional)"
             value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
+            onChangeText={(v) => setPhone(v.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+            maxLength={12}
             left={<TextInput.Icon icon="phone" />}
             style={{ marginTop: 8 }}
           />

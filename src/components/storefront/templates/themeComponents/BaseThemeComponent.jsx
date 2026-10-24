@@ -23,6 +23,7 @@ import StorefrontFooter from '../../StorefrontFooter.jsx';
 import ShopBody from '../../pages/ShopBody.jsx';
 import ProductBody from '../../pages/ProductBody.jsx';
 import CartBody from '../../pages/CartBody.jsx';
+import TrackBody from '../../pages/TrackBody.jsx';
 import AboutBody from '../../pages/AboutBody.jsx';
 import ContactBody from '../../pages/ContactBody.jsx';
 import TrustStrip from '../../TrustStrip.jsx';
@@ -44,6 +45,7 @@ const PAGE_BODIES = {
   shop: ShopBody,
   product: ProductBody,
   cart: CartBody,
+  track: TrackBody,
   about: AboutBody,
   contact: ContactBody,
 };
@@ -194,6 +196,7 @@ export default function BaseThemeComponent({
   onRemove = null,
   checkout = null,
   storeSlug = null,
+  orderNumber = null,
   shopShortcut,
   setShopShortcut,
 }) {
@@ -243,7 +246,7 @@ export default function BaseThemeComponent({
               <>
                 <HeaderComp t={t} active={page} onNavigate={nav} ctx={ctx} />
                 <main style={{ minHeight: '60%' }}>
-                  <BodyComp t={t} onNavigate={nav} ctx={ctx} />
+                  <BodyComp t={t} onNavigate={nav} ctx={ctx} orderNumber={orderNumber} />
                 </main>
               </>
             );

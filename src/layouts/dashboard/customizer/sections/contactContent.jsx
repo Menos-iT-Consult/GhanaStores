@@ -17,8 +17,11 @@ export default function ContactContentSection({ t, str }) {
         <Field label="WhatsApp number for the contact card">
           <input
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={12}
             value={t.contact_content.whatsapp_number}
-            onChange={str('contact_content.whatsapp_number')}
+            onChange={(e) => str('contact_content.whatsapp_number')({ target: { value: e.target.value.replace(/\D/g, '') } })}
             placeholder="Uses your WhatsApp Buy number"
             className={INPUT_CLS}
           />

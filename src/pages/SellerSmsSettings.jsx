@@ -289,9 +289,12 @@ function BuySegments({ onPurchased }) {
           <span className="text-xs font-bold text-slate-600">MoMo number</span>
           <input
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={momoNumber}
-            onChange={(e) => setMomoNumber(e.target.value)}
+            onChange={(e) => setMomoNumber(e.target.value.replace(/\D/g, ''))}
             placeholder="0241234567"
+            maxLength={12}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </label>

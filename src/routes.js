@@ -56,6 +56,8 @@ export const PWA_ROUTES = [
 /** Routes that carry a dynamic segment; the segment must not be empty. */
 export const DYNAMIC_ROUTE_PREFIXES = [
   '/dashboard/themes/demo/',
+  // Customer order tracking on a tenant storefront: /track/<order-number>
+  '/track/',
   // A merchant's 360-degree view: /admin/merchants/<uuid>
   '/admin/merchants/',
 ];

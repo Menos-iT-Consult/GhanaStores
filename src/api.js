@@ -78,7 +78,7 @@ export async function flushOfflineSales() {
   return pending.length - remaining.length;
 }
 
-async function request(path, { method = 'GET', body, isForm, token: explicitToken } = {}) {
+async function request(path, { method = 'GET', body, isForm, token: explicitToken, _retried = false } = {}) {
   const headers = {};
   const token = explicitToken !== undefined ? explicitToken : getToken();
   const isAdmin = explicitToken === getAdminToken() && explicitToken !== undefined;
@@ -111,6 +111,12 @@ async function request(path, { method = 'GET', body, isForm, token: explicitToke
 
   let data = null;
   try { data = await res.json(); } catch { /* non-JSON: a proxy or gateway page */ }
+
+  if (res.status === 429 && !_retried) {
+    const retryAfter = Number(res.headers.get?.('Retry-After') || 1);
+    await new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(retryAfter, 1), 10) * 1000));
+    return request(path, { method, body, isForm, token: explicitToken, _retried: true });
+  }
 
   if (!res.ok) {
     const requestId = res.headers.get?.('X-Request-Id') || '';

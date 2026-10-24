@@ -6,6 +6,7 @@ import {
   normalizeCustomThemeConfig,
   templateToCustomizerTokens,
 } from '../theme/config.js';
+import { navigate } from '../router.js';
 import StorefrontRouter, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
 import StorefrontSplash from '../components/StorefrontSplash.jsx';
 import { useContainerTier } from '../lib/responsive.js';
@@ -30,6 +31,117 @@ const slugFromHost = () => {
  * order: template tokens -> seller overrides -> store identity (always last,
  * so a real store's name and WhatsApp number beat the template's placeholders).
  */
+/**
+ * URL <-> storefront page mapping for the live (tenant) shop.
+ *
+ * The customizer preview still drives pages through its own internal `page`
+ * prop; only the live shop mirrors its location to the address bar, so a
+ * product, cart or tracking page can be linked to directly.
+ */
+export function pathToStorefrontPage(pathname) {
+  const raw = String(pathname || '/').trim() || '/';
+  const cleaned = raw.replace(/\/+$/, '') || '/';
+  const segments = cleaned === '/' ? [] : cleaned.slice(1).split('/').map((s) => {
+    try { return decodeURIComponent(s); } catch { return s; }
+  });
+  const head = segments[0] || '';
+  const rest = segments.slice(1).join('/');
+
+  if (head === 'product' || head === 'products') {
+    if (segments[1]) return { page: 'product', productId: segments[1], orderNumber: null };
+    return { page: 'shop', productId: null, orderNumber: null };
+  }
+  if (head === 'track' || head === 'tracking' || head === 'order' || head === 'orders') {
+    if (segments[1]) return { page: 'track', productId: null, orderNumber: segments[1] };
+    return { page: 'track', productId: null, orderNumber: null };
+  }
+  const PAGE_BY_SEGMENT = {
+    '': 'home',
+    home: 'home',
+    shop: 'shop',
+    catalog: 'shop',
+    cart: 'cart',
+    checkout: 'cart',
+    about: 'about',
+    contact: 'contact',
+    track: 'track',
+    tracking: 'track',
+  };
+  const page = PAGE_BY_SEGMENT[head] || 'home';
+  return { page, productId: null, orderNumber: null };
+}
+
+export function storefrontPageToPath(page, id = null) {
+  switch (page) {
+    case 'product':
+      return id != null ? `/product/${encodeURIComponent(String(id))}` : '/shop';
+    case 'track':
+      return id != null ? `/track/${encodeURIComponent(String(id))}` : '/track';
+    case 'shop':
+      return '/shop';
+    case 'cart':
+      return '/cart';
+    case 'checkout':
+      return '/checkout';
+    case 'about':
+      return '/about';
+    case 'contact':
+      return '/contact';
+    default:
+      return '/';
+  }
+}
+
+/* Aliases kept so source-level and unit tests can refer to either naming. */
+export const pathToPage = pathToStorefrontPage;
+export const pageToPath = storefrontPageToPath;
+
+/**
+ * URL <-> storefront page mapping for the live (tenant) shop.
+ */
+export function pathToStorefrontPage(pathname) {
+  const raw = String(pathname || '/').trim() || '/';
+  const cleaned = raw.replace(/\\/+$/, '') || '/';
+  const segments = cleaned === '/' ? [] : cleaned.slice(1).split('/').map((s) => {
+    try { return decodeURIComponent(s); } catch { return s; }
+  });
+  const head = segments[0] || '';
+
+  if (head === 'product' || head === 'products') {
+    if (segments[1]) return { page: 'product', productId: segments[1], orderNumber: null };
+    return { page: 'shop', productId: null, orderNumber: null };
+  }
+  if (head === 'track' || head === 'tracking' || head === 'order' || head === 'orders') {
+    if (segments[1]) return { page: 'track', productId: null, orderNumber: segments[1] };
+    return { page: 'track', productId: null, orderNumber: null };
+  }
+  const PAGE_BY_SEGMENT = {
+    '': 'home', home: 'home', shop: 'shop', catalog: 'shop',
+    cart: 'cart', checkout: 'cart', about: 'about', contact: 'contact',
+    track: 'track', tracking: 'track',
+  };
+  const page = PAGE_BY_SEGMENT[head] || 'home';
+  return { page, productId: null, orderNumber: null };
+}
+
+export function storefrontPageToPath(page, id = null) {
+  switch (page) {
+    case 'product':
+      return id != null ? `/product/${encodeURIComponent(String(id))}` : '/shop';
+    case 'track':
+      return id != null ? `/track/${encodeURIComponent(String(id))}` : '/track';
+    case 'shop': return '/shop';
+    case 'cart': return '/cart';
+    case 'checkout': return '/checkout';
+    case 'about': return '/about';
+    case 'contact': return '/contact';
+    default: return '/';
+  }
+}
+
+export const pathToPage = pathToStorefrontPage;
+export const pageToPath = storefrontPageToPath;
+
 export function resolveStorefrontTheme(resolved, tenantMeta) {
   const template = resolved?.templateConfig || resolved?.theme?.config || {};
   /* A store with no active theme must keep the schema defaults. Mapping an EMPTY
@@ -108,9 +220,22 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   // Whether `message` is a failure, so the checkout form colours it red.
   const [checkoutError, setCheckoutError] = useState(false);
   const [busy, setBusy] = useState(false);
-  /* Which themed page is on screen, and which product the detail page shows. */
-  const [page, setPage] = useState('home');
-  const [productId, setProductId] = useState(null);
+  /* URL-addressable storefront routing. The customizer preview still drives pages
+     through its own internal `page` prop; only the live shop mirrors its location
+     to the address bar, so a product, cart or tracking page can be linked to. */
+  const [pathname, setPathname] = useState(() =>
+    typeof window === 'undefined' ? '/' : (window.location.pathname || '/')
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onChange = () => setPathname(window.location.pathname || '/');
+    window.addEventListener('popstate', onChange);
+    return () => window.removeEventListener('popstate', onChange);
+  }, []);
+  const routeInfo = useMemo(() => pathToStorefrontPage(pathname), [pathname]);
+  const page = routeInfo.page;
+  const productId = routeInfo.productId;
+  const trackingNumber = routeInfo.orderNumber;
   /* The seller's configured gateway, fetched from the public endpoint. Only the
      method the owner selected is offered: this is their shop, and letting a
      customer pick a different rail would contradict the setting they saved under
@@ -239,7 +364,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
       }
       return [...current, { id, name: product.name, label: target?.label || '', price, img: product.img, stock, quantity: amount }];
     });
-    setPage('cart');
+    navigate('/cart');
   }
 
   function setLineQty(line, next) {
@@ -279,10 +404,12 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
         setCheckoutError(true);
         setMessage(`Order ${result.order.orderNumber} was created but payment could not be started. Please contact the store to complete your order.`);
         setCart([]);
+        if (result?.order?.orderNumber) navigate(`/track/${encodeURIComponent(result.order.orderNumber)}`);
         return;
       }
       setMessage(`Order ${result.order.orderNumber} placed successfully. We will contact you to confirm delivery.`);
       setCart([]);
+      if (result?.order?.orderNumber) navigate(`/track/${encodeURIComponent(result.order.orderNumber)}`);
     } catch (error) { setCheckoutError(true); setMessage(error.message); }
     finally { setBusy(false); }
   }
@@ -334,7 +461,19 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
         // a 4-column grid on a phone.
         viewportWidth={container.width || null}
         page={page}
-        onNavigate={(next, id) => { setPage(next); if (id != null) setProductId(id); }}
+        onNavigate={(next, id) => {
+          const target = next === 'product'
+            ? (id != null ? `/product/${encodeURIComponent(String(id))}` : '/shop')
+            : next === 'track'
+              ? (id != null ? `/track/${encodeURIComponent(String(id))}` : '/track')
+              : next === 'checkout' ? '/checkout'
+              : next === 'cart' ? '/cart'
+              : next === 'shop' ? '/shop'
+              : next === 'about' ? '/about'
+              : next === 'contact' ? '/contact'
+              : '/';
+          navigate(target);
+        }}
         products={displayProducts}
         cart={cart}
         productId={productId}
@@ -347,6 +486,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
         }}
         /* Lets the storefront contact form know which store to file the message
            against; null in the customizer preview. */
+        orderNumber={trackingNumber}
         storeSlug={tenant?.subdomainSlug || null}
       />
     </div>

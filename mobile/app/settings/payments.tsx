@@ -19,7 +19,7 @@ export default function PaymentsSettingsScreen() {
   const qc = useQueryClient();
   const { colors } = useTheme();
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error } = useQuery<{ settings: PaymentSettings; storageConfigured: boolean }>({
     queryKey: ['payment-keys'],
     queryFn: endpoints.getPaymentKeys,
   });

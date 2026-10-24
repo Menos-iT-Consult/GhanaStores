@@ -149,9 +149,11 @@ export default function POSCart({ cart, setCart, onSold }) {
       <div className="grid grid-cols-2 gap-2">
         <input
           value={customerPhone}
-          onChange={(e) => setCustomerPhone(e.target.value)}
+          onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
           placeholder="Customer phone"
-          inputMode="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={12}
           className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
         <input

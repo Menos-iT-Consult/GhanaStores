@@ -28,6 +28,7 @@ import dotenv from 'dotenv';
 import { pingDb, ensureSchema, getSchemaState, isMissingSchemaError } from './config/database.js';
 import { resolveTenantStore, platformDomain } from './middleware/domainMiddleware.js';
 import { errorHandler, requestContext, apiNotFound, installProcessGuards } from './middleware/errorMiddleware.js';
+import { createRateLimiter } from './middleware/rateLimit.js';
 import billingRoutes from './routes/billingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import posRoutes from './routes/posRoutes.js';
@@ -54,6 +55,7 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT || 4000);
 const ON_VERCEL = Boolean(process.env.VERCEL);
 
@@ -71,19 +73,27 @@ app.use((_req, res, next) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'self'");
   next();
 });
-const buckets = new Map();
-app.use((req, res, next) => {
-  const now = Date.now();
-  const key = req.ip || req.socket.remoteAddress || 'unknown';
-  const old = buckets.get(key) || { started: now, count: 0 };
-  if (now - old.started >= 60_000) { old.started = now; old.count = 0; }
-  old.count += 1;
-  buckets.set(key, old);
-  res.setHeader('RateLimit-Limit', '120');
-  res.setHeader('RateLimit-Remaining', String(Math.max(0, 120 - old.count)));
-  if (old.count > 120) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
-  next();
+/* Global rate limit: protects every API endpoint used by both the web app and
+   the mobile app from abuse (120 requests / minute / client IP). */
+const globalLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 120,
+  message: 'Too many requests. Try again shortly.',
 });
+app.use(globalLimiter);
+
+/* Stricter guard for authentication endpoints (both web + mobile login). */
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many authentication attempts. Try again later.',
+});
+app.use('/api/billing/login', authLimiter);
+app.use('/api/billing/register', authLimiter);
+app.use('/api/site-settings/password/forgot', authLimiter);
+app.use('/api/site-settings/password/reset', authLimiter);
+app.use('/api/mobile/auth/login', authLimiter);
+app.use('/api/mobile/auth/refresh', authLimiter);
 /* retain the raw body for webhook signature verification.
    Paystack signs the EXACT bytes it sent with HMAC-SHA512; a body that has been
    through JSON.parse + JSON.stringify is not byte-identical, so verifying

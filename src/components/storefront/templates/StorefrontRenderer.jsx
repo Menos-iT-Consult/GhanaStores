@@ -19,6 +19,7 @@ import StorefrontFooter from '../StorefrontFooter.jsx';
 import ShopBody from '../pages/ShopBody.jsx';
 import ProductBody from '../pages/ProductBody.jsx';
 import CartBody from '../pages/CartBody.jsx';
+import TrackBody from '../pages/TrackBody.jsx';
 import AboutBody from '../pages/AboutBody.jsx';
 import ContactBody from '../pages/ContactBody.jsx';
 import TrustStrip from '../TrustStrip.jsx';
@@ -40,6 +41,7 @@ const PAGE_BODIES = {
   shop: ShopBody,
   product: ProductBody,
   cart: CartBody,
+  track: TrackBody,
   about: AboutBody,
   contact: ContactBody,
 };
@@ -130,6 +132,7 @@ export default function StorefrontRenderer({
   onRemove = null,
   checkout = null,
   storeSlug = null,
+  orderNumber = null,
 }) {
   const mq = useMediaQuery();
   const [, setWindowTier] = useState(null);
@@ -205,6 +208,7 @@ export default function StorefrontRenderer({
           onRemove={onRemove}
           checkout={checkout}
           storeSlug={storeSlug}
+          orderNumber={orderNumber}
           shopShortcut={shopShortcut}
           setShopShortcut={setShopShortcut}
         />
@@ -220,7 +224,7 @@ export default function StorefrontRenderer({
             {page === 'home' && template === 'flash_express' ? <FlashHome t={t} onNavigate={nav} ctx={ctx} /> : null}
             {page !== 'home' ? (() => {
               const Body = PAGE_BODIES[page] || ShopBody;
-              return <Body t={t} onNavigate={nav} ctx={ctx} />;
+              return <Body t={t} onNavigate={nav} ctx={ctx} orderNumber={orderNumber} />;
             })() : null}
           </main>
           <StorefrontFooter t={t} onNavigate={nav} />

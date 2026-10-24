@@ -30,7 +30,7 @@ const { matchesSearch, filterProducts, sortProducts, categoriesOf } = await vite
 const { toDisplayProduct } = await vite.ssrLoadModule('/src/components/storefront/mappers.js');
 await vite.close();
 
-const PAGES = ['home', 'shop', 'product', 'cart', 'about', 'contact'];
+const PAGES = ['home', 'shop', 'product', 'cart', 'track', 'about', 'contact'];
 const WIDTHS = [
   [375, 'mobile'],
   [768, 'tablet'],

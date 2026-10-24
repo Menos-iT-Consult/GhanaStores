@@ -87,6 +87,14 @@ api.interceptors.response.use(
     const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
 
+    // Respect server-side rate limits: back off once, then surface the error.
+    if (status === 429 && original && !(original as any)._rateLimited) {
+      (original as any)._rateLimited = true;
+      const retryAfter = Number(error.response?.headers?.['retry-after'] || error.response?.headers?.['Retry-After'] || 1);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(retryAfter, 1), 10) * 1000));
+      return api(original);
+    }
+
     if (status === 401 && original && !original._retry) {
       original._retry = true;
       const fresh = await performRefresh();

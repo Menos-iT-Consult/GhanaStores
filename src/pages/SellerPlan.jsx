@@ -169,10 +169,12 @@ export default function SellerPlan() {
               <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Mobile Money number</span>
               <input
                 type="tel"
-                inputMode="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={momoNumber}
-                onChange={(e) => setMomoNumber(e.target.value)}
+                onChange={(e) => setMomoNumber(e.target.value.replace(/\D/g, ''))}
                 placeholder="e.g. 024 123 4567"
+                maxLength={12}
                 className="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
               />
               {momoNumber && !numberValid ? (

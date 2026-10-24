@@ -40,8 +40,11 @@ export default function PageContentSection({ t, str }) {
         <Field label="Contact phone">
           <input
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={12}
             value={t.pages_content.contact_phone}
-            onChange={str('pages_content.contact_phone')}
+            onChange={(e) => str('pages_content.contact_phone')({ target: { value: e.target.value.replace(/\D/g, '') } })}
             placeholder="Contact phone"
             className={INPUT_CLS}
           />

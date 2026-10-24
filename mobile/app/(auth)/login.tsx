@@ -24,7 +24,7 @@ import Animated, {
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
 import { api, apiErrorMessage } from '@/api/client';
-import logoImage from '../../assets/icon.png';
+const logoImage = require('../../assets/icon.png');
 
 const WEB_APP_URL = 'https://didwaghana.com';
 const SIGNUP_URL = `${WEB_APP_URL}/login`;
