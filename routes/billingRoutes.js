@@ -7,10 +7,11 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool, query, withTransaction } from '../config/database.js';
 import { issueStoreToken, requireSeller, requireAdmin, optionalSeller, issueTwoFactorChallenge, verifyTwoFactorChallenge } from '../middleware/authMiddleware.js';
-import { sendWelcomeSms } from '../services/smsService.js';
+import { sendWelcomeSms, sendOtpSms } from '../services/smsService.js';
 import { sendLifecycleEmail } from '../services/emailService.js';
 import { sendMerchantPushNotification } from '../services/pushService.js';
 import { recordAdminAction } from '../services/adminAudit.js';
+import dns from 'node:dns/promises';
 import { normalizeGhPhone, slugifyStoreName } from '../utils/helpers.js';
 import { normalizeSubdomain, subdomainProblem, SUBDOMAIN_MESSAGES } from '../services/subdomainSlug.js';
 import { isMtnNumber } from '../services/paymentRouter.js';
@@ -68,9 +69,29 @@ router.post('/register', async (req, res, next) => {
     const normMomo = momoNumber ? (normalizeGhPhone(momoNumber) || null) : null;
 
     const emailLower = String(email).trim().toLowerCase();
+    // Real email existence & domain validation via DNS MX lookup.
+    const emailDomain = emailLower.split('@')[1];
+    if (!emailDomain || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) {
+      return res.status(400).json({ error: 'The email address provided does not exist or cannot receive mail.' });
+    }
+    let hasMx = false;
+    try {
+      const mx = await dns.resolveMx(emailDomain);
+      hasMx = Array.isArray(mx) && mx.length > 0;
+    } catch {
+      hasMx = false;
+    }
+    if (!hasMx) {
+      return res.status(400).json({ error: 'The email address provided does not exist or cannot receive mail.' });
+    }
     const dupe = await query('SELECT 1 FROM stores WHERE LOWER(email) = $1 LIMIT 1', [emailLower]);
     if (dupe.rows.length > 0) {
-      return res.status(409).json({ error: 'An account with this email already exists.' });
+      return res.status(409).json({ error: 'This email address is already registered to an account.' });
+    }
+    // Phone uniqueness: one phone number maps to strictly one account.
+    const phoneDupe = await query('SELECT 1 FROM stores WHERE phone = $1 LIMIT 1', [normPhone]);
+    if (phoneDupe.rows.length > 0) {
+      return res.status(409).json({ error: 'This phone number is already registered to an account.' });
     }
 
     /* The seller's CHOSEN address, when the signup form supplied one. Taken
@@ -125,7 +146,11 @@ router.post('/register', async (req, res, next) => {
         if (err.code === '23505' && attempt < maxAttempts) {
           const again = await query('SELECT 1 FROM stores WHERE LOWER(email) = $1 LIMIT 1', [emailLower]);
           if (again.rows.length > 0) {
-            return res.status(409).json({ error: 'An account with this email already exists.' });
+            return res.status(409).json({ error: 'This email address is already registered to an account.' });
+          }
+          const phoneAgain = await query('SELECT 1 FROM stores WHERE phone = $1 LIMIT 1', [normPhone]);
+          if (phoneAgain.rows.length > 0) {
+            return res.status(409).json({ error: 'This phone number is already registered to an account.' });
           }
           /* Someone else claimed the address between the availability tick and
              this insert. Retrying with a random suffix would hand the seller a
@@ -140,6 +165,14 @@ router.post('/register', async (req, res, next) => {
       }
     }
     const token = issueStoreToken(store);
+
+    // Phone-ownership OTP verification via mNotify / Hubtel.
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await query(
+      'UPDATE stores SET otp_code = $1, otp_expires_at = NOW() + INTERVAL \'10 minutes\', phone_verified = FALSE WHERE id = $2',
+      [otp, store.id],
+    );
+    sendOtpSms(normPhone, otp).catch(() => {});
 
     // Welcome SMS + email + app push (Module 1) - none of the three blocks
     // registration on gateway hiccups: each channel is fire-and-forget and
@@ -159,6 +192,35 @@ router.post('/register', async (req, res, next) => {
       token,
       store: { ...store, trial_days_left: 14 },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------ Phone OTP verification --------------------------- */
+router.post('/verify-otp', async (req, res, next) => {
+  try {
+    const { phone, otp } = req.body || {};
+    const normPhone = normalizeGhPhone(phone);
+    if (!normPhone || !otp) {
+      return res.status(400).json({ error: 'Phone and OTP are required.' });
+    }
+    const { rows } = await query(
+      'SELECT id, otp_code, otp_expires_at FROM stores WHERE phone = $1 LIMIT 1',
+      [normPhone],
+    );
+    const store = rows[0];
+    if (!store || !store.otp_code || store.otp_code !== String(otp).trim()) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+    if (store.otp_expires_at && new Date(store.otp_expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+    await query(
+      'UPDATE stores SET phone_verified = TRUE, otp_code = NULL, otp_expires_at = NULL WHERE id = $1',
+      [store.id],
+    );
+    res.json({ success: true, message: 'Phone number verified.' });
   } catch (err) {
     next(err);
   }

@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS stores (
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS stores_email_lower_idx ON stores ((LOWER(email)));
+CREATE UNIQUE INDEX IF NOT EXISTS stores_phone_idx ON stores (phone);
 CREATE INDEX IF NOT EXISTS stores_status_trial_idx ON stores (status, trial_ends_at);
 
 -- The tenant's plan must be one the catalogue actually offers. Added NOT VALID
@@ -813,6 +814,12 @@ CREATE INDEX IF NOT EXISTS store_password_resets_store_idx
 --                             ever lives in the app and in memory, never the DB.
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+
+-- Phone ownership verification (OTP) at signup.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS otp_code TEXT,
+  ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS device_tokens (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -88,6 +88,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
   const [mode, setMode] = useState(initialMode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [showPw, setShowPw] = useState(false);
   const [acceptsTerms, setAcceptsTerms] = useState(false);
   const [form, setForm] = useState({
@@ -112,7 +113,10 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
   }, [form.name, slugTouched]);
 
   function set(k) {
-    return (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+    return (e) => {
+        setForm((f) => ({ ...f, [k]: e.target.value }));
+        setFieldErrors((fe) => ({ ...fe, [k]: undefined }));
+      };
   }
 
   function switchMode(m) {
@@ -133,6 +137,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
       return;
     }
     setError('');
+    setFieldErrors({});
     /* Refuse locally on anything the server would reject anyway, so the seller
        is told before the round trip. The server re-checks regardless - this is
        convenience, never the authority. */
@@ -165,7 +170,12 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
          the welcome popup. Logging in deliberately does not. */
       onAuthed(data.store, { fromSignup: mode === 'register' });
     } catch (err) {
-      setError(err.message);
+      const msg = err.message || '';
+      setError(msg);
+      const fe = {};
+      if (/email/i.test(msg)) fe.email = msg;
+      if (/phone/i.test(msg)) fe.phone = msg;
+      setFieldErrors(fe);
     } finally {
       setBusy(false);
     }
@@ -365,6 +375,9 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                       autoComplete="tel-national"
                     />
                   </Field>
+                  {fieldErrors.phone && (
+                    <p className="mt-1 text-xs font-semibold text-red-600" role="alert">{fieldErrors.phone}</p>
+                  )}
                 </>
               )}
 
@@ -380,6 +393,9 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                   autoComplete="email"
                 />
               </Field>
+              {fieldErrors.email && (
+                <p className="mt-1 text-xs font-semibold text-red-600" role="alert">{fieldErrors.email}</p>
+              )}
 
               {/* Password with reveal toggle */}
               <div>

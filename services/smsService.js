@@ -294,6 +294,12 @@ export function estimateSegments(message) {
 
 
 
+/** Phone-ownership OTP sent at signup. */
+export async function sendOtpSms(phone, otp) {
+  const message = `Your DiDwa verification code is ${otp}. It expires in 10 minutes. Do not share it with anyone.`;
+  return sendSms([phone], message);
+}
+
 /** Paid plan just went active via webhook - tell the merchant. */
 export async function sendSubscriptionActiveSms(store, { planId, cycle } = {}) {
   const message =
@@ -312,6 +318,7 @@ export async function sendPayoutSms(store, payout) {
 
 export default {
   sendSms,
+  sendOtpSms,
   sendWelcomeSms,
   sendTrialReminderSms,
   sendPastDueSms,
