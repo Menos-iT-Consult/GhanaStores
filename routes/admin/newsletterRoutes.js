@@ -1,7 +1,8 @@
 /**
  * DiDwa - Super admin newsletter routes.
  *
- * Provides endpoints for sending newsletters (email) and bulk SMS to customers.
+ * Separate endpoints for email newsletters and bulk SMS so each channel
+ * has its own validation, sending logic, and audit trail.
  *
  * Channels:
  *   - Email: uses services/emailService.js (Gmail SMTP, dry-run when unconfigured)
@@ -19,131 +20,173 @@ import { consumeSegments } from '../../services/smsQuota.js';
 
 const router = Router();
 
-/* --------------------------- Write ---------------------------------- */
+/* ------------------------------------------------------------------ */
+/*  Shared recipient resolution                                       */
+/* ------------------------------------------------------------------ */
 
 /**
- * POST /api/admin/newsletter/send
- * Send a newsletter (email) or bulk SMS to customers.
- *
- * Body:
- *   subject      string   Required for email newsletters
- *   message      string   Required - the message body / SMS text
- *   recipientType 'all' | 'selected'
- *   customerIds   string[] UUIDs when recipientType === 'selected'
- *
- * Response:
- *   { success, sent: { email: N, sms: M }, failed: { email: N, sms: M } }
+ * Resolve customers from the customers table based on recipientType.
+ * @returns {Promise<Array<{id, name, email, phone}>>}
  */
-router.post('/send', requireAdmin, async (req, res, next) => {
+async function resolveCustomers({ recipientType = 'all', customerIds = [] } = {}) {
+  const params = [];
+  let where = '';
+
+  if (recipientType === 'selected' && customerIds.length) {
+    const validIds = customerIds.filter((id) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    );
+    if (!validIds.length) return [];
+    validIds.forEach((id) => { params.push(id); });
+    where = `WHERE c.id = ANY($${params.length})`;
+  }
+
+  const { rows } = await query(
+    `SELECT c.id, c.name, c.email, c.phone
+       FROM customers c
+       ${where}
+       ORDER BY c.name`,
+    params,
+  );
+  return rows;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Send Email Newsletter                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * POST /api/admin/newsletter/send-email
+ * Body: { subject, message, recipientType: 'all' | 'selected', customerIds?: string[] }
+ */
+router.post('/send-email', requireAdmin, async (req, res, next) => {
   try {
     const { subject, message, recipientType = 'all', customerIds = [] } = req.body;
 
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ error: 'Subject is required for email newsletters.' });
+    }
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required.' });
     }
 
-    // ------------------------------------------------------------------
-    // 1. Resolve recipient list from the customers table
-    // ------------------------------------------------------------------
-    const params = [];
-    let where = '';
-
-    if (recipientType === 'selected' && customerIds.length) {
-      // Validate each id is a UUID before using it
-      const validIds = customerIds.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-      if (!validIds.length) {
-        return res.status(400).json({ error: 'No valid customer ids provided.' });
-      }
-      validIds.forEach((id) => { params.push(id); });
-      where = `WHERE c.id = ANY($${params.length})`;
-    }
-
-    const { rows } = await query(
-      `SELECT c.id, c.name, c.email, c.phone, s.name AS store_name
-         FROM customers c
-         JOIN stores s ON s.id = c.store_id
-         ${where}
-         ORDER BY c.name`,
-      params,
-    );
-
+    const rows = await resolveCustomers({ recipientType, customerIds });
     if (!rows.length) {
       return res.json({
         success: true,
-        sent: { email: 0, sms: 0 },
-        failed: { email: 0, sms: 0 },
+        sent: 0,
+        failed: 0,
         message: 'No customers found to send to.',
       });
     }
 
     const emails = rows.filter((r) => r.email).map((r) => r.email);
-    const phones = rows.filter((r) => r.phone).map((r) => r.phone);
 
-    // ------------------------------------------------------------------
-    // 2. Send emails
-    // ------------------------------------------------------------------
     let emailSent = 0;
     let emailFailed = 0;
 
-    if (emails.length && subject && subject.trim()) {
-      // Send emails one at a time; sendEmail() never throws.
-      for (const to of emails) {
-        const result = await sendEmail({
-          to,
-          subject: subject.trim(),
-          text: message.trim(),
-        });
-        if (result.sent) emailSent++;
-        else emailFailed++;
-      }
+    for (const to of emails) {
+      const result = await sendEmail({
+        to,
+        subject: subject.trim(),
+        text: message.trim(),
+      });
+      if (result.sent) emailSent++;
+      else emailFailed++;
     }
 
-    // ------------------------------------------------------------------
-    // 3. Send SMS (metered against platform quota)
-    // ------------------------------------------------------------------
-    let smsSent = 0;
-    let smsFailed = 0;
-
-    if (phones.length) {
-      const needed = estimateSegments(message.trim());
-      // Consume quota once per recipient - SMS is billed per segment per recipient
-      // (mNotify bills per recipient per segment).
-      for (const phone of phones) {
-        const quota = await consumeSegments('platform', needed);
-        if (!quota.ok) {
-          smsFailed++;
-          continue;
-        }
-
-        const result = await sendSms([phone], message.trim());
-        if (result.ok) smsSent++;
-        else smsFailed++;
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // 4. Audit log
-    // ------------------------------------------------------------------
     await recordAdminAction(req, {
-      action: 'newsletter.send',
+      action: 'newsletter.send_email',
       targetType: 'newsletter',
       targetId: null,
       detail: {
         recipientType,
         customerCount: rows.length,
+        emailCount: emails.length,
         emailSent,
         emailFailed,
-        smsSent,
-        smsFailed,
-        subject: subject?.substring(0, 100) || null,
+        subject: subject.trim().substring(0, 100),
       },
     });
 
     res.json({
       success: true,
-      sent: { email: emailSent, sms: smsSent },
-      failed: { email: emailFailed, sms: smsFailed },
-      message: `Sent ${emailSent} email(s) and ${smsSent} SMS.`,
+      sent: emailSent,
+      failed: emailFailed,
+      message: `Sent ${emailSent} email newsletter${emailSent === 1 ? '' : 's'}.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/*  Send SMS Newsletter                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * POST /api/admin/newsletter/send-sms
+ * Body: { message, recipientType: 'all' | 'selected', customerIds?: string[] }
+ */
+router.post('/send-sms', requireAdmin, async (req, res, next) => {
+  try {
+    const { message, recipientType = 'all', customerIds = [] } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required for SMS.' });
+    }
+
+    const rows = await resolveCustomers({ recipientType, customerIds });
+    if (!rows.length) {
+      return res.json({
+        success: true,
+        sent: 0,
+        failed: 0,
+        message: 'No customers found to send to.',
+      });
+    }
+
+    const phones = rows.filter((r) => r.phone).map((r) => r.phone);
+
+    let smsSent = 0;
+    let smsFailed = 0;
+
+    const segmentsPerMessage = estimateSegments(message.trim());
+
+    for (const phone of phones) {
+      const quota = await consumeSegments('platform', segmentsPerMessage);
+      if (!quota.ok) {
+        smsFailed++;
+        continue;
+      }
+
+      const result = await sendSms([phone], message.trim());
+      if (result.ok) smsSent++;
+      else smsFailed++;
+    }
+
+    await recordAdminAction(req, {
+      action: 'newsletter.send_sms',
+      targetType: 'newsletter',
+      targetId: null,
+      detail: {
+        recipientType,
+        customerCount: rows.length,
+        phoneCount: phones.length,
+        segmentsPerMessage,
+        totalSegments: segmentsPerMessage * phones.length,
+        smsSent,
+        smsFailed,
+        message: message.trim().substring(0, 100),
+      },
+    });
+
+    res.json({
+      success: true,
+      sent: smsSent,
+      failed: smsFailed,
+      segments: segmentsPerMessage * phones.length,
+      message: `Sent ${smsSent} SMS${smsSent === 1 ? '' : 's'}.`,
     });
   } catch (err) {
     next(err);
