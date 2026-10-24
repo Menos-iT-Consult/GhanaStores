@@ -96,52 +96,6 @@ export function storefrontPageToPath(page, id = null) {
 export const pathToPage = pathToStorefrontPage;
 export const pageToPath = storefrontPageToPath;
 
-/**
- * URL <-> storefront page mapping for the live (tenant) shop.
- */
-export function pathToStorefrontPage(pathname) {
-  const raw = String(pathname || '/').trim() || '/';
-  const cleaned = raw.replace(/\\/+$/, '') || '/';
-  const segments = cleaned === '/' ? [] : cleaned.slice(1).split('/').map((s) => {
-    try { return decodeURIComponent(s); } catch { return s; }
-  });
-  const head = segments[0] || '';
-
-  if (head === 'product' || head === 'products') {
-    if (segments[1]) return { page: 'product', productId: segments[1], orderNumber: null };
-    return { page: 'shop', productId: null, orderNumber: null };
-  }
-  if (head === 'track' || head === 'tracking' || head === 'order' || head === 'orders') {
-    if (segments[1]) return { page: 'track', productId: null, orderNumber: segments[1] };
-    return { page: 'track', productId: null, orderNumber: null };
-  }
-  const PAGE_BY_SEGMENT = {
-    '': 'home', home: 'home', shop: 'shop', catalog: 'shop',
-    cart: 'cart', checkout: 'cart', about: 'about', contact: 'contact',
-    track: 'track', tracking: 'track',
-  };
-  const page = PAGE_BY_SEGMENT[head] || 'home';
-  return { page, productId: null, orderNumber: null };
-}
-
-export function storefrontPageToPath(page, id = null) {
-  switch (page) {
-    case 'product':
-      return id != null ? `/product/${encodeURIComponent(String(id))}` : '/shop';
-    case 'track':
-      return id != null ? `/track/${encodeURIComponent(String(id))}` : '/track';
-    case 'shop': return '/shop';
-    case 'cart': return '/cart';
-    case 'checkout': return '/checkout';
-    case 'about': return '/about';
-    case 'contact': return '/contact';
-    default: return '/';
-  }
-}
-
-export const pathToPage = pathToStorefrontPage;
-export const pageToPath = storefrontPageToPath;
-
 export function resolveStorefrontTheme(resolved, tenantMeta) {
   const template = resolved?.templateConfig || resolved?.theme?.config || {};
   /* A store with no active theme must keep the schema defaults. Mapping an EMPTY
