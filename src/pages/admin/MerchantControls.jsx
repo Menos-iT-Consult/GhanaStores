@@ -7,7 +7,7 @@
  * obviously read-only.
  */
 import { useState } from 'react';
-import { ShieldAlert, Wallet } from 'lucide-react';
+import { Calendar, ShieldAlert, Wallet } from 'lucide-react';
 import { adminApi, ghs } from '../../api.js';
 import {
   Button, Drawer, Field, Panel, PanelHeader, StatusPill, inputClass,
@@ -16,11 +16,12 @@ import {
 const PLANS = ['starter', 'growth', 'pro', 'enterprise'];
 
 export default function MerchantControls({ merchant, onDone }) {
-  const [action, setAction] = useState(null);      // 'status' | 'plan' | 'balance'
+  const [action, setAction] = useState(null);      // 'status' | 'plan' | 'balance' | 'subscription'
   const [reason, setReason] = useState('');
   const [nextStatus, setNextStatus] = useState('SUSPENDED');
   const [nextPlan, setNextPlan] = useState('');
   const [amount, setAmount] = useState('');
+  const [months, setMonths] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -33,6 +34,7 @@ export default function MerchantControls({ merchant, onDone }) {
     setError('');
     setNotice('');
     setAmount('');
+    setMonths('');
     setNextPlan(merchant.plan || '');
     setNextStatus(suspended ? 'ACTIVE' : 'SUSPENDED');
   }
@@ -48,6 +50,13 @@ export default function MerchantControls({ merchant, onDone }) {
       } else if (action === 'plan') {
         const result = await adminApi.patch(`/api/admin/merchants/${merchant.id}/plan`, { plan: nextPlan, reason });
         message = `Plan changed to ${result.merchant.plan}.`;
+      } else if (action === 'subscription') {
+        const result = await adminApi.patch(`/api/admin/merchants/${merchant.id}/subscription`, {
+          plan: nextPlan,
+          months: Number(months),
+          reason,
+        });
+        message = `Subscription updated: ${result.merchant.plan} until ${new Date(result.merchant.plan_period_end).toLocaleDateString()}.`;
       } else {
         const result = await adminApi.patch(`/api/admin/merchants/${merchant.id}/balance`, {
           amount: Number(amount), reason,
@@ -67,10 +76,12 @@ export default function MerchantControls({ merchant, onDone }) {
   }
 
   const amountValue = Number(amount);
+  const monthsValue = Number(months);
   const valid = reason.trim().length > 0
-    && (action !== 'balance' || (String(amount).trim() !== '' && Number.isFinite(amountValue) && amountValue !== 0));
+    && (action !== 'balance' || (String(amount).trim() !== '' && Number.isFinite(amountValue) && amountValue !== 0))
+    && (action !== 'subscription' || (String(months).trim() !== '' && Number.isFinite(monthsValue) && monthsValue > 0));
 
-  const titles = { status: suspended ? 'Reactivate merchant' : 'Suspend merchant', plan: 'Change plan', balance: 'Adjust balance' };
+  const titles = { status: suspended ? 'Reactivate merchant' : 'Suspend merchant', plan: 'Change plan', subscription: 'Give subscription', balance: 'Adjust balance' };
 
   return (
     <Panel>
@@ -90,7 +101,8 @@ export default function MerchantControls({ merchant, onDone }) {
         >
           {suspended ? 'Reactivate merchant' : 'Suspend merchant'}
         </Button>
-        <Button className="w-full" onClick={() => open('plan')}>Change plan</Button>
+        <Button icon={Users} className="w-full" onClick={() => open('plan')}>Change plan</Button>
+        <Button icon={Calendar} className="w-full" onClick={() => open('subscription')}>Give subscription</Button>
         <Button icon={Wallet} className="w-full" onClick={() => open('balance')}>Adjust balance</Button>
         <p className="pt-2 text-[11px] leading-relaxed text-slate-400">
           Suspending hides the storefront immediately and blocks checkout. A balance
@@ -143,6 +155,36 @@ export default function MerchantControls({ merchant, onDone }) {
                 {PLANS.map((plan) => <option key={plan} value={plan} />)}
               </datalist>
             </Field>
+          ) : null}
+
+          {action === 'subscription' ? (
+            <>
+              <Field label="Plan">
+                <input
+                  className={inputClass}
+                  list="admin-plans"
+                  value={nextPlan}
+                  onChange={(e) => setNextPlan(e.target.value.trim().toLowerCase())}
+                />
+                <datalist id="admin-plans">
+                  {PLANS.map((plan) => <option key={plan} value={plan} />)}
+                </datalist>
+              </Field>
+              <Field
+                label="Months"
+                hint="How long the subscription runs from today. 1-120 months."
+              >
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  className={inputClass}
+                  value={months}
+                  onChange={(e) => setMonths(e.target.value)}
+                  placeholder="12"
+                />
+              </Field>
+            </>
           ) : null}
 
           {action === 'balance' ? (

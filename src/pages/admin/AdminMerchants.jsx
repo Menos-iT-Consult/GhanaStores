@@ -24,7 +24,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function AdminMerchants() {
-  const list = useAdminList('/api/admin/merchants', { params: { status: '' } });
+  const list = useAdminList('/api/admin/merchants', { params: { status: '', rowsKey: 'merchants' } });
   const platformDomain = getPlatformDomain();
 
   const open = (row) => navigate(`/admin/merchants/${row.id}`);

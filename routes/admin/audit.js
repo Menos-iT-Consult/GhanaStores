@@ -21,6 +21,7 @@ export const ACTION_LABELS = {
   'merchant.status': 'Changed a merchant status',
   'merchant.plan': 'Changed a merchant plan',
   'merchant.balance': 'Adjusted a merchant balance',
+  'merchant.contact': 'Changed merchant contact (phone/email)',
   'order.status': 'Moved an order',
   'order.refund': 'Refunded an order',
   'order.void': 'Voided an unpaid order',

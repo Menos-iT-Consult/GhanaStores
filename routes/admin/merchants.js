@@ -28,6 +28,8 @@ export const storeRow = (row) => ({
   momoNumber: row.momo_number,
   status: row.status,
   plan: row.plan,
+  planCycle: row.plan_cycle,
+  planPeriodEnd: row.plan_period_end,
   trialEndsAt: row.trial_ends_at,
   graceEndsAt: row.grace_ends_at,
   themeId: row.active_theme_id,
@@ -219,6 +221,105 @@ router.patch('/merchants/:id/plan', requireAdmin, async (req, res, next) => {
   }
 });
 
+
+/* --------------------------- Update merchant contact -------------------------- */
+router.patch('/merchants/:id/contact', requireAdmin, async (req, res, next) => {
+  try {
+    const id = uuidParam(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid merchant id.' });
+    const { phone, email } = req.body || {};
+    // Validate phone: must be digits only, 9-15 chars, starting with country code
+    if (phone && !/^[0-9]{9,15}$/.test(phone.replace(/\\s+/g, ''))) {
+      return res.status(400).json({ error: 'Phone must be 9-15 digits.' });
+    }
+    // Validate email format
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address.' });
+    }
+    const { rows: before } = await query('SELECT id, name, phone, email FROM stores WHERE id = $1 LIMIT 1', [id]);
+    if (!before[0]) return res.status(404).json({ error: 'Merchant not found.' });
+    const updates = [];
+    const params = [id];
+    let p = 1;
+    if (phone !== undefined) {
+      p++;
+      updates.push(`phone = $${p}`);
+      params.push(phone);
+    }
+    if (email !== undefined) {
+      p++;
+      updates.push(`email = $${p}`);
+      params.push(email);
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update.' });
+    params.push(...updates);
+    const setClause = updates.join(', ');
+    const { rows } = await query(`UPDATE stores SET ${setClause} WHERE id = $1 RETURNING id, name, phone, email`, params);
+    await recordAdminAction(req, {
+      action: 'merchant.contact',
+      targetType: 'store',
+      targetId: id,
+      detail: { name: before[0].name, fromPhone: before[0].phone, toPhone: phone || before[0].phone, fromEmail: before[0].email, toEmail: email || before[0].email },
+    });
+    res.json({ merchant: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* --------------------------- Give subscription ----------------------------- */
+router.patch('/merchants/:id/subscription', requireAdmin, async (req, res, next) => {
+  try {
+    const id = uuidParam(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid merchant id.' });
+
+    const planName = String(req.body?.plan || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]{2,40}$/.test(planName)) {
+      return res.status(400).json({ error: 'A valid plan name is required.' });
+    }
+
+    const months = Number.parseInt(req.body?.months, 10);
+    if (!Number.isFinite(months) || months < 1 || months > 120) {
+      return res.status(400).json({ error: 'Months must be a whole number between 1 and 120.' });
+    }
+
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+    if (!reason) {
+      return res.status(400).json({ error: 'A reason is required for a subscription change.' });
+    }
+
+    const { rows: before } = await query('SELECT id, name, plan, plan_cycle, plan_period_end FROM stores WHERE id = $1 LIMIT 1', [id]);
+    if (!before[0]) return res.status(404).json({ error: 'Merchant not found.' });
+
+    const periodEnd = new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { rows } = await query(
+      `UPDATE stores
+         SET plan = $2,
+             plan_cycle = 'monthly',
+             plan_period_end = $3::timestamptz
+       WHERE id = $1
+       RETURNING id, name, plan, plan_cycle, plan_period_end`,
+      [id, planName, periodEnd],
+    );
+
+    await recordAdminAction(req, {
+      action: 'merchant.subscription',
+      targetType: 'store',
+      targetId: id,
+      detail: {
+        name: before[0].name,
+        from: { plan: before[0].plan, cycle: before[0].plan_cycle, periodEnd: before[0].plan_period_end },
+        to: { plan: planName, cycle: 'monthly', periodEnd, months },
+        reason,
+      },
+    });
+
+    res.json({ merchant: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* --------------------------- Move a store balance -------------------------- */
 /* REMOVED with the platform wallet. A merchant's money now settles directly in

@@ -30,7 +30,7 @@ const CHANNEL_OPTIONS = [
 ];
 
 export default function AdminOrders() {
-  const orders = useAdminList('/api/admin/orders');
+  const orders = useAdminList('/api/admin/orders', { params: { rowsKey: 'orders' } });
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);

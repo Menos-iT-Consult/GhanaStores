@@ -114,6 +114,7 @@ export default function AdminMerchantDetail() {
               ['Active theme', merchant.themeName || 'Default'],
               ['Trial ends', dateOrDash(merchant.trialEndsAt)],
               ['Grace ends', dateOrDash(merchant.graceEndsAt)],
+              ['Subscription ends', dateOrDash(merchant.planPeriodEnd)],
             ].map(([label, value]) => (
               <div key={label} className="min-w-0">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</dt>

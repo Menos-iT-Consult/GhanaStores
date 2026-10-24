@@ -47,7 +47,8 @@ export const ADMIN_NAV = [
       { path: '/admin/team', label: 'Team', icon: Users },
       { path: '/admin/system', label: 'System', icon: Server },
       { path: '/admin/audit', label: 'Audit log', icon: ScrollText },
-    { path: '/admin/contact', label: 'Contact inbox', icon: Mail },
+      { path: '/admin/newsletter', label: 'Newsletter', icon: Mail },
+      { path: '/admin/contact', label: 'Contact inbox', icon: Mail },
     ],
   },
 ];
