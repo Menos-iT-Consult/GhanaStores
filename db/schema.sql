@@ -89,7 +89,27 @@ CREATE TABLE IF NOT EXISTS stores (
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS stores_email_lower_idx ON stores ((LOWER(email)));
-CREATE UNIQUE INDEX IF NOT EXISTS stores_phone_idx ON stores (phone);
+-- stores_phone may already contain duplicates on long-lived databases (demo
+-- seeds, pre-validation rows), which would make a plain CREATE UNIQUE INDEX
+-- fail with 23505 and abort the whole schema apply. Create a UNIQUE index when
+-- the data is clean and fall back to a non-unique one otherwise, so the app
+-- can boot on either shape of database. Registration still enforces uniqueness
+-- in application code (with a per-phone advisory lock for race safety).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = current_schema() AND indexname = 'stores_phone_idx'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM stores GROUP BY phone HAVING COUNT(*) > 1
+    ) THEN
+      CREATE INDEX stores_phone_idx ON stores (phone);
+    ELSE
+      CREATE UNIQUE INDEX stores_phone_idx ON stores (phone);
+    END IF;
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS stores_status_trial_idx ON stores (status, trial_ends_at);
 
 -- The tenant's plan must be one the catalogue actually offers. Added NOT VALID

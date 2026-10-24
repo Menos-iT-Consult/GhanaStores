@@ -126,8 +126,18 @@ router.post('/register', async (req, res, next) => {
     const maxAttempts = 3;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const inserted = await withTransaction(async (t) =>
-          t.query(
+        const inserted = await withTransaction(async (t) => {
+          // Serialize registrations sharing a phone number so the check-then-insert
+          // below cannot race (the DB index may be non-unique on legacy DBs).
+          await t.query('SELECT pg_advisory_xact_lock(hashtext($1), 0)', [normPhone]);
+          const { rows: phoneRows } = await t.query(
+            'SELECT 1 FROM stores WHERE phone = $1 LIMIT 1', [normPhone]);
+          if (phoneRows.length > 0) {
+            const err = new Error('phone number already registered');
+            err.code = 'PHONE_DUPLICATE';
+            throw err;
+          }
+          return t.query(
             `INSERT INTO stores (name, owner_name, email, phone, password_hash,
                                  subdomain_slug, whatsapp_number, momo_number)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
@@ -137,10 +147,14 @@ router.post('/register', async (req, res, next) => {
               emailLower, normPhone, hash, attempt === 1 ? slug
                 : await uniqueSlug(`${slug}-retry-${Math.random().toString(36).slice(2, 6)}`),
               normWhatsapp, normMomo],
-          ));
+          );
+        });
         store = inserted.rows[0];
         break;
       } catch (err) {
+        if (err.code === 'PHONE_DUPLICATE') {
+          return res.status(409).json({ error: 'This phone number is already registered to an account.' });
+        }
         // Check-then-insert races (concurrent email/slug) surface as unique
         // violations - recheck and, for slugs, retry with a fresh suffix.
         if (err.code === '23505' && attempt < maxAttempts) {
