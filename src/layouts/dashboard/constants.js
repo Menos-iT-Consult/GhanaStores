@@ -19,7 +19,7 @@ export const DASHBOARD_NAV = [
   { path: '/settings/payments',label: 'Payments',      icon: IconWallet },
   { path: '/settings/notifications', label: 'Order SMS', icon: MessageSquare },
   { path: '/settings/site',    label: 'Site Settings', icon: Settings },
-  { path: '/inventory',        label: 'Inventory',     icon: IconBox },
+  { path: '/inventory',        label: 'Products',     icon: IconBox },
   { path: '/orders',           label: 'Orders',        icon: IconReceipt },
   { path: '/messages',         label: 'Messages',      icon: Mail },
   { path: '/dashboard/themes', label: 'Theme Market',  icon: Palette },
