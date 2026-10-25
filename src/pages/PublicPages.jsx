@@ -700,9 +700,8 @@ export const STEPS = [
 ];
 
 export const STATS = [
-  { v: '10k+', k: 'Active sellers' },
-  { v: 'GHS 2.4M', k: 'Processed monthly' },
-  { v: '<24h', k: 'Payout settlement' },
+  { v: '100+', k: 'Active sellers' },
+  { v: 'GHS 5K', k: 'Processed monthly' },
   { v: '16', k: 'Regions covered' },
 ];
 
