@@ -378,3 +378,56 @@ export function Stacked({ primary, secondary }) {
     </span>
   );
 }
+export function RadioGroup({ value, onChange, options, className = '', ...rest }) {
+  return (
+    <div className={className} {...rest}>
+      {options.map((option, index) => (
+        <label key={index}>
+          <input
+            type="radio"
+            value={option.value || option}
+            checked={value === (option.value || option)}
+            onChange={(e) => onChange(e.target.value)}
+            {...option}
+          />{option.label || option}
+        </label>
+      ))}
+    </div>
+  )
+}
+export function Textarea({ value, onChange, placeholder = "", className = "", ...rest }) {
+  return (
+    <textarea
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={className}
+      {...rest}
+    />
+  )
+}
+export function Input({ placeholder = "", className = "", type = "text", onChange, value, ...rest }) {
+  return (
+    <input
+      type={type}
+      placeholder={placeholder}
+      className={className}
+      value={value}
+      onChange={onChange}
+      {...rest}
+    />
+  )
+}
+export function Alert({ error, onRetry }) {
+  return (
+    <div className="rounded-lg p-4 border-l-4 border-red-500 bg-red-100">
+      <p className="text-sm text-red-700">{error}</p>
+      <button onClick={onRetry} className="mt-2 rounded bg-red-200 px-3 py-1 text-sm text-red-700">
+        Retry
+      </button>
+    </div>
+  )
+}
+export function Label({ className, ...props }) {
+  return <label className={className} {...props} />
+}
