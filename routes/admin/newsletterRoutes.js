@@ -61,7 +61,7 @@ async function resolveCustomers({ recipientType = 'all', customerIds = [] } = {}
  */
 router.post('/send-email', requireAdmin, async (req, res, next) => {
   try {
-    const { subject, message, recipientType = 'all', customerIds = [] } = req.body;
+    const { subject, message, recipientType = 'all', customerIds = [], storeId } = req.body;
 
     if (!subject || !subject.trim()) {
       return res.status(400).json({ error: 'Subject is required for email newsletters.' });
@@ -70,7 +70,7 @@ router.post('/send-email', requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: 'Message is required.' });
     }
 
-    const rows = await resolveCustomers({ recipientType, customerIds });
+    const rows = await resolveCustomers({ recipientType, customerIds, storeId });
     if (!rows.length) {
       return res.json({
         success: true,
@@ -130,13 +130,12 @@ router.post('/send-email', requireAdmin, async (req, res, next) => {
  */
 router.post('/send-sms', requireAdmin, async (req, res, next) => {
   try {
-    const { message, recipientType = 'all', customerIds = [] } = req.body;
+    const { message, recipientType = 'all', customerIds = [], storeId } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required for SMS.' });
     }
-
-    const rows = await resolveCustomers({ recipientType, customerIds });
+    const rows = await resolveCustomers({ recipientType, customerIds, storeId });
     if (!rows.length) {
       return res.json({
         success: true,
