@@ -9,7 +9,66 @@ import { applySchemaIfMissing } from '../db/applySchema.js';
 
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL || '';
+/**
+ * Return the raw DATABASE_URL environment variable (trimmed), or an empty
+ * string when it is not set. Callers use this so the truthy check below also
+ * keeps its early-exit behaviour for Vercel-only deployments.
+ */
+function getRawDatabaseUrl() {
+  return String(process.env.DATABASE_URL || '').trim();
+}
+
+/**
+ * Normalize a Neon/Postgres connection string before it is passed to
+ * pg.Pool, pg.Client, or the @vercel/postgres createPool/Client.
+ *
+ * Behaviour:
+ * 1. If the URL contains `sslmode=require` (case-insensitive), replace it
+ *    with `sslmode=verify-full` in place.
+ * 2. If the URL has no `sslmode=` parameter at all, append
+ *    `?sslmode=verify-full` (no query string) or `&sslmode=verify-full`
+ *    (already a query string) to the end of the URL.
+ * 3. If `sslmode=verify-full` or any other value than `require` is present,
+ *    the URL is returned unchanged.
+ *
+ * This is a pure string transformation. It never modifies the query text,
+ * parameter bindings, or schema, so existing database models and queries are
+ * unaffected. It works in both Node.js and Vercel serverless environments.
+ */
+function normalizeDatabaseUrl(rawUrl) {
+  const url = rawUrl || getRawDatabaseUrl();
+
+  if (!url) {
+    return '';
+  }
+
+  // Detect an existing `sslmode=` parameter (beginning of string or after ? or &).
+  const existing = url.match(/(?:^|[?&])sslmode=([^&]*)/i);
+
+  if (existing) {
+    const current = existing[1].toLowerCase();
+
+    if (current === 'require') {
+      // Replace the first occurrence of "sslmode=require" (case-insensitive).
+      return url.replace(/sslmode=require/i, 'sslmode=verify-full');
+    }
+
+    if (current === 'verify-full') {
+      // Already the correct value.
+      return url;
+    }
+
+    // Any other sslmode value (verify-ca, prefer, etc.) is left untouched.
+    return url;
+  }
+
+  // No sslmode parameter -> append ?sslmode=verify-full or &sslmode=verify-full.
+  const hasQuery = url.includes('?');
+  return url + (hasQuery ? '&sslmode=verify-full' : '?sslmode=verify-full');
+}
+
+// Neon requires TLS. Detect a Neon endpoint, or allow explicit override.
+const connectionString = getRawDatabaseUrl();
 const ON_VERCEL = Boolean(process.env.VERCEL);
 
 // A serverless function with no DATABASE_URL must fail loudly. Silently falling
@@ -28,13 +87,10 @@ if (!connectionString) {
   );
 }
 
-// Neon requires TLS. Detect a Neon endpoint, or allow explicit override.
-const isNeon = /\.neon\.tech/i.test(connectionString);
-const useSsl = isNeon || /sslmode=require/i.test(connectionString) ||
-  String(process.env.PGSSL ?? '').toLowerCase() === 'true';
+const normalizedConnectionString = normalizeDatabaseUrl(connectionString);
 
 export const pool = new pg.Pool({
-  connectionString: connectionString || undefined,
+  connectionString: normalizedConnectionString || undefined,
   host: connectionString ? undefined : process.env.PGHOST || 'localhost',
   port: connectionString ? undefined : Number(process.env.PGPORT || 5432),
   user: connectionString ? undefined : process.env.PGUSER || 'postgres',
@@ -43,7 +99,7 @@ export const pool = new pg.Pool({
   max: Number(process.env.PGPOOL_MAX || (process.env.VERCEL ? 3 : 10)),
   idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 10_000,
-  ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+  ssl: (process.env.PGSSL ?? '').toLowerCase() === 'true' ? { rejectUnauthorized: false } : undefined,
 });
 
 pool.on('error', (err) => {
