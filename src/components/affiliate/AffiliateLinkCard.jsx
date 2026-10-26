@@ -1,7 +1,8 @@
 // AffiliateLinkCard.jsx
 // DiDwa - Affiliate Link Card Component
 import { useState } from 'react';
-import { formatGHS } from '../services/affiliateService';
+// Import formatGHS from the lib/affiliate service (project-wide utilities)
+import { formatGHS } from '../../lib/affiliate';
 
 export function AffiliateLinkCard({ referralCode, onCopy }) {
   const [isCopied, setIsCopied] = useState(false);

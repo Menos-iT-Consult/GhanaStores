@@ -2,7 +2,8 @@
 // DiDwa - Affiliate Signup Page
 import { useEffect, useState, useSearchParams, useNavigate } from 'react';
 import { useParams } from 'react-router-dom';
-import { formatGHS } from '../services/affiliateService';
+// Import formatGHS from the lib/affiliate service (project-wide utilities)
+import { formatGHS } from '../../lib/affiliate';
 
 export function AffiliateSignup() {
   const { referralCode } = useParams();

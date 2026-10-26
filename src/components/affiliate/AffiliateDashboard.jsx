@@ -2,7 +2,8 @@
 // DiDwa - Affiliate Portal Dashboard Component
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { formatGHS } from '../services/affiliateService';
+// Import formatGHS from the lib/affiliate service (project-wide utilities)
+import { formatGHS } from '../../lib/affiliate';
 
 export function AffiliateDashboard() {
   const { ref } = useParams();
