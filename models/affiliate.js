@@ -1,7 +1,7 @@
 // models/affiliate.js
 // DiDwa - Affiliate Program Model (pg queries, NO Prisma)
 
-const { query } = require('../config/database.js');
+import { query } from '../config/database.js';
 
 // Find affiliate by referral code
 export async function findByReferralCode(code) {
@@ -15,6 +15,7 @@ export async function findByReferralCode(code) {
   );
   return rows[0];
 }
+
 // Find affiliate by userId
 export async function findByUserId(userId) {
   const { rows } = await query(
@@ -27,11 +28,37 @@ export async function findByUserId(userId) {
   );
   return rows[0];
 }
+
 // Create new affiliate profile
 export async function create({ fullName, email, phone, momoNetwork, momoNumber, passwordHash, referralCode }) {
   const code = referralCode || `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
   // Validate UUID format (basic check)
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  let finalCode = uuidPattern.test(code) ? code : `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+  // Ensure uniqueness
+  const exists = await findByReferralCode(finalCode);
+  if (exists) {
+    finalCode = `REF-${Date.now().toString(36).substring(2, 8).toUpperCase()}`;
+    const exists2 = await findByReferralCode(finalCode);
+    if (exists2) throw new Error('Could not generate unique affiliate code');
+  }
+
+  const { rows } = await query(
+    `INSERT INTO affiliates
+       (referral_code, full_name, email, phone, momo_network, momo_number, password_hash, is_active)
+     VALUES
+       ($1, $2, $3, $4, $5, $6, $7, TRUE)
+     RETURNING
+       id, referral_code, full_name, email, phone,
+       momo_network, momo_number, is_active,
+       created_at, updated_at`,
+    [finalCode, fullName, email, phone, momoNetwork, momoNumber, passwordHash]
+  );
+  return rows[0];
+}
+
 // Link store to affiliate assignment
 export async function linkStoreToAffiliate(storeId, affiliateId) {
   const { rows } = await query(
@@ -39,6 +66,18 @@ export async function linkStoreToAffiliate(storeId, affiliateId) {
     [storeId]
   );
   if (rows.length > 0) {
+    return rows[0];
+  }
+
+  const { rows: inserted } = await query(
+    `INSERT INTO referrals (affiliate_id, referred_store_id, status)
+     VALUES ($1, $2, 'pending_upgrade')
+     RETURNING id, affiliate_id, referred_store_id, status, referred_at`,
+    [affiliateId, storeId]
+  );
+  return inserted[0];
+}
+
 // Mark a referred store as upgraded
 export async function markReferredUpgraded(referralId, planAmountGHS, affiliateCommissionRate) {
   const commissionRate = parseFloat(affiliateCommissionRate) / 100;
@@ -79,8 +118,8 @@ export async function fetchSummary(affiliateId) {
         COALESCE(SUM(CASE WHEN status = 'pending'    THEN earned_amount_ghs END), 0) AS pending,
         COALESCE(SUM(CASE WHEN status = 'paid'      THEN earned_amount_ghs END), 0) AS paid,
         COALESCE(SUM(earned_amount_ghs),             0) AS total_earned
-      FROM affiliate_commissions
-      WHERE affiliate_id = $1`,
+    FROM affiliate_commissions
+    WHERE affiliate_id = $1`,
     [affiliateId]
   );
   return rows[0];
@@ -96,39 +135,4 @@ export async function listPayoutRequests(affiliateId) {
     [affiliateId]
   );
   return rows;
-}
-    return rows[0];
-  }
-
-  const { rows: inserted } = await query(
-    `INSERT INTO referrals (affiliate_id, referred_store_id, status)
-     VALUES ($1, $2, 'pending_upgrade')
-     RETURNING id, affiliate_id, referred_store_id, status, referred_at`,
-    [affiliateId, storeId]
-  );
-  return inserted[0];
-}
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  let finalCode = uuidPattern.test(code) ? code : `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-  // Ensure uniqueness
-  const exists = await findByReferralCode(finalCode);
-  if (exists) {
-    finalCode = `REF-${Date.now().toString(36).substring(2, 8).toUpperCase()}`;
-    const exists2 = await findByReferralCode(finalCode);
-    if (exists2) throw new Error('Could not generate unique affiliate code');
-  }
-
-  const { rows } = await query(
-    `INSERT INTO affiliates
-       (referral_code, full_name, email, phone, momo_network, momo_number, password_hash, is_active)
-     VALUES
-       ($1, $2, $3, $4, $5, $6, $7, TRUE)
-     RETURNING
-       id, referral_code, full_name, email, phone,
-       momo_network, momo_number, is_active,
-       created_at, updated_at`,
-    [finalCode, fullName, email, phone, momoNetwork, momoNumber, passwordHash]
-  );
-  return rows[0];
 }

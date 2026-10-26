@@ -17,21 +17,22 @@ import {
   validateCommissionRate,
   calculateCommission,
   formatGHS,
-} from '../services/affiliateService.js';
-import { authenticate } from '../middleware/auth.js'; // your existing JWT middleware
+} from '../lib/affiliate.js';
+import { requireAuth } from '../middleware/authMiddleware.js'; // your existing JWT middleware
+import { query } from '../config/database.js';
 
 const router = Router();
 
 // 🔹 GET /api/affiliate/me - Current affiliate profile
-router.get('/me', authenticate, async (req, res) => {
-  const affiliate = await findByUserId(req.user.id);
+router.get('/me', requireAuth, async (req, res) => {
+  const affiliate = await findByUserId(req.auth.id);
   if (!affiliate) return res.status(404).json({ error: 'Affiliate profile not found' });
   res.json(affiliate);
 });
 
 // 🔹 GET /api/affiliate/stats - Earnings stats
-router.get('/stats', authenticate, async (req, res) => {
-  const affiliate = await findByUserId(req.user.id);
+router.get('/stats', requireAuth, async (req, res) => {
+  const affiliate = await findByUserId(req.auth.id);
   if (!affiliate) return res.status(404).json({ error: 'Affiliate profile not found' });
 
   const { rows: stats } = await query(
@@ -45,8 +46,8 @@ router.get('/stats', authenticate, async (req, res) => {
 });
 
 // 🔹 GET /api/affiliate/referrals - List referred stores
-router.get('/referrals', authenticate, async (req, res) => {
-  const affiliate = await findByUserId(req.user.id);
+router.get('/referrals', requireAuth, async (req, res) => {
+  const affiliate = await findByUserId(req.auth.id);
   if (!affiliate) return res.status(404).json({ error: 'Affiliate profile not found' });
 
   const { rows } = await query(
@@ -66,8 +67,8 @@ router.get('/referrals', authenticate, async (req, res) => {
 });
 
 // 🔹 GET /api/affiliate/payouts - List payout requests
-router.get('/payouts', authenticate, async (req, res) => {
-  const affiliate = await findByUserId(req.user.id);
+router.get('/payouts', requireAuth, async (req, res) => {
+  const affiliate = await findByUserId(req.auth.id);
   if (!affiliate) return res.status(404).json({ error: 'Affiliate profile not found' });
 
   const requests = await listPayoutRequests(affiliate.id);
@@ -75,8 +76,8 @@ router.get('/payouts', authenticate, async (req, res) => {
 });
 
 // 🔹 POST /api/affiliate/payouts - Request a payout
-router.post('/payouts', authenticate, async (req, res) => {
-  const affiliate = await findByUserId(req.user.id);
+router.post('/payouts', requireAuth, async (req, res) => {
+  const affiliate = await findByUserId(req.auth.id);
   if (!affiliate) return res.status(404).json({ error: 'Affiliate profile not found' });
 
   const { amountGHS } = req.body;

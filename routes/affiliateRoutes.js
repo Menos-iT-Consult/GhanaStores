@@ -17,8 +17,8 @@ import {
   generateReferralCode,
   calculateCommission,
   formatGHS,
-} from '../services/affiliateService.js';
-import { affiliateCookieMiddleware } from '../middleware/affiliateAuth.js';
+} from '../lib/affiliate.js';
+import affiliateCookieMiddleware from '../middleware/affiliateAuth.js';
 import { query } from '../config/database.js';
 
 const router = Router();
