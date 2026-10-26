@@ -17,15 +17,33 @@ import {
   Wallet, Zap,
 } from 'lucide-react';
 import { PublicShell, FEATURE_CARDS, STEPS, STATS } from './PublicPages.jsx';
+import MetaTags from '../components/seo/MetaTags.jsx';
+import OrganizationSchema from '../components/seo/OrganizationSchema.jsx';
+import SoftwareApplicationSchema from '../components/seo/SoftwareApplicationSchema.jsx';
+import FAQSchema from '../components/seo/FAQSchema.jsx';
+import { META_CONTENT } from '../lib/seo.js';
 
 
 export default function WelcomePage({ authed = false, onStart, onDashboard }) {
   const start = onStart || (() => {});
   const dashboard = onDashboard || (() => {});
 
+  const { homepage } = META_CONTENT;
 
   return (
-    <PublicShell authed={authed} onStart={onStart} onDashboard={onDashboard} wide>
+    <>
+      <MetaTags
+        title={homepage.title}
+        description={homepage.description}
+        canonical="https://didwaghana.com"
+        ogImage="https://didwaghana.com/og-homepage.jpg"
+        keywords={['online store builder Ghana', 'e-commerce platform Ghana', 'digital POS Ghana']}
+      />
+      <OrganizationSchema />
+      <SoftwareApplicationSchema />
+      <FAQSchema />
+
+      <PublicShell authed={authed} onStart={onStart} onDashboard={onDashboard} wide>
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -334,5 +352,6 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
       </section>
 
     </PublicShell>
+    </>
   );
 }
