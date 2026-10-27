@@ -150,8 +150,6 @@ app.use(resolveTenantStore);
 /* --------------------------------- Affiliate middleware ---------------------- */
 // Rewrites affiliate.didwaghana.com to /affiliate-portal and sets the
 // didwa_ref cookie when ?ref=CODE is present on didwaghana.com.
-app.use(affiliateMiddleware);
-
 /* --------------------------------- API mounts ------------------------------- */
 app.get('/health', async (_req, res) => {
   try {
