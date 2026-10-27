@@ -20,6 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describeError, errorHandler, GENERIC_5XX, makeRequestId } from '../middleware/errorMiddleware.js';
 import { ErrorKind, looksHuman, readableError, referenceCode, toApiError } from '../src/lib/errors.js';
+import { retryAfterDelayMs } from '../src/api.js';
 
 let pass = 0;
 let fail = 0;
@@ -143,6 +144,10 @@ console.log('\nDiDwa error handling -> server middleware + client error vocabula
   log('offline is retryable', offline.retryable === true);
   log('a 403 is not retryable', toApiError('You do not have permission to do that.', { status: 403 }).retryable === false, 'no point pressing Try again');
   log('a 500 is retryable', toApiError('Something went wrong on our side. Please try again.', { status: 500 }).retryable === true);
+  log('Retry-After accepts seconds and HTTP dates', retryAfterDelayMs('3', 0) === 3000
+    && retryAfterDelayMs(new Date(5000).toUTCString(), 0) === 5000);
+  log('Retry-After delay is bounded', retryAfterDelayMs('60', 0) === 10_000
+    && retryAfterDelayMs('invalid', 0) === 1000);
   log('a support reference is short and quotable', /^[A-Z0-9]{6}$/.test(referenceCode('a1b2c3d4e5f6a1b2')), referenceCode('a1b2c3d4e5f6a1b2'));
 }
 
@@ -154,10 +159,12 @@ console.log('\nDiDwa error handling -> server middleware + client error vocabula
   log('the client aborts a request that never answers', /AbortController/.test(api) && /REQUEST_TIMEOUT_MS/.test(api));
   log('the timeout is a sane number of milliseconds', /REQUEST_TIMEOUT_MS = \d{4,}/.test(api));
   log('fetch rejections become ApiError, not a raw TypeError', /toApiError\(cause/.test(api));
+  log('429 responses only auto-retry safe GET requests', /res\.status === 429 && method === 'GET' && !_retried/.test(api));
   log('an admin 401 clears the ADMIN session', /clearAdminSession\(\)/.test(api));
   // The 401 branches must be mutually exclusive: an admin expiry clearing the
   // seller session (or the reverse) would sign a person out of the wrong app.
-  log('the admin and seller 401 branches are exclusive', /if \(isAdmin\) \{[\s\S]{0,200}clearAdminSession\(\);[\s\S]{0,80}\} else if \(!explicitToken\) \{[\s\S]{0,200}clearSession\(\);/.test(api));
+  log('admin, affiliate and seller 401 branches are exclusive',
+    /if \(isAdmin\) \{[\s\S]{0,200}clearAdminSession\(\);[\s\S]{0,120}\} else if \(isAffiliate\) \{[\s\S]{0,160}clearAffiliateSession\(\);[\s\S]{0,120}\} else if \(!explicitToken\) \{[\s\S]{0,200}clearSession\(\);/.test(api));
   log('a seller 401 does not clear the admin session', /clearSession\(\)[\s\S]{0,200}clearAdminSession/.test(api) === false);
   log('the sign-in route is exempt from the 401 reset', /\/api\/billing\/login/.test(api));
 
@@ -169,7 +176,8 @@ console.log('\nDiDwa error handling -> server middleware + client error vocabula
   log('the server no longer inlines its own error handler', !/app\.use\(\(err, _req, res, _next\)/.test(server));
 
   const main = read('src/main.jsx');
-  log('the app is wrapped in the shared boundary', /<ErrorBoundary><App \/><\/ErrorBoundary>/.test(main));
+  log('the app uses a global toast viewport inside the shared boundary',
+    /<ErrorBoundary>[\s\S]*<ToastProvider>[\s\S]*<App \/>[\s\S]*<\/ToastProvider>/.test(main));
   log('the old inline boundary is gone', !/class AppErrorBoundary/.test(main));
 }
 
@@ -181,6 +189,12 @@ console.log('\nDiDwa error handling -> server middleware + client error vocabula
   log('the notice offers a retry when one is possible', /Try again/.test(notice));
   log('the notice never offers a retry for an auth failure', /\[401, 403\]\.includes/.test(notice));
   log('the notice hides raw detail behind a disclosure', /Hide details/.test(notice));
+  log('action failures use the global toast system', /notifyError\(error/.test(notice) && /if \(intent === 'action'\) return null/.test(notice));
+  const toast = read('src/components/ToastProvider.jsx');
+  log('toast errors are accessible and dismissible', /role=\{toast\.type === 'error' \? 'alert' : 'status'\}/.test(toast)
+    && /aria-label="Dismiss notification"/.test(toast));
+  log('unhandled browser and promise errors are surfaced in toasts',
+    /addEventListener\('unhandledrejection'/.test(toast) && /addEventListener\('error'/.test(toast));
 
   // The point of the change: one component, not eight hand-rolled red boxes.
   const pages = ['src/pages/AuthScreen.jsx', 'src/pages/SellerOrders.jsx', 'src/pages/DomainManager.jsx', 'src/components/POSCart.jsx'];

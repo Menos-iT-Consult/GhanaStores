@@ -17,6 +17,18 @@ export const OFFLINE_POS_KEY = 'didwa_pos_pending';
 /** How long a request may take before the browser is told to give up. */
 export const REQUEST_TIMEOUT_MS = 20000;
 
+export function retryAfterDelayMs(header, now = Date.now()) {
+  const raw = String(header || '').trim();
+  if (!raw) return 1000;
+
+  const seconds = Number(raw);
+  const requestedDelay = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(raw) - now;
+  if (!Number.isFinite(requestedDelay)) return 1000;
+  return Math.min(Math.max(requestedDelay, 1000), 10_000);
+}
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || '';
 }
@@ -124,9 +136,11 @@ async function request(path, {
   let data = null;
   try { data = await res.json(); } catch { /* non-JSON: a proxy or gateway page */ }
 
-  if (res.status === 429 && !_retried) {
-    const retryAfter = Number(res.headers.get?.('Retry-After') || 1);
-    await new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(retryAfter, 1), 10) * 1000));
+  // Retrying a mutation after an ambiguous rate-limit response can duplicate a
+  // write (or payment). Only retry safe reads automatically.
+  if (res.status === 429 && method === 'GET' && !_retried) {
+    const retryDelay = retryAfterDelayMs(res.headers.get?.('Retry-After'));
+    await new Promise((resolve) => setTimeout(resolve, retryDelay));
     return request(path, { method, body, isForm, token: explicitToken, _retried: true, isAffiliate });
   }
 

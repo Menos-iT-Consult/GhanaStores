@@ -46,6 +46,7 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | Key | Purpose | Fallback behaviour |
 | --- | --- | --- |
 | `DATABASE_URL` | Neon/Postgres connection string | Local PG via PGHOST/PGUSER/... |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Optional shared, atomic rate-limit counters for multi-instance/Vercel deployments | Bounded in-process limits (per server instance) |
 | `JWT_SECRET` | Token signing for sellers/admins | Dev default (change in production) |
 | `MTN_MOMO_SUBSCRIPTION_KEY` / `MTN_MOMO_COLLECTION_USER_ID` / `MTN_MOMO_COLLECTION_API_KEY` | MTN MoMo collections + disbursements (primary for MTN numbers) | MTN dry-run mode (simulated success) |
 | `MTN_MOMO_TARGET_ENVIRONMENT` | `sandbox` vs `mtn-ghana` | `sandbox` |
@@ -80,6 +81,18 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
   sitemaps.
 - Run `npm run test:seo` to validate sitemap generation rules and the SEO route
   configuration.
+
+### API rate limits
+
+The API has a global per-IP limit, stricter limits for sign-in and verification,
+and dedicated limits for public orders, contact submissions, domain searches,
+and affiliate payouts. The limiter uses Express's resolved client IP rather
+than trusting a raw `X-Forwarded-For` value. Configure both
+`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` in production to share
+counters across Vercel/server instances; without them, limits are process-local
+and do not aggregate across instances. If the configured shared store is
+unavailable, requests fail closed. Run `npm run test:rate-limit` to exercise
+the limiter.
 
 ### Responsive behaviour
 

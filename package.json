@@ -35,6 +35,7 @@
     "test:domain-dns": "node scripts/domainDnsTest.js",
     "test:domain-provisioning": "node scripts/domainProvisioningTest.js",
     "test:errors": "node scripts/errorHandlingTest.js",
+    "test:rate-limit": "node scripts/rateLimitTest.js",
     "test:responsive": "node scripts/responsiveTest.js",
     "test:dashboard-refactor": "node scripts/dashboardRefactorTest.js",
     "test:customizer-render": "node scripts/customizerRenderTest.js",

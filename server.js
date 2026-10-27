@@ -78,24 +78,31 @@ app.use((_req, res, next) => {
 /* Global rate limit: protects every API endpoint used by both the web app and
    the mobile app from abuse (120 requests / minute / client IP). */
 const globalLimiter = createRateLimiter({
+  name: 'global',
   windowMs: 60_000,
   max: 120,
   message: 'Too many requests. Try again shortly.',
+  skip: (req) => !req.path.startsWith('/api/') && req.path !== '/health',
 });
 app.use(globalLimiter);
 
 /* Stricter guard for authentication endpoints (both web + mobile login). */
 const authLimiter = createRateLimiter({
+  name: 'authentication',
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: 'Too many authentication attempts. Try again later.',
 });
 app.use('/api/billing/login', authLimiter);
 app.use('/api/billing/register', authLimiter);
+app.use('/api/billing/verify-otp', authLimiter);
 app.use('/api/site-settings/password/forgot', authLimiter);
 app.use('/api/site-settings/password/reset', authLimiter);
 app.use('/api/mobile/auth/login', authLimiter);
 app.use('/api/mobile/auth/refresh', authLimiter);
+app.use('/api/affiliate/signup', authLimiter);
+app.use('/api/affiliate/login', authLimiter);
+app.use('/api/admin/login', authLimiter);
 /* retain the raw body for webhook signature verification.
    Paystack signs the EXACT bytes it sent with HMAC-SHA512; a body that has been
    through JSON.parse + JSON.stringify is not byte-identical, so verifying
@@ -147,6 +154,40 @@ app.use(cors({
 app.use(resolveTenantStore);
 
 /* --------------------------------- API mounts ------------------------------- */
+const publicOrderLimiter = createRateLimiter({
+  name: 'public-orders',
+  windowMs: 60_000,
+  max: 15,
+  message: 'Too many order attempts. Please wait a moment and try again.',
+  skip: (req) => req.method !== 'POST',
+});
+const publicContactLimiter = createRateLimiter({
+  name: 'public-contact',
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: 'Too many contact submissions. Please wait before sending another message.',
+  skip: (req) => req.method !== 'POST',
+});
+const domainSearchLimiter = createRateLimiter({
+  name: 'domain-search',
+  windowMs: 60_000,
+  max: 20,
+  message: 'Too many domain searches. Please wait a moment and try again.',
+});
+const affiliatePayoutLimiter = createRateLimiter({
+  name: 'affiliate-payouts',
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: 'Too many payout requests. Please wait before submitting another request.',
+  skip: (req) => req.method !== 'POST',
+});
+
+app.use('/api/public/orders', publicOrderLimiter);
+app.use('/api/contact', publicContactLimiter);
+app.use('/api/storefront', publicContactLimiter);
+app.use('/api/domains/search', domainSearchLimiter);
+app.use('/api/affiliate/payouts', affiliatePayoutLimiter);
+
 app.get('/health', async (_req, res) => {
   try {
     const now = await pingDb();

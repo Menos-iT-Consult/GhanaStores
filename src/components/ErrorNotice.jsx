@@ -15,9 +15,10 @@
  * that appears after the user pressed a button, and it never relies on colour
  * alone to carry meaning.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, RefreshCw, ChevronDown } from 'lucide-react';
 import { readableError, referenceCode, toApiError } from '../lib/errors.js';
+import { useToast } from './ToastProvider.jsx';
 
 const TONES = {
   error: { wrap: 'border-rose-200 bg-rose-50 text-rose-900', icon: AlertCircle, iconClass: 'text-rose-500', label: 'Error' },
@@ -53,7 +54,20 @@ export default function ErrorNotice({
   className = '',
 }) {
   const [open, setOpen] = useState(showDetails);
+  const { notifyError } = useToast();
+  const retryRef = useRef(onRetry);
+  retryRef.current = onRetry;
+
+  useEffect(() => {
+    if (!error || intent !== 'action') return;
+    notifyError(error, {
+      title: headline || 'That did not work',
+      onRetry: retryRef.current ? () => retryRef.current?.() : undefined,
+    });
+  }, [error, headline, intent, notifyError]);
+
   if (!error) return null;
+  if (intent === 'action') return null;
 
   const style = TONES[tone] || TONES.error;
   const Icon = style.icon;
