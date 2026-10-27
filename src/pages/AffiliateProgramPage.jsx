@@ -4,9 +4,14 @@ import { api } from '../api.js';
 import { PublicShell } from './PublicPages.jsx';
 import MetaTags from '../components/seo/MetaTags.jsx';
 
-const AFFILIATE_PLATFORM_URL = String(
-  import.meta.env.VITE_AFFILIATE_PLATFORM_URL || 'https://affiliate.didwaghana.com',
-).replace(/\/+$/, '');
+const configuredAffiliateUrl = String(
+  import.meta.env.VITE_AFFILIATE_PLATFORM_URL || 'affiliate.didwaghana.com',
+).trim();
+const AFFILIATE_PLATFORM_URL = new URL(
+  /^[a-z][a-z\d+.-]*:\/\//i.test(configuredAffiliateUrl)
+    ? configuredAffiliateUrl
+    : `https://${configuredAffiliateUrl}`,
+).origin;
 const AFFILIATE_SIGNUP_URL = `${AFFILIATE_PLATFORM_URL}/affiliate/signup`;
 const AFFILIATE_LOGIN_URL = `${AFFILIATE_PLATFORM_URL}/affiliate/login`;
 
