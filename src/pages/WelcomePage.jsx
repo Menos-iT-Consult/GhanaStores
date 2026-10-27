@@ -334,9 +334,14 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
           <p className="mx-auto mt-3 max-w-xl text-sm text-blue-100 sm:text-base">Join thousands of Ghanaian merchants running their entire shop from one app. Free for 14 days.</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             {authed ? (
-              <button type="button" onClick={dashboard} className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-blue-700 shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
-                Open your dashboard <ArrowRight size={16} aria-hidden="true" />
-              </button>
+              <>
+                <button type="button" onClick={dashboard} className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-blue-700 shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                  Open your dashboard <ArrowRight size={16} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => window.location.href='/affiliate/signup'} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ml-3">
+                  Affiliate program <Smartphone size={16} aria-hidden="true" />
+                </button>
+              </>
             ) : (
               <>
                 <button type="button" onClick={() => start('register')} className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-blue-700 shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">

@@ -106,12 +106,22 @@ router.get('/dashboard', affiliateCookieMiddleware, async (req, res) => {
   });
 });
 
-// 🔹 GET /affiliate/links
-router.get('/links', affiliateCookieMiddleware, async (req, res) => {
+// 🔹 GET /affiliate/program - Affiliate program info page
+router.get('/program', affiliateCookieMiddleware, async (req, res) => {
+  if (!req.affiliate) return res.redirect('/affiliate/signup');
+
+  const affiliate = req.affiliate;
+
+  res.render('affiliate/program', {
+    affiliate,
+    commissionRate: '10%',
+    minimumPayout: '50 GHS',
+  });
+});
   if (!req.affiliate) return res.status(401).json({ error: 'Unauthorized' });
 
   const affiliate = req.affiliate;
-  const baseUrl = 'https://didwaghana.com';
+  const baseUrl = 'https://affiliate.didwaghana.com';
 
   const links = {
     dashboard: `${baseUrl}/affiliate/dashboard`,
