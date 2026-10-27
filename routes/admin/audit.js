@@ -33,6 +33,7 @@ export const ACTION_LABELS = {
 'domain.price': 'Changed a domain price',
   'domain.price_bulk': 'Repriced a group of TLDs',
   'domain.settings': 'Changed domain search settings',
+  'affiliate_program.settings': 'Changed affiliate program settings',
 };
 
 router.get('/audit', requireAdmin, async (req, res, next) => {

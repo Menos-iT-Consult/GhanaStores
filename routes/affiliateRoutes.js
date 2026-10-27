@@ -3,6 +3,7 @@
 // Mounted at /affiliate in server.js
 
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import {
   findByReferralCode,
   findByUserId,
@@ -20,6 +21,7 @@ import {
 } from '../lib/affiliate.js';
 import affiliateCookieMiddleware from '../middleware/affiliateAuth.js';
 import { query } from '../config/database.js';
+import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 
 const router = Router();
 
@@ -37,35 +39,39 @@ router.get('/signup', affiliateCookieMiddleware, async (req, res) => {
 });
 
 // 🔹 POST /affiliate/signup
-router.post('/signup', affiliateCookieMiddleware, async (req, res) => {
-  const { email, password, referralCode } = req.body;
+router.post('/signup', affiliateCookieMiddleware, async (req, res, next) => {
+  try {
+    const { email, password, referralCode } = req.body;
 
-  // 1. Create user first (existing auth flow)
-  const user = await createSellerUser({ email, password });
+    // 1. Create user first (existing auth flow)
+    const user = await createSellerUser({ email, password });
 
-  // 2. Generate or validate referral code
-  const code = referralCode || generateReferralCode();
+    // 2. Generate or validate referral code
+    const code = referralCode || generateReferralCode();
 
-  // 3. Create affiliate record linked to new user
-  const affiliate = await create({
-    fullName: req.body.name || email.split('@')[0],
-    email,
-    phone: req.body.phone || '',
-    momoNetwork: req.body.momoNetwork || 'MTN',
-    momoNumber: req.body.momoNumber || '',
-    passwordHash: user.passwordHash,
-    referralCode: code,
-  });
+    // 3. Create affiliate record linked to new user
+    await create({
+      fullName: req.body.name || email.split('@')[0],
+      email,
+      phone: req.body.phone || '',
+      momoNetwork: req.body.momoNetwork || 'MTN',
+      momoNumber: req.body.momoNumber || '',
+      passwordHash: user.passwordHash,
+      referralCode: code,
+    });
 
-  // 4. Set 30-day cookie
-  res.cookie('didwa_ref', code, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60,
-    sameSite: 'lax',
-  });
+    const programSettings = await getAffiliateProgramSettings();
+    res.cookie('didwa_ref', code, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: programSettings.attributionDays * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+    });
 
-  res.redirect('/affiliate/dashboard');
+    res.redirect('/affiliate/dashboard');
+  } catch (err) {
+    next(err);
+  }
 });
 
 // 🔹 GET /affiliate/dashboard
@@ -107,17 +113,24 @@ router.get('/dashboard', affiliateCookieMiddleware, async (req, res) => {
 });
 
 // 🔹 GET /affiliate/program - Affiliate program info page
-router.get('/program', affiliateCookieMiddleware, async (req, res) => {
-  if (!req.affiliate) return res.redirect('/affiliate/signup');
-
-  const affiliate = req.affiliate;
-
-  res.render('affiliate/program', {
-    affiliate,
-    commissionRate: '10%',
-    minimumPayout: '50 GHS',
-  });
+router.get('/program', affiliateCookieMiddleware, async (req, res, next) => {
+  try {
+    const programSettings = await getAffiliateProgramSettings();
+    res.render('affiliate/program', {
+      affiliate: req.affiliate || null,
+      commissionRate: programSettings.commissionRatePercent,
+      minimumPayout: programSettings.minimumPayoutGhs,
+      attributionDays: programSettings.attributionDays,
+      payoutProcessingMinDays: programSettings.payoutProcessingMinDays,
+      payoutProcessingMaxDays: programSettings.payoutProcessingMaxDays,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
+
+// 🔹 GET /affiliate/links
+router.get('/links', affiliateCookieMiddleware, async (req, res) => {
   if (!req.affiliate) return res.status(401).json({ error: 'Unauthorized' });
 
   const affiliate = req.affiliate;
@@ -144,11 +157,8 @@ router.post('/withdraw', affiliateCookieMiddleware, async (req, res) => {
   const affiliate = req.affiliate;
   const { amountGHS } = req.body;
 
-  // Check minimum payout threshold from system_settings
-  const { rows: threshold } = await query(
-    `SELECT setting_value AS minimum_payout_ghs FROM system_settings WHERE setting_key = 'affiliate_min_cashout_ghs'`
-  );
-  const minPayout = Number(threshold[0]?.minimum_payout_ghs || 50.00);
+  const programSettings = await getAffiliateProgramSettings();
+  const minPayout = programSettings.minimumPayoutGhs;
 
   if (Number(amountGHS) < Number(minPayout)) {
     return res.status(400).json({
@@ -182,18 +192,19 @@ router.post('/withdraw', affiliateCookieMiddleware, async (req, res) => {
 
   res.json({
     success: true,
-    message: `Payout request of ${formatGHS(amountGHS)} submitted. Processing time: 3-5 business days.`,
+    message: `Payout request of ${formatGHS(amountGHS)} submitted. Processing time: ${programSettings.payoutProcessingMinDays}-${programSettings.payoutProcessingMaxDays} business days.`,
   });
 });
 
 // Helper: create seller user via existing auth flow
 async function createSellerUser({ email, password }) {
+  const passwordHash = await bcrypt.hash(String(password), 12);
   const { rows } = await query(
     `INSERT INTO users (email, password_hash, status, plan, created_at)
      VALUES ($1, $2, 'active', 'free', now())
      ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
      RETURNING id, password_hash`,
-    [email, password]
+    [String(email).trim().toLowerCase(), passwordHash]
   );
   return { id: rows[0].id, passwordHash: rows[0].password_hash };
 }

@@ -20,7 +20,10 @@ CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_ke
 -- Seed default affiliate settings
 INSERT INTO system_settings (setting_key, setting_value, description) VALUES
   ('affiliate_commission_rate', '10.00', 'Recurring commission percentage (%) paid to affiliate on each referred merchant upgrade/renewal'),
-  ('affiliate_min_cashout_ghs', '50.00', 'Minimum available balance (GHS) required before an affiliate can request a MoMo payout')
+  ('affiliate_min_cashout_ghs', '50.00', 'Minimum available balance (GHS) required before an affiliate can request a MoMo payout'),
+  ('affiliate_attribution_days', '30', 'Days a referral attribution remains valid'),
+  ('affiliate_payout_min_days', '3', 'Minimum business days to process an affiliate payout'),
+  ('affiliate_payout_max_days', '5', 'Maximum business days to process an affiliate payout')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- --------------------------------------------------------

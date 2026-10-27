@@ -14,6 +14,7 @@
  */
 export const PUBLIC_ROUTES = [
   '/', '/pricing', '/features', '/how-it-works', '/about', '/contact', '/terms', '/privacy',
+  '/affiliate-program',
   // Reached from the forgot-password email while signed out - must be public.
   '/reset-password',
 ];
@@ -31,6 +32,7 @@ export const PWA_ROUTES = [
   '/admin/domains',
   '/admin/pricing',
   '/admin/plans',
+  '/admin/affiliate-program',
   '/admin/themes',
   '/admin/team',
   '/admin/system',

@@ -20,6 +20,7 @@ import DashboardLayout from './layouts/DashboardLayout.jsx';
 import AuthScreen from './pages/AuthScreen.jsx';
 import WelcomePage from './pages/WelcomePage.jsx';
 import { AboutPage, ContactPage, FeaturesPage, HowItWorksPage, PrivacyPage, PricingPage, TermsPage } from './pages/PublicPages.jsx';
+import AffiliateProgramPage from './pages/AffiliateProgramPage.jsx';
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
@@ -295,6 +296,7 @@ case '/messages': return <SellerMessages />;
     case '/how-it-works': return <HowItWorksPage authed={authed} />;
     case '/about': return <AboutPage authed={authed} />;
     case '/contact': return <ContactPage authed={authed} />;
+    case '/affiliate-program': return <AffiliateProgramPage authed={authed} onStart={openAuth} onDashboard={() => { navigate('/dashboard'); }} />;
     case '/terms': return <TermsPage authed={authed} />;
     case '/privacy': return <PrivacyPage authed={authed} />;
     // Public: reachable from the forgot-password email while signed out.

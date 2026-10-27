@@ -42,6 +42,7 @@ import planRoutes from './plans.js';
 import contactRoutes from './contact.js';
 import smsPricingRoutes from './smsPricing.js';
 import newsletterRoutes from './newsletterRoutes.js';
+import affiliateProgramRoutes from './affiliateProgram.js';
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.use(planRoutes);
 router.use(contactRoutes);
 router.use(smsPricingRoutes);
 router.use(newsletterRoutes);
+router.use(affiliateProgramRoutes);
 
 /**
  * Legacy alias kept for the pre-split client: PATCH /tenants/:id/status became

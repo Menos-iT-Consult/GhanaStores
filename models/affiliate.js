@@ -2,6 +2,7 @@
 // DiDwa - Affiliate Program Model (pg queries, NO Prisma)
 
 import { query } from '../config/database.js';
+import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 
 // Find affiliate by referral code
 export async function findByReferralCode(code) {
@@ -96,8 +97,9 @@ export async function markReferredUpgraded(referralId, planAmountGHS, affiliateC
 }
 
 // Record commission ledger entry
-export async function recordCommission({ affiliateId, referralId, transactionRef, planAmountGHS, commissionRatePercent }) {
-  const commissionRate = parseFloat(commissionRatePercent) / 100;
+export async function recordCommission({ affiliateId, referralId, transactionRef, planAmountGHS }) {
+  const { commissionRatePercent } = await getAffiliateProgramSettings();
+  const commissionRate = commissionRatePercent / 100;
   const earned = Number((planAmountGHS * commissionRate).toFixed(2));
 
   const { rows } = await query(

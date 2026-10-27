@@ -32,7 +32,7 @@ export function AffiliateLinkCard({ referralCode, onCopy }) {
     <div className="affiliate-link-card bg-card p-5 rounded-xl shadow-sm">
       <h4 className="font-semibold mb-3">Share Your Referral</h4>
       <p className="text-sm text-muted mb-4">
-        Earn 10% recurring commission on every plan upgrade
+        Earn recurring commission on eligible plan payments.
       </p>
 
       <div className="bg-white rounded p-3 mb-4">

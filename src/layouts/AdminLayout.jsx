@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import {
   Activity, Boxes, CreditCard, Globe, LayoutDashboard, LogOut, Mail,
   Menu, MessageSquare, Palette, Receipt, ScrollText, Server, ShieldAlert, Store, Tag, Truck, Users,
+  Handshake,
 } from 'lucide-react';
 import { navigate, usePathname } from '../router.js';
 import { cx } from '../components/admin/ui.jsx';
@@ -43,6 +44,7 @@ export const ADMIN_NAV = [
       { path: '/admin/pricing', label: 'Domain pricing', icon: Tag },
       { path: '/admin/plans', label: 'Subscription plans', icon: CreditCard },
       { path: '/admin/sms-pricing', label: 'SMS pricing', icon: MessageSquare },
+      { path: '/admin/affiliate-program', label: 'Affiliate program', icon: Handshake },
       { path: '/admin/themes', label: 'Themes', icon: Palette },
       { path: '/admin/team', label: 'Team', icon: Users },
       { path: '/admin/system', label: 'System', icon: Server },

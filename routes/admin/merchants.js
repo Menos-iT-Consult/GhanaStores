@@ -239,22 +239,19 @@ router.patch('/merchants/:id/contact', requireAdmin, async (req, res, next) => {
     const { rows: before } = await query('SELECT id, name, phone, email FROM stores WHERE id = $1 LIMIT 1', [id]);
     if (!before[0]) return res.status(404).json({ error: 'Merchant not found.' });
     const updates = [];
-    const params = [id];
-    let p = 1;
+    const params = [];
     if (phone !== undefined) {
-      p++;
-      updates.push(`phone = $${p}`);
       params.push(phone);
+      updates.push(`phone = $${params.length}`);
     }
     if (email !== undefined) {
-      p++;
-      updates.push(`email = $${p}`);
       params.push(email);
+      updates.push(`email = $${params.length}`);
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update.' });
-    params.push(...updates);
+    params.push(id);
     const setClause = updates.join(', ');
-    const { rows } = await query(`UPDATE stores SET ${setClause} WHERE id = $1 RETURNING id, name, phone, email`, params);
+    const { rows } = await query(`UPDATE stores SET ${setClause} WHERE id = $${params.length} RETURNING id, name, phone, email`, params);
     await recordAdminAction(req, {
       action: 'merchant.contact',
       targetType: 'store',

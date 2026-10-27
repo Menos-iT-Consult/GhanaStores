@@ -6,6 +6,26 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- ------------------------------------------------------------ system settings
+-- Platform-wide configurable values shared by public program pages and
+-- operational routes. Affiliate terms are administered in the super-admin UI.
+CREATE TABLE IF NOT EXISTS system_settings (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  setting_key   TEXT UNIQUE NOT NULL,
+  setting_value TEXT NOT NULL,
+  description   TEXT,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_key);
+
+INSERT INTO system_settings (setting_key, setting_value, description) VALUES
+  ('affiliate_commission_rate', '10.00', 'Recurring commission percentage paid to affiliates'),
+  ('affiliate_min_cashout_ghs', '50.00', 'Minimum available balance in GHS required for payout requests'),
+  ('affiliate_attribution_days', '30', 'Days a referral attribution remains valid'),
+  ('affiliate_payout_min_days', '3', 'Minimum business days to process an affiliate payout'),
+  ('affiliate_payout_max_days', '5', 'Maximum business days to process an affiliate payout')
+ON CONFLICT (setting_key) DO NOTHING;
+
 -- ------------------------------------------------------------ plans (catalog)
 -- The subscription catalogue: what a seller can buy and for how much. This
 -- table is the SINGLE SOURCE OF TRUTH for plan pricing - the public /pricing

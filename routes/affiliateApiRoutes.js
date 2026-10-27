@@ -20,8 +20,17 @@ import {
 } from '../lib/affiliate.js';
 import { requireAuth } from '../middleware/authMiddleware.js'; // your existing JWT middleware
 import { query } from '../config/database.js';
+import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 
 const router = Router();
+
+router.get('/program', async (_req, res, next) => {
+  try {
+    res.json({ settings: await getAffiliateProgramSettings() });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // 🔹 GET /api/affiliate/me - Current affiliate profile
 router.get('/me', requireAuth, async (req, res) => {
@@ -85,11 +94,8 @@ router.post('/payouts', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid amount' });
   }
 
-  // Check minimum payout threshold from system_settings
-  const { rows: threshold } = await query(
-    `SELECT setting_value AS minimum_payout_ghs FROM system_settings WHERE setting_key = 'affiliate_min_cashout_ghs'`
-  );
-  const minPayout = Number(threshold[0]?.minimum_payout_ghs || 50.00);
+  const programSettings = await getAffiliateProgramSettings();
+  const minPayout = programSettings.minimumPayoutGhs;
 
   if (Number(amountGHS) < Number(minPayout)) {
     return res.status(400).json({
@@ -123,7 +129,7 @@ router.post('/payouts', requireAuth, async (req, res) => {
 
   res.json({
     success: true,
-    message: `Payout request of ${formatGHS(amountGHS)} submitted. Processing time: 3-5 business days.`,
+    message: `Payout request of ${formatGHS(amountGHS)} submitted. Processing time: ${programSettings.payoutProcessingMinDays}-${programSettings.payoutProcessingMaxDays} business days.`,
   });
 });
 

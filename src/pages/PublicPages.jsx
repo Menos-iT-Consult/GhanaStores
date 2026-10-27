@@ -43,6 +43,7 @@ export const MARKETING_LINKS = [
   ['/pricing', 'Pricing'],
   ['/about', 'About Us'],
   ['/contact', 'Contact'],
+  ['/affiliate-program', 'Affiliate program'],
 ];
 
 /**
@@ -931,4 +932,3 @@ export function PricingPage({ authed = false }) {
     </>
   );
 }
-
