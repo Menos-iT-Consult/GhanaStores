@@ -44,6 +44,14 @@ export function issueStoreToken(store) {
   });
 }
 
+export function issueAffiliateToken(affiliate) {
+  return signToken({
+    sub: affiliate.id,
+    role: 'AFFILIATE',
+    email: affiliate.email,
+  });
+}
+
 export function issueAdminToken(admin) {
   return signToken({
     sub: admin.id,

@@ -3,12 +3,13 @@
  * Flow A: Bring Your Own Domain (Cloudflare for SaaS custom hostnames)
  * Flow B: Buy New Domain (Openprovider + Hubtel MoMo/Card checkout)
  *
- * DRY_RUN mode activates automatically when credentials are missing,
- * returning deterministic simulated results so the full domain flow
- * remains demoable without live keys.
+ * The OpenProvider search and registration paths always require live provider
+ * credentials. Dry-run behavior is limited to separately configured demo flows.
  */
 import axios from 'axios';
-import { loadPricingCatalog, resolveDomainPrice } from './domainPricing.js';
+import {
+  loadPricingCatalog, providerPriceToGhs, resolveDomainPrice, tldOf,
+} from './domainPricing.js';
 import { verifyHubtelTransaction } from './hubtelService.js';
 
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
@@ -17,6 +18,10 @@ const CLOUDFLARE_ZONE_ID = process.env.CLOUDFLARE_ZONE_ID || '';
 const OPENPROVIDER_API_URL = process.env.OPENPROVIDER_API_URL || 'https://api.openprovider.eu/v1';
 const OPENPROVIDER_USERNAME = process.env.OPENPROVIDER_USERNAME || '';
 const OPENPROVIDER_PASSWORD = process.env.OPENPROVIDER_PASSWORD || '';
+const OPENPROVIDER_OWNER_HANDLE = process.env.OPENPROVIDER_OWNER_HANDLE || '';
+const OPENPROVIDER_ADMIN_HANDLE = process.env.OPENPROVIDER_ADMIN_HANDLE || OPENPROVIDER_OWNER_HANDLE;
+const OPENPROVIDER_TECH_HANDLE = process.env.OPENPROVIDER_TECH_HANDLE || OPENPROVIDER_OWNER_HANDLE;
+const OPENPROVIDER_BILLING_HANDLE = process.env.OPENPROVIDER_BILLING_HANDLE || OPENPROVIDER_OWNER_HANDLE;
 
 const HUBTEL_CLIENT_ID = process.env.HUBTEL_CLIENT_ID || '';
 const HUBTEL_CLIENT_SECRET = process.env.HUBTEL_CLIENT_SECRET || '';
@@ -82,6 +87,13 @@ export const domainDryRun = !(
   OPENPROVIDER_USERNAME && OPENPROVIDER_PASSWORD &&
   HUBTEL_CLIENT_ID && HUBTEL_CLIENT_SECRET
 );
+
+export const openproviderConfigured = Boolean(OPENPROVIDER_USERNAME && OPENPROVIDER_PASSWORD);
+export const openproviderContactConfigured = Boolean(
+  OPENPROVIDER_OWNER_HANDLE && OPENPROVIDER_ADMIN_HANDLE
+  && OPENPROVIDER_TECH_HANDLE && OPENPROVIDER_BILLING_HANDLE,
+);
+export const cloudflareConfigured = Boolean(CLOUDFLARE_API_TOKEN && CLOUDFLARE_ZONE_ID);
 
 const cf = axios.create({
   baseURL: 'https://api.cloudflare.com/client/v4',
@@ -438,19 +450,8 @@ export async function searchDomains(query) {
   const extensions = offered.map((entry) => entry.tld);
   const markupPct = catalog.defaultMarkupPct ?? ((LEGACY_DOMAIN_MARGIN - 1) * 100);
 
-  if (domainDryRun) {
-    console.log(`[domain:DRY_RUN] Search domains for "${cleanQuery}" across ${extensions.length} TLDs`);
-    return extensions.map((ext, i) => {
-      const wholesale = 120 * (i + 1);
-      return {
-        extension: ext,
-        domain: `${cleanQuery}.${ext}`,
-        available: i % 2 === 0,
-        priceGhs: resolveDomainPrice(catalog.byTld.get(ext) || { wholesale_ghs: wholesale }, wholesale, markupPct),
-        priceOriginal: wholesale,
-        dryRun: true,
-      };
-    });
+  if (!openproviderConfigured) {
+    throw Object.assign(new Error('OpenProvider domain search is not configured.'), { status: 503 });
   }
 
   try {
@@ -460,15 +461,25 @@ export async function searchDomains(query) {
     if (!data?.data?.results) throw new Error('Invalid response from Openprovider.');
 
     return data.data.results.map((r) => {
-      const wholesale = Number(r.price?.product?.price || 0);
-      const extension = r.domain?.split('.').pop() || '';
+      const extension = extensions.find((tld) => String(r.domain || '').toLowerCase().endsWith(`.${tld}`))
+        || r.domain?.split('.').pop() || '';
       const row = catalog.byTld.get(extension);
+      const quote = r.price?.reseller || r.price?.product || null;
+      const providerCostGhs = row?.wholesale_ghs ?? providerPriceToGhs(
+        quote?.price,
+        quote?.currency,
+        catalog.usdToGhsRate,
+      );
+      const priceGhs = resolveDomainPrice(row, providerCostGhs, markupPct);
       return {
         extension,
         domain: r.domain || `${cleanQuery}.${extension || 'com'}`,
-        available: r.status === 'active' || r.status === 'free',
-        priceGhs: resolveDomainPrice(row, wholesale || undefined, markupPct),
-        priceOriginal: wholesale,
+        available: String(r.status).toLowerCase() === 'free' && !r.is_premium,
+        premium: Boolean(r.is_premium),
+        priceGhs,
+        priceConfigured: Number.isFinite(priceGhs) && priceGhs > 0,
+        providerPrice: quote?.price ?? null,
+        providerCurrency: quote?.currency || null,
       };
     });
   } catch (err) {
@@ -476,6 +487,75 @@ export async function searchDomains(query) {
     console.error('[domain] Openprovider search failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
     throw new Error('Domain search service is temporarily unavailable. Please retry.');
   }
+}
+
+function splitDomain(domainName) {
+  const clean = String(domainName || '').trim().toLowerCase();
+  const tld = tldOf(clean);
+  const labels = clean.split('.');
+  if (!tld || clean.length > 253 || labels.some((label) => (
+    label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+  ))) {
+    throw Object.assign(new Error('Enter a valid domain name.'), { status: 400 });
+  }
+  return { name: clean.slice(0, -(tld.length + 1)), extension: tld };
+}
+
+function providerQuote(result) {
+  const quote = result?.price?.reseller || result?.price?.product || null;
+  return {
+    price: quote?.price === undefined ? null : Number(quote.price),
+    currency: quote?.currency ? String(quote.currency).toUpperCase() : null,
+    isPremium: Boolean(result?.is_premium),
+    status: String(result?.status || '').toLowerCase(),
+  };
+}
+
+export async function checkOpenproviderDomain(domainName) {
+  if (!openproviderConfigured) {
+    throw Object.assign(new Error('OpenProvider domain search is not configured.'), { status: 503 });
+  }
+  const domain = splitDomain(domainName);
+  try {
+    const { data } = await op.post('/domains/check', { domains: [domain] });
+    const result = data?.data?.results?.[0];
+    if (!result) throw new Error('Invalid response from OpenProvider.');
+    return { ...providerQuote(result), domain: result.domain || domainName };
+  } catch (err) {
+    if (err.status) throw err;
+    const detail = err.response?.data || err.message;
+    console.error('[domain] OpenProvider availability check failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    throw Object.assign(new Error('Domain availability could not be verified with OpenProvider.'), { status: 503 });
+  }
+}
+
+export async function fetchOpenproviderTldPrices(tlds) {
+  if (!openproviderConfigured) {
+    throw Object.assign(new Error('OpenProvider pricing is not configured.'), { status: 503 });
+  }
+  const results = [];
+  const distinct = [...new Set((tlds || []).map((tld) => String(tld).toLowerCase()).filter(Boolean))];
+  const probeName = `didwa${Date.now().toString(36)}`;
+  for (let offset = 0; offset < distinct.length; offset += 40) {
+    const batch = distinct.slice(offset, offset + 40);
+    try {
+      const { data } = await op.post('/domains/check', {
+        domains: batch.map((extension) => ({ name: probeName, extension })),
+      });
+      if (!Array.isArray(data?.data?.results)) throw new Error('Invalid response from OpenProvider.');
+      for (const result of data.data.results) {
+        const tld = batch.find((extension) => String(result.domain || '').toLowerCase().endsWith(`.${extension}`));
+        if (!tld) continue;
+        const quote = providerQuote(result);
+        results.push({ tld, price: quote.price, currency: quote.currency });
+      }
+    } catch (err) {
+      const detail = err.response?.data || err.message;
+      console.error('[domain] OpenProvider price refresh failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+      throw Object.assign(new Error('OpenProvider pricing is temporarily unavailable.'), { status: 503 });
+    }
+  }
+  return results;
 }
 
 export async function initializeHubtelCheckout({ amountGhs, domainName, customerPhone, customerEmail, storeId, reference }) {
@@ -549,42 +629,32 @@ export async function initializeHubtelCheckout({ amountGhs, domainName, customer
  * @param {{domainName: string, storeId: string, metadata?: object}} args
  * @returns {Promise<{processed: boolean, dryRun?: boolean, domainName, storeId, action: string}>}
  */
-export async function fulfilDomainPurchase({ domainName, storeId, metadata = {} }) {
-  if (domainDryRun) {
-    console.log(`[domain:DRY_RUN] Webhook auto-register ${domainName} for store ${storeId}`);
-    return { processed: true, dryRun: true, domainName, storeId, action: 'REGISTERED' };
-  }
-
-  try {
-    await op.post('/domains', {
-      owner: {
-        first_name: metadata.ownerName || 'Ghana',
-        last_name: metadata.ownerName || 'Stores',
-        email: metadata.customerEmail || `admin@${domainName}`,
-      },
-      name: domainName,
-      period: 1,
-      auto_renew: true,
+export async function fulfilDomainPurchase({
+  domainName, storeId, metadata = {}, providerDomainId = null, onRegistered = null,
+  periodYears = 1, autoRenew = true,
+}) {
+  const registration = providerDomainId
+    ? { providerDomainId: String(providerDomainId) }
+    : await registerDomainOnOpenprovider({
+      domainName,
+      ownerEmail: metadata.customerEmail,
+      ownerName: metadata.ownerName,
+      periodYears,
+      autoRenew,
     });
-  } catch (err) {
-    const detail = err.response?.data || err.message;
-    console.error('[domain] Openprovider registration failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
-  }
-
-  try {
-    await cf.post(`/zones/${CLOUDFLARE_ZONE_ID}/custom_hostnames`, {
-      hostname: domainName,
-      ssl: { method: 'http', type: 'dv' },
-    });
-  } catch (err) {
-    const detail = err.response?.data || err.message;
-    console.error('[domain] Cloudflare provision after webhook failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
-  }
-
-  return { processed: true, domainName, storeId, action: 'REGISTERED' };
+  if (!providerDomainId && typeof onRegistered === 'function') await onRegistered(registration);
+  const provisioned = await provisionCloudflareHostname(domainName);
+  return {
+    processed: true,
+    domainName,
+    storeId,
+    action: 'REGISTERED',
+    providerDomainId: registration.providerDomainId,
+    hostnameId: provisioned.hostnameId,
+  };
 }
 
-export async function handleHubtelWebhook(payload) {
+export async function handleHubtelWebhook(payload, options = {}) {
   const status = payload?.Data?.Status || payload?.status || '';
   if (String(status).toLowerCase() !== 'success') {
     console.log('[domain] Hubtel webhook: non-success status ignored:', status);
@@ -608,38 +678,65 @@ export async function handleHubtelWebhook(payload) {
     return { processed: false, reason: 'Transaction not confirmed by Hubtel.' };
   }
 
-  return fulfilDomainPurchase({ domainName, storeId, metadata });
+  return fulfilDomainPurchase({ domainName, storeId, metadata, ...options });
 }
 
-export async function registerDomainOnOpenprovider({ domainName, ownerEmail, ownerName }) {
-  if (domainDryRun) {
-    console.log(`[domain:DRY_RUN] Register ${domainName} on Openprovider`);
-    return { dryRun: true, domainName, orderId: `dry-op-${Date.now()}` };
+export async function registerDomainOnOpenprovider({
+  domainName, periodYears = 1, autoRenew = false,
+}) {
+  if (!openproviderConfigured) {
+    throw Object.assign(new Error('OpenProvider registration is not configured.'), { status: 503 });
   }
-
+  if (!openproviderContactConfigured) {
+    throw Object.assign(new Error('OpenProvider contact handles are not configured.'), { status: 503 });
+  }
+  const domain = splitDomain(domainName);
   try {
     const { data } = await op.post('/domains', {
-      owner: {
-        first_name: ownerName || 'Ghana',
-        last_name: ownerName || 'Stores',
-        email: ownerEmail || `admin@${domainName}`,
-      },
-      name: domainName,
-      period: 1,
-      auto_renew: true,
+      domain,
+      owner_handle: OPENPROVIDER_OWNER_HANDLE,
+      admin_handle: OPENPROVIDER_ADMIN_HANDLE,
+      tech_handle: OPENPROVIDER_TECH_HANDLE,
+      billing_handle: OPENPROVIDER_BILLING_HANDLE,
+      period: periodYears,
+      autorenew: autoRenew ? 'on' : 'off',
     });
-    return { domainName, orderId: data?.data?.id || null, raw: data };
+    const providerDomainId = data?.data?.id;
+    if (Number(data?.code) !== 0 || !providerDomainId) {
+      throw new Error('OpenProvider did not confirm the domain registration.');
+    }
+    return { domainName, providerDomainId: String(providerDomainId), raw: data };
   } catch (err) {
-    const detail = err.response?.data || err.message;
-    console.error('[domain] Openprovider register failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
-    throw new Error('Domain registration failed. Please contact support.');
+    try {
+      const { data } = await op.get('/domains', {
+        params: {
+          'domain.name': domain.name,
+          'domain.extension': domain.extension,
+          limit: 10,
+        },
+      });
+      const results = Array.isArray(data?.data?.results) ? data.data.results : [];
+      const existing = results.find((item) => {
+        const name = item?.domain?.name ?? item?.name;
+        const extension = item?.domain?.extension ?? item?.extension;
+        return String(name || '').toLowerCase() === domain.name.toLowerCase()
+          && String(extension || '').toLowerCase() === domain.extension.toLowerCase()
+          && item?.id;
+      });
+      if (existing) {
+        return { domainName, providerDomainId: String(existing.id), raw: data };
+      }
+    } catch (lookupErr) {
+      console.error('[domain] Openprovider registration recovery lookup failed:', lookupErr.response?.status || lookupErr.message);
+    }
+    console.error('[domain] Openprovider register failed:', err.response?.status || err.message);
+    throw Object.assign(new Error('Domain registration failed. Please retry or contact support.'), { status: 503 });
   }
 }
 
 export async function provisionCloudflareHostname(domainName) {
-  if (domainDryRun) {
-    console.log(`[domain:DRY_RUN] Provision Cloudflare hostname ${domainName}`);
-    return { dryRun: true, hostnameId: `dry-cf-${Date.now()}` };
+  if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID) {
+    throw Object.assign(new Error('Cloudflare domain provisioning is not configured.'), { status: 503 });
   }
 
   try {
@@ -647,11 +744,44 @@ export async function provisionCloudflareHostname(domainName) {
       hostname: domainName,
       ssl: { method: 'http', type: 'dv' },
     });
+    if (data?.success !== true || !data?.result?.id) {
+      throw new Error('Cloudflare did not confirm the custom hostname.');
+    }
     return { hostnameId: data?.result?.id, raw: data };
   } catch (err) {
-    const detail = err.response?.data || err.message;
-    console.error('[domain] Cloudflare provision failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    try {
+      const { data } = await cf.get(`/zones/${CLOUDFLARE_ZONE_ID}/custom_hostnames`, {
+        params: { hostname: domainName },
+      });
+      const existing = (Array.isArray(data?.result) ? data.result : []).find(
+        (item) => String(item?.hostname || '').toLowerCase() === domainName.toLowerCase() && item?.id,
+      );
+      if (existing) return { hostnameId: existing.id, raw: data };
+    } catch (lookupErr) {
+      console.error('[domain] Cloudflare hostname recovery lookup failed:', lookupErr.response?.status || lookupErr.message);
+    }
+    console.error('[domain] Cloudflare provision failed:', err.response?.status || err.message);
     throw new Error('SSL provisioning failed. Please retry verification.');
+  }
+}
+
+export async function renewDomainOnOpenprovider({ providerDomainId, domainName, periodYears = 1 }) {
+  if (!openproviderConfigured) {
+    throw Object.assign(new Error('OpenProvider renewal is not configured.'), { status: 503 });
+  }
+  const domain = splitDomain(domainName);
+  try {
+    const { data } = await op.post(`/domains/${encodeURIComponent(providerDomainId)}/renew`, {
+      id: Number(providerDomainId),
+      domain,
+      period: periodYears,
+    });
+    if (Number(data?.code) !== 0) throw new Error('OpenProvider did not confirm the domain renewal.');
+    return { renewed: true };
+  } catch (err) {
+    const detail = err.response?.data || err.message;
+    console.error('[domain] OpenProvider renewal failed:', typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    throw Object.assign(new Error('Domain renewal failed. Please retry or contact support.'), { status: 503 });
   }
 }
 
@@ -661,11 +791,17 @@ export default {
   registerDomainOnVercel,
   verifyDomainStatus,
   searchDomains,
+  checkOpenproviderDomain,
+  fetchOpenproviderTldPrices,
   initializeHubtelCheckout,
   handleHubtelWebhook,
   fulfilDomainPurchase,
   registerDomainOnOpenprovider,
   provisionCloudflareHostname,
+  renewDomainOnOpenprovider,
+  get openproviderConfigured() { return openproviderConfigured; },
+  get openproviderContactConfigured() { return openproviderContactConfigured; },
+  get cloudflareConfigured() { return cloudflareConfigured; },
   get dryRun() { return domainDryRun; },
   get platformDomain() { return PLATFORM_DOMAIN; },
   get cnameTarget() { return CNAME_TARGET; },

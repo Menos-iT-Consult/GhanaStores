@@ -45,7 +45,7 @@ console.log('\nDiDwa reserved slug validation\n');
 /* ----------------------------- Exact matches ----------------------------- */
 
 test('a core system path is reserved', () => {
-  for (const slug of ['admin', 'api', 'www', 'app', 'billing', 'dashboard', 'login', 'paystack', 'hubtel']) {
+  for (const slug of ['admin', 'api', 'www', 'app', 'affiliate', 'billing', 'dashboard', 'login', 'paystack', 'hubtel']) {
     assert.strictEqual(subdomainProblem(slug), 'reserved', `"${slug}" should be reserved`);
   }
 });
@@ -138,4 +138,3 @@ test('the registration route, availability endpoint and signup field all call su
 
 console.log(`\n${pass}/${pass + fail} reserved-slug assertions passed`);
 process.exit(fail ? 1 : 0);
-

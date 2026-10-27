@@ -10,11 +10,11 @@
  */
 import { Router } from 'express';
 import { promises as dns } from 'node:dns';
-import { query } from '../config/database.js';
+import { query, withTransaction } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { adminDomain, resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
-import { priceDomainForPurchase } from '../services/domainPricing.js';
+import { loadPricingCatalog, priceDomainForPurchase, tldOf } from '../services/domainPricing.js';
 import { normalizeSubdomain, subdomainProblem } from '../services/subdomainSlug.js';
 import * as domainService from '../services/domainService.js';
 
@@ -652,7 +652,373 @@ router.get('/search', requireSeller, async (req, res, next) => {
   }
 });
 
+async function getScaleDomainContext(storeId) {
+  const [storeResult, catalog] = await Promise.all([
+    query(
+      `SELECT id, status, plan, plan_cycle, plan_period_end, email, owner_name, custom_domain
+         FROM stores WHERE id = $1 LIMIT 1`,
+      [storeId],
+    ),
+    loadPricingCatalog(),
+  ]);
+  const store = storeResult.rows[0];
+  if (!store) return null;
+  const periodEnd = store.plan_period_end ? new Date(store.plan_period_end) : null;
+  const eligible = Boolean(store.status === 'ACTIVE'
+    && String(store.plan).toLowerCase() === 'scale'
+    && String(store.plan_cycle).toLowerCase() === 'yearly'
+    && periodEnd
+    && periodEnd.getTime() > Date.now());
+  return { store, catalog, periodEnd, eligible };
+}
+
+router.get('/included/status', requireSeller, async (req, res, next) => {
+  try {
+    const context = await getScaleDomainContext(req.auth.sub);
+    if (!context) return res.status(404).json({ error: 'Store not found.' });
+    const { store, catalog, periodEnd, eligible } = context;
+    const entitlementPeriod = eligible ? periodEnd.toISOString() : null;
+    const [usedResult, domainsResult] = await Promise.all([
+      eligible
+        ? query(
+          `SELECT COUNT(*)::int AS used
+             FROM scale_domain_entitlements
+            WHERE store_id = $1 AND period_end = $2
+              AND status IN ('PENDING','COMPLETED')`,
+          [req.auth.sub, entitlementPeriod],
+        )
+        : Promise.resolve({ rows: [{ used: 0 }] }),
+      query(
+        `SELECT id, domain_name, status, domain_expires_at, provider_domain_id
+           FROM store_domains
+          WHERE store_id = $1 AND included_domain = TRUE
+          ORDER BY created_at DESC`,
+        [req.auth.sub],
+      ),
+    ]);
+    const used = Number(usedResult.rows[0]?.used || 0);
+    const remaining = eligible ? Math.max(0, catalog.scaleDomainCount - used) : 0;
+    const usedDomains = eligible
+      ? await query(
+        `SELECT LOWER(domain_name) AS domain_name
+           FROM scale_domain_entitlements
+          WHERE store_id = $1 AND period_end = $2
+            AND status IN ('PENDING','COMPLETED')`,
+        [req.auth.sub, entitlementPeriod],
+      )
+      : { rows: [] };
+    const renewedThisPeriod = new Set(usedDomains.rows.map((row) => row.domain_name));
+    const domains = domainsResult.rows.map((domain) => ({
+      id: domain.id,
+      domainName: domain.domain_name,
+      status: domain.status,
+      expiresAt: domain.domain_expires_at,
+      canRenew: Boolean(
+        eligible && catalog.scaleDomainRenewalsEnabled
+        && domain.status === 'ACTIVE' && domain.provider_domain_id
+        && !renewedThisPeriod.has(String(domain.domain_name).toLowerCase()),
+      ),
+      canRetry: Boolean(eligible && remaining > 0 && domain.status === 'FAILED'),
+    }));
+    return res.json({
+      eligible,
+      renewalBenefitEnabled: catalog.scaleDomainRenewalsEnabled,
+      remaining,
+      includedDomainCount: catalog.scaleDomainCount,
+      registrationYears: catalog.scaleDomainYears,
+      maxProviderPriceUsd: catalog.scaleDomainMaxUsd,
+      periodEnd: entitlementPeriod,
+      domains,
+      lapsedDomains: !eligible && domains.some((domain) => domain.status === 'ACTIVE'),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/included/claim', requireSeller, async (req, res, next) => {
+  try {
+    const clean = cleanDomainName(req.body?.domainName);
+    if (!clean) return res.status(400).json({ error: 'domainName is required.' });
+    if (!domainService.openproviderConfigured || !domainService.openproviderContactConfigured
+        || !domainService.cloudflareConfigured) {
+      return res.status(503).json({ error: 'Included domain registration is temporarily unavailable.' });
+    }
+
+    const context = await getScaleDomainContext(req.auth.sub);
+    if (!context) return res.status(404).json({ error: 'Store not found.' });
+    if (!context.eligible) {
+      return res.status(403).json({ error: 'An active annual Scale plan is required to claim an included domain.' });
+    }
+    const { catalog } = context;
+    const pricedTld = catalog.byTld.get(tldOf(clean));
+    if (!pricedTld?.is_enabled || !pricedTld.scale_eligible) {
+      return res.status(400).json({ error: 'This extension is not eligible for the Scale domain benefit.' });
+    }
+
+    const existing = await query(
+      `SELECT id, store_id, status, provider_domain_id, included_domain
+         FROM store_domains WHERE LOWER(domain_name) = LOWER($1) LIMIT 1`,
+      [clean],
+    );
+    const existingDomain = existing.rows[0] || null;
+    if (existingDomain && (
+      String(existingDomain.store_id) !== String(req.auth.sub)
+      || !existingDomain.included_domain
+      || existingDomain.status === 'ACTIVE'
+    )) {
+      return res.status(409).json({ error: 'This domain is already claimed or attached to another store.' });
+    }
+    const attachedDomain = await query(
+      `SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1`,
+      [clean, req.auth.sub],
+    );
+    if (attachedDomain.rows[0]) {
+      return res.status(409).json({ error: 'This domain is already attached to another store.' });
+    }
+
+    let availability = null;
+    if (!existingDomain?.provider_domain_id) {
+      availability = await domainService.checkOpenproviderDomain(clean);
+      if (availability.status !== 'free' || availability.isPremium) {
+        return res.status(409).json({
+          error: availability.isPremium
+            ? 'Premium-priced domains are excluded from the included domain benefit.'
+            : 'OpenProvider reports that this domain is not available.',
+        });
+      }
+      const providerPrice = Number(availability.price);
+      if (availability.price === null
+          || !Number.isFinite(providerPrice)
+          || providerPrice <= 0
+          || !['USD', 'GHS'].includes(availability.currency)) {
+        return res.status(409).json({ error: 'OpenProvider did not return a supported standard price for this domain.' });
+      }
+      if (catalog.scaleDomainMaxUsd !== null
+          && (availability.currency !== 'USD'
+            || providerPrice > catalog.scaleDomainMaxUsd)) {
+        return res.status(409).json({ error: 'This domain exceeds the configured OpenProvider price limit.' });
+      }
+    }
+
+    const reservation = await withTransaction(async (t) => {
+      const { rows: storeRows } = await t.query(
+        `SELECT status, plan, plan_cycle, plan_period_end
+           FROM stores WHERE id = $1 FOR UPDATE`,
+        [req.auth.sub],
+      );
+      const current = storeRows[0];
+      if (!current || current.status !== 'ACTIVE' || current.plan !== 'scale'
+          || current.plan_cycle !== 'yearly'
+          || !current.plan_period_end
+          || new Date(current.plan_period_end).getTime() <= Date.now()) {
+        throw Object.assign(new Error('An active annual Scale plan is required to claim an included domain.'), { status: 403 });
+      }
+      const periodEnd = new Date(current.plan_period_end).toISOString();
+      const { rows: countRows } = await t.query(
+        `SELECT COUNT(*)::int AS used FROM scale_domain_entitlements
+          WHERE store_id = $1 AND period_end = $2
+            AND status IN ('PENDING','COMPLETED')`,
+        [req.auth.sub, periodEnd],
+      );
+      if (Number(countRows[0]?.used || 0) >= catalog.scaleDomainCount) {
+        throw Object.assign(new Error('The included domain allowance for this Scale year has already been used.'), { status: 409 });
+      }
+      const { rows: entitlementRows } = await t.query(
+        `INSERT INTO scale_domain_entitlements (store_id, domain_name, period_end, action, status)
+         VALUES ($1, LOWER($2), $3, 'REGISTER', 'PENDING')
+         ON CONFLICT (store_id, domain_name, period_end) DO UPDATE
+           SET status = 'PENDING', updated_at = NOW()
+           WHERE scale_domain_entitlements.status = 'FAILED'
+         RETURNING id`,
+        [req.auth.sub, clean, periodEnd],
+      );
+      if (!entitlementRows[0]) {
+        throw Object.assign(new Error('This domain already has a claim in this Scale period.'), { status: 409 });
+      }
+      const { rows: domainRows } = await t.query(
+        `INSERT INTO store_domains
+           (store_id, domain_name, provider, status, included_domain)
+         VALUES ($1, LOWER($2), 'PURCHASED', 'PENDING_DNS', TRUE)
+         ON CONFLICT (LOWER(domain_name)) DO UPDATE
+           SET status = 'PENDING_DNS', updated_at = NOW()
+           WHERE store_domains.store_id = EXCLUDED.store_id
+             AND store_domains.included_domain = TRUE
+             AND store_domains.status = 'FAILED'
+         RETURNING id, provider_domain_id`,
+        [req.auth.sub, clean],
+      );
+      if (!domainRows[0]) {
+        throw Object.assign(new Error('This domain is already claimed.'), { status: 409 });
+      }
+      return { entitlementId: entitlementRows[0].id, domain: domainRows[0], periodEnd };
+    });
+
+    try {
+      let registration = reservation.domain.provider_domain_id
+        ? { providerDomainId: reservation.domain.provider_domain_id }
+        : await domainService.registerDomainOnOpenprovider({
+          domainName: clean,
+          periodYears: catalog.scaleDomainYears,
+          autoRenew: false,
+        });
+      if (!reservation.domain.provider_domain_id) {
+        await query(
+          `UPDATE store_domains
+              SET provider_domain_id = $1,
+                  registered_at = NOW(),
+                  domain_expires_at = NOW() + make_interval(years => $2),
+                  updated_at = NOW()
+            WHERE id = $3 AND store_id = $4`,
+          [registration.providerDomainId, catalog.scaleDomainYears, reservation.domain.id, req.auth.sub],
+        );
+      }
+      const provisioned = await domainService.provisionCloudflareHostname(clean);
+      await withTransaction(async (t) => {
+        await t.query(
+          `UPDATE store_domains
+              SET status = 'ACTIVE', custom_hostname_id = $1,
+                  registered_at = COALESCE(registered_at, NOW()),
+                  domain_expires_at = COALESCE(domain_expires_at, NOW() + make_interval(years => $2)),
+                  updated_at = NOW()
+            WHERE id = $3 AND store_id = $4`,
+          [provisioned.hostnameId, catalog.scaleDomainYears, reservation.domain.id, req.auth.sub],
+        );
+        await t.query(
+          `UPDATE stores SET custom_domain = LOWER($1) WHERE id = $2`,
+          [clean, req.auth.sub],
+        );
+        await t.query(
+          `UPDATE scale_domain_entitlements SET status = 'COMPLETED', updated_at = NOW()
+            WHERE id = $1`,
+          [reservation.entitlementId],
+        );
+      });
+      return res.status(201).json({ success: true, domainName: clean, expiresInYears: catalog.scaleDomainYears });
+    } catch (err) {
+      await query(
+        `UPDATE scale_domain_entitlements SET status = 'FAILED', updated_at = NOW() WHERE id = $1`,
+        [reservation.entitlementId],
+      );
+      await query(
+        `UPDATE store_domains SET status = 'FAILED', updated_at = NOW()
+          WHERE id = $1 AND status <> 'ACTIVE'`,
+        [reservation.domain.id],
+      );
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.post('/included/renew', requireSeller, async (req, res, next) => {
+  try {
+    const clean = cleanDomainName(req.body?.domainName);
+    if (!clean) return res.status(400).json({ error: 'domainName is required.' });
+    const context = await getScaleDomainContext(req.auth.sub);
+    if (!context) return res.status(404).json({ error: 'Store not found.' });
+    if (!context.eligible) {
+      return res.status(403).json({ error: 'An active annual Scale plan is required to renew an included domain.' });
+    }
+    if (!context.catalog.scaleDomainRenewalsEnabled) {
+      return res.status(403).json({ error: 'Included domain renewals are disabled by the administrator.' });
+    }
+    if (!domainService.openproviderConfigured) {
+      return res.status(503).json({ error: 'OpenProvider renewal is temporarily unavailable.' });
+    }
+
+    const { rows } = await query(
+      `SELECT id, provider_domain_id, domain_expires_at, status
+         FROM store_domains
+        WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)
+          AND provider = 'PURCHASED' AND included_domain = TRUE
+        LIMIT 1`,
+      [req.auth.sub, clean],
+    );
+    const domain = rows[0];
+    if (!domain?.provider_domain_id || domain.status !== 'ACTIVE') {
+      return res.status(404).json({ error: 'No active Scale-included registration was found for this domain.' });
+    }
+
+    const reservation = await withTransaction(async (t) => {
+      const { rows: storeRows } = await t.query(
+        `SELECT status, plan, plan_cycle, plan_period_end
+           FROM stores WHERE id = $1 FOR UPDATE`,
+        [req.auth.sub],
+      );
+      const current = storeRows[0];
+      if (!current || current.status !== 'ACTIVE' || current.plan !== 'scale'
+          || current.plan_cycle !== 'yearly'
+          || !current.plan_period_end
+          || new Date(current.plan_period_end).getTime() <= Date.now()) {
+        throw Object.assign(new Error('An active annual Scale plan is required to renew an included domain.'), { status: 403 });
+      }
+      const periodEnd = new Date(current.plan_period_end).toISOString();
+      const { rows: countRows } = await t.query(
+        `SELECT COUNT(*)::int AS used FROM scale_domain_entitlements
+          WHERE store_id = $1 AND period_end = $2
+            AND status IN ('PENDING','COMPLETED')`,
+        [req.auth.sub, periodEnd],
+      );
+      if (Number(countRows[0]?.used || 0) >= context.catalog.scaleDomainCount) {
+        throw Object.assign(new Error('The included domain allowance for this Scale year has already been used.'), { status: 409 });
+      }
+      const { rows: entitlementRows } = await t.query(
+        `INSERT INTO scale_domain_entitlements (store_id, domain_name, period_end, action, status)
+         VALUES ($1, LOWER($2), $3, 'RENEW', 'PENDING')
+         ON CONFLICT (store_id, domain_name, period_end) DO UPDATE
+           SET status = 'PENDING', updated_at = NOW()
+           WHERE scale_domain_entitlements.status = 'FAILED'
+         RETURNING id`,
+        [req.auth.sub, clean, periodEnd],
+      );
+      if (!entitlementRows[0]) {
+        throw Object.assign(new Error('This domain has already used its included renewal for this Scale year.'), { status: 409 });
+      }
+      return entitlementRows[0];
+    });
+
+    try {
+      await domainService.renewDomainOnOpenprovider({
+        providerDomainId: domain.provider_domain_id,
+        domainName: clean,
+        periodYears: context.catalog.scaleDomainYears,
+      });
+      await withTransaction(async (t) => {
+        await t.query(
+          `UPDATE store_domains
+              SET domain_expires_at = GREATEST(COALESCE(domain_expires_at, NOW()), NOW())
+                    + make_interval(years => $1),
+                  updated_at = NOW()
+            WHERE id = $2 AND store_id = $3`,
+          [context.catalog.scaleDomainYears, domain.id, req.auth.sub],
+        );
+        await t.query(
+          `UPDATE scale_domain_entitlements SET status = 'COMPLETED', updated_at = NOW()
+            WHERE id = $1`,
+          [reservation.id],
+        );
+      });
+      return res.json({ success: true, domainName: clean, renewedForYears: context.catalog.scaleDomainYears });
+    } catch (err) {
+      await query(
+        `UPDATE scale_domain_entitlements SET status = 'FAILED', updated_at = NOW() WHERE id = $1`,
+        [reservation.id],
+      );
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
 router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
+  let reservedThisAttempt = false;
   try {
     const { domainName, customerPhone, customerEmail } = req.body || {};
     if (!domainName || !customerPhone) {
@@ -662,9 +1028,31 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
        the request body. Taking amountGhs from the client let any seller POST 1 and
        buy a .com for a single cedi. A value sent by the browser is ignored. */
     const clean = cleanDomainName(domainName);
+    if (!domainService.openproviderConfigured || !domainService.cloudflareConfigured) {
+      return res.status(503).json({ error: 'Domain registration is temporarily unavailable.' });
+    }
+    if (!domainService.openproviderContactConfigured) {
+      return res.status(503).json({ error: 'Domain registration is not configured. Please contact support.' });
+    }
+    if (process.env.NODE_ENV === 'production' && hubtelDryRun && !paystackPlatformReady()) {
+      return res.status(503).json({ error: 'Domain checkout is temporarily unavailable.' });
+    }
+    let availability;
+    try {
+      availability = await domainService.checkOpenproviderDomain(clean);
+    } catch (err) {
+      return res.status(err.status || 503).json({ error: err.message });
+    }
+    if (availability.status !== 'free' || availability.isPremium) {
+      return res.status(409).json({
+        error: availability.isPremium
+          ? 'Premium-priced domains are not currently available for purchase.'
+          : 'OpenProvider reports that this domain is not available.',
+      });
+    }
     let priced;
     try {
-      priced = await priceDomainForPurchase(clean);
+      priced = await priceDomainForPurchase(clean, availability);
     } catch (err) {
       return res.status(err.status || 400).json({ error: err.message });
     }
@@ -677,6 +1065,43 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
     const idem = String(req.body?.idempotencyKey || '').trim()
       .replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
     const reference = `GSD-${req.auth.sub}-${idem || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`}`;
+
+    const existing = await query(
+      `SELECT store_id, status, provider, purchase_reference
+         FROM store_domains
+        WHERE LOWER(domain_name) = LOWER($1)
+        LIMIT 1`,
+      [clean],
+    );
+    if (existing.rows[0]) {
+      const current = existing.rows[0];
+      if (String(current.store_id) !== String(req.auth.sub)
+          || current.provider !== 'PURCHASED'
+          || current.purchase_reference !== reference
+          || current.status === 'ACTIVE') {
+        return res.status(409).json({ error: 'This domain is already claimed or has a pending purchase.' });
+      }
+    } else {
+      const attachedDomain = await query(
+        `SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1`,
+        [clean, req.auth.sub],
+      );
+      if (attachedDomain.rows[0]) {
+        return res.status(409).json({ error: 'This domain is already attached to another store.' });
+      }
+      const reserved = await query(
+        `INSERT INTO store_domains
+           (store_id, domain_name, provider, status, purchase_reference, price_paid_ghs)
+         VALUES ($1, $2, 'PURCHASED', 'PENDING_DNS', $3, $4)
+         ON CONFLICT (LOWER(domain_name)) DO NOTHING
+         RETURNING id`,
+        [req.auth.sub, clean, reference, amountGhs],
+      );
+      if (!reserved.rows[0]) {
+        return res.status(409).json({ error: 'This domain was just claimed by another purchase.' });
+      }
+      reservedThisAttempt = true;
+    }
 
     if (idem) {
       const prior = await query(
@@ -707,47 +1132,54 @@ router.post('/buy/initialize-hubtel', requireSeller, async (req, res, next) => {
        dry-run so local development still works.) */
     let result = null;
     let hubtelError = null;
-    if (!(hubtelDryRun && paystackPlatformReady())) {
-      try {
-        result = await domainService.initializeHubtelCheckout({
-          amountGhs,
-          domainName: clean,
-          customerPhone,
-          customerEmail: customerEmail || req.store?.email || '',
-          storeId: req.auth.sub,
-          reference,
-        });
-      } catch (err) {
-        hubtelError = err;
-        if (!paystackPlatformReady()) throw err;
-        console.warn(`[domain] Hubtel checkout failed for ${reference}: ${err.message} - falling back to Paystack.`);
+    try {
+      if (!(hubtelDryRun && paystackPlatformReady())) {
+        try {
+          result = await domainService.initializeHubtelCheckout({
+            amountGhs,
+            domainName: clean,
+            customerPhone,
+            customerEmail: customerEmail || req.store?.email || '',
+            storeId: req.auth.sub,
+            reference,
+          });
+        } catch (err) {
+          hubtelError = err;
+          if (!paystackPlatformReady()) throw err;
+          console.warn(`[domain] Hubtel checkout failed for ${reference}: ${err.message} - falling back to Paystack.`);
+        }
       }
-    }
-    if (!result) {
-      try {
-        const ps = await initPaystackCheckout({
-          amountGhs,
-          email: customerEmail || req.store?.email || '',
-          reference,
-          callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/domains`,
-          metadata: { storeId: req.auth.sub, domainName: clean },
-        });
-        result = { checkoutUrl: ps.checkoutUrl, checkoutId: ps.checkoutId, reference };
-      } catch (psErr) {
-        console.error(`[domain] Paystack fallback failed for ${reference}: ${psErr.message}`);
-        throw hubtelError || psErr;
+      if (!result) {
+        try {
+          const ps = await initPaystackCheckout({
+            amountGhs,
+            email: customerEmail || req.store?.email || '',
+            reference,
+            callbackUrl: `${process.env.CLIENT_URL || 'https://didwaghana.com'}/domains`,
+            metadata: { storeId: req.auth.sub, domainName: clean },
+          });
+          result = { checkoutUrl: ps.checkoutUrl, checkoutId: ps.checkoutId, reference };
+        } catch (psErr) {
+          console.error(`[domain] Paystack fallback failed for ${reference}: ${psErr.message}`);
+          throw hubtelError || psErr;
+        }
       }
+      if (!result?.checkoutUrl) {
+        throw Object.assign(new Error('Payment gateway did not return a checkout URL.'), { status: 502 });
+      }
+    } catch (err) {
+      if (reservedThisAttempt) {
+        await query(
+          `DELETE FROM store_domains
+            WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)
+              AND purchase_reference = $3 AND status = 'PENDING_DNS'
+              AND provider_domain_id IS NULL`,
+          [req.auth.sub, clean, reference],
+        );
+      }
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
     }
-
-    // Pre-create store_domains record with pending status. The resolved price
-    // travels with it (price_paid_ghs) so the webhook can compare the paid
-    // amount against what this purchase actually cost.
-    await query(
-      `INSERT INTO store_domains (store_id, domain_name, provider, status, purchase_reference, price_paid_ghs)
-       VALUES ($1, $2, 'PURCHASED', 'PENDING_DNS', $3, $4)
-       ON CONFLICT (LOWER(domain_name)) DO NOTHING`,
-      [req.auth.sub, clean, reference, amountGhs],
-    );
 
     return res.json({
       success: true,
@@ -849,44 +1281,47 @@ function verifyWebhook(req) {
  * a real PURCHASED row for this store can activate, and a hostname already
  * attached to another tenant is never stolen.
  */
-async function activatePurchasedDomain(storeId, domainName) {
-  /* Guard: a successfully paid purchase may only activate the domain for a
-     store that actually created the pending purchase, and the domain must
-     stay exclusively owned (stores.custom_domain is UNIQUE). */
-  const owned = await query(
-    `SELECT 1 FROM store_domains
-      WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)
-        AND provider = 'PURCHASED'
-      LIMIT 1`,
-    [storeId, domainName],
-  );
-  if (!owned.rows[0]) {
-    console.warn('[webhook] no pending purchase for', domainName, '-> ignoring');
-    return { activated: false, reason: 'unknown_purchase' };
-  }
+async function activatePurchasedDomain(storeId, domainName, providerDomainId = null, customHostnameId = null) {
+  return withTransaction(async (t) => {
+    /* A paid purchase may activate only for its reserving store. Keep the
+       ownership check, tenant attachment, and status update atomic. */
+    const owned = await t.query(
+      `SELECT 1 FROM store_domains
+        WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)
+          AND provider = 'PURCHASED'
+        LIMIT 1 FOR UPDATE`,
+      [storeId, domainName],
+    );
+    if (!owned.rows[0]) {
+      console.warn('[webhook] no pending purchase for', domainName, '-> ignoring');
+      return { activated: false, reason: 'unknown_purchase' };
+    }
 
-  await query(
-    `UPDATE store_domains SET status = 'ACTIVE', registered_at = NOW(), updated_at = NOW()
-      WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)`,
-    [storeId, domainName],
-  );
-
-  // Never steal a domain already attached to a different tenant. LOWER() on
-  // both sides: this is the only ownership check on the purchase path, so a
-  // case-sensitive comparison here let a differently-cased row through.
-  const taken = await query(
-    'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
-    [domainName, storeId],
-  );
-  if (taken.rows[0]) {
-    console.warn('[webhook] domain already attached to another store:', domainName);
-    return { activated: false, reason: 'domain_taken' };
-  }
-  await query(
-    `UPDATE stores SET custom_domain = LOWER($1) WHERE id = $2`,
-    [String(domainName).toLowerCase().trim(), storeId],
-  );
-  return { activated: true };
+    const taken = await t.query(
+      'SELECT 1 FROM stores WHERE LOWER(custom_domain) = LOWER($1) AND id <> $2 LIMIT 1',
+      [domainName, storeId],
+    );
+    if (taken.rows[0]) {
+      console.warn('[webhook] domain already attached to another store:', domainName);
+      return { activated: false, reason: 'domain_taken' };
+    }
+    await t.query(
+      `UPDATE stores SET custom_domain = LOWER($1) WHERE id = $2`,
+      [String(domainName).toLowerCase().trim(), storeId],
+    );
+    await t.query(
+      `UPDATE store_domains
+          SET status = 'ACTIVE',
+              registered_at = COALESCE(registered_at, NOW()),
+              domain_expires_at = COALESCE(domain_expires_at, NOW() + INTERVAL '1 year'),
+              provider_domain_id = COALESCE($3, provider_domain_id),
+              custom_hostname_id = COALESCE($4, custom_hostname_id),
+              updated_at = NOW()
+        WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2)`,
+      [storeId, domainName, providerDomainId, customHostnameId],
+    );
+    return { activated: true };
+  });
 }
 
 /**
@@ -897,7 +1332,7 @@ async function activatePurchasedDomain(storeId, domainName) {
 async function findPendingDomainPurchase(reference, storeId, domainName) {
   if (reference) {
     const { rows } = await query(
-      `SELECT status, price_paid_ghs FROM store_domains
+      `SELECT status, price_paid_ghs, provider_domain_id FROM store_domains
         WHERE purchase_reference = $1 AND provider = 'PURCHASED' LIMIT 1`,
       [String(reference).trim()],
     );
@@ -905,7 +1340,7 @@ async function findPendingDomainPurchase(reference, storeId, domainName) {
   }
   if (storeId && domainName) {
     const { rows } = await query(
-      `SELECT status, price_paid_ghs FROM store_domains
+      `SELECT status, price_paid_ghs, provider_domain_id FROM store_domains
         WHERE store_id = $1 AND LOWER(domain_name) = LOWER($2) AND provider = 'PURCHASED'
         LIMIT 1`,
       [storeId, String(domainName).trim()],
@@ -926,6 +1361,9 @@ async function findPendingDomainPurchase(reference, storeId, domainName) {
  *   when the callback may proceed.
  */
 async function domainPaymentGuards(pending, paidAmountGhs) {
+  if (!pending) {
+    return { reason: 'Unknown purchase.' };
+  }
   if (pending?.status === 'ACTIVE') {
     return { reason: 'Already settled.' };
   }
@@ -997,14 +1435,26 @@ webhookRouter.post('/paystack', async (req, res) => {
 
       let result;
       try {
-        result = await domainService.fulfilDomainPurchase({ domainName, storeId, metadata });
+        result = await domainService.fulfilDomainPurchase({
+          domainName,
+          storeId,
+          metadata,
+          providerDomainId: pending.provider_domain_id,
+          onRegistered: (registration) => query(
+            `UPDATE store_domains SET provider_domain_id = $1, updated_at = NOW()
+              WHERE store_id = $2 AND LOWER(domain_name) = LOWER($3)`,
+            [registration.providerDomainId, storeId, domainName],
+          ),
+        });
       } catch (err) {
         console.error('[domain] paystack fulfil error:', err.message);
-        return res.status(202).json({ received: true, processed: false, reason: 'Handler error.' });
+        return res.status(503).json({ received: true, processed: false, reason: 'Domain registration is pending retry.' });
       }
 
       if (result.processed && result.domainName) {
-        const activation = await activatePurchasedDomain(result.storeId, result.domainName);
+        const activation = await activatePurchasedDomain(
+          result.storeId, result.domainName, result.providerDomainId, result.hostnameId,
+        );
         if (!activation.activated) {
           return res.json({ received: true, processed: false, reason: activation.reason });
         }
@@ -1140,10 +1590,19 @@ webhookRouter.post('/hubtel', async (req, res) => {
       return res.json({ received: true, processed: false, reason: refusal.reason });
     }
 
-    const result = await domainService.handleHubtelWebhook(payload);
+    const result = await domainService.handleHubtelWebhook(payload, {
+      providerDomainId: pending?.provider_domain_id,
+      onRegistered: (registration) => query(
+        `UPDATE store_domains SET provider_domain_id = $1, updated_at = NOW()
+          WHERE store_id = $2 AND LOWER(domain_name) = LOWER($3)`,
+        [registration.providerDomainId, meta.storeId, meta.domainName],
+      ),
+    });
 
     if (result.processed && result.domainName) {
-      const activation = await activatePurchasedDomain(result.storeId, result.domainName);
+      const activation = await activatePurchasedDomain(
+        result.storeId, result.domainName, result.providerDomainId, result.hostnameId,
+      );
       if (!activation.activated) {
         return res.json({ received: true, processed: false, reason: activation.reason });
       }
@@ -1152,6 +1611,6 @@ webhookRouter.post('/hubtel', async (req, res) => {
     return res.json({ received: true, processed: result.processed });
   } catch (err) {
     console.error('[domain] webhook handler error:', err.message);
-    return res.status(200).json({ received: true, processed: false });
+    return res.status(503).json({ received: true, processed: false });
   }
 });

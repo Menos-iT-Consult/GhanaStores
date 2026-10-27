@@ -3,6 +3,7 @@
 
 import { query } from '../config/database.js';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
+import { randomUUID } from 'node:crypto';
 
 // Find affiliate by referral code
 export async function findByReferralCode(code) {
@@ -30,21 +31,33 @@ export async function findByUserId(userId) {
   return rows[0];
 }
 
+export async function findByEmailForAuth(email) {
+  const { rows } = await query(
+    `SELECT id, email, password_hash, is_active
+       FROM affiliates
+      WHERE LOWER(email) = $1
+      LIMIT 1`,
+    [String(email || '').trim().toLowerCase()],
+  );
+  return rows[0] || null;
+}
+
+export async function findById(id) {
+  const { rows } = await query(
+    `SELECT id, referral_code, full_name, email, phone,
+            momo_network, momo_number, is_active,
+            created_at, updated_at
+       FROM affiliates
+      WHERE id = $1 AND is_active = TRUE
+      LIMIT 1`,
+    [id],
+  );
+  return rows[0] || null;
+}
+
 // Create new affiliate profile
 export async function create({ fullName, email, phone, momoNetwork, momoNumber, passwordHash, referralCode }) {
-  const code = referralCode || `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-  // Validate UUID format (basic check)
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  let finalCode = uuidPattern.test(code) ? code : `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-  // Ensure uniqueness
-  const exists = await findByReferralCode(finalCode);
-  if (exists) {
-    finalCode = `REF-${Date.now().toString(36).substring(2, 8).toUpperCase()}`;
-    const exists2 = await findByReferralCode(finalCode);
-    if (exists2) throw new Error('Could not generate unique affiliate code');
-  }
+  const finalCode = referralCode || randomUUID();
 
   const { rows } = await query(
     `INSERT INTO affiliates

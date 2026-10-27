@@ -387,21 +387,122 @@ function BuyNewDomainTab({ storeId = null }) {
   const [searchError, setSearchError] = useState('');
   const [checkoutDomain, setCheckoutDomain] = useState(null);
   const [checkoutPrice, setCheckoutPrice] = useState(0);
+  const [includedInfo, setIncludedInfo] = useState(null);
+  const [includedError, setIncludedError] = useState('');
+  const [includedNotice, setIncludedNotice] = useState('');
+  const [includedBusy, setIncludedBusy] = useState('');
+
+  const refreshIncludedStatus = useCallback(async () => {
+    setIncludedError('');
+    try {
+      setIncludedInfo(await api.get('/api/domains/included/status'));
+    } catch (err) {
+      setIncludedError(err.message || 'Could not load the Scale domain benefit.');
+    }
+  }, []);
+
+  useEffect(() => { refreshIncludedStatus(); }, [refreshIncludedStatus]);
 
   async function handleSearch(e) {
     e.preventDefault();
     if (!searchQuery.trim() || searchQuery.trim().length < 2) { setSearchError('Enter at least 2 characters to search.'); return; }
-      try {
+    setSearching(true);
+    setSearchError('');
+    try {
       const res = await api.get(`/api/domains/search?query=${encodeURIComponent(searchQuery.trim())}`);
       setResults(res.results || []); setSearched(true);
     } catch (err) { setSearchError(err.message || 'Search failed.'); }
     finally { setSearching(false); }
   }
 
+  async function claimIncludedDomain(domain) {
+    setIncludedBusy(domain);
+    setIncludedError('');
+    setIncludedNotice('');
+    try {
+      await api.post('/api/domains/included/claim', { domainName: domain });
+      setIncludedNotice(`${domain} was registered with your Scale annual domain benefit.`);
+      await refreshIncludedStatus();
+    } catch (err) {
+      const message = err.message || 'Could not claim this domain.';
+      try {
+        setIncludedInfo(await api.get('/api/domains/included/status'));
+        setIncludedError(message);
+      } catch (statusErr) {
+        setIncludedError(`${message} ${statusErr.message || 'Could not refresh the domain status.'}`);
+      }
+    } finally {
+      setIncludedBusy('');
+    }
+  }
+
+  async function renewIncludedDomain(domain) {
+    setIncludedBusy(domain);
+    setIncludedError('');
+    setIncludedNotice('');
+    try {
+      await api.post('/api/domains/included/renew', { domainName: domain });
+      setIncludedNotice(`${domain} was renewed with your Scale annual domain benefit.`);
+      await refreshIncludedStatus();
+    } catch (err) {
+      setIncludedError(err.message || 'Could not renew this domain.');
+    } finally {
+      setIncludedBusy('');
+    }
+  }
+
   function handleBuy(domain, priceGhs) { setCheckoutDomain(domain); setCheckoutPrice(priceGhs); }
 
   return (
     <div className="space-y-5">
+      {includedError && <ErrorNotice error={includedError} intent="action" compact />}
+      {includedNotice && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+          {includedNotice}
+        </p>
+      )}
+      {includedInfo?.eligible && (
+        <Card className="space-y-3 border-emerald-200 bg-emerald-50/60 p-4">
+          <div>
+            <h3 className="text-sm font-bold text-charcoal">Scale annual custom domain benefit</h3>
+            <p className="mt-1 text-xs text-slate-600">
+              {includedInfo.remaining} included domain action{includedInfo.remaining === 1 ? '' : 's'} available this Scale year.
+              Each registration or renewal covers {includedInfo.registrationYears} year{includedInfo.registrationYears === 1 ? '' : 's'}.
+              Renewals are manual; registrar auto-renew is off.
+            </p>
+          </div>
+          {includedInfo.domains?.map((domain) => (
+            <div key={domain.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2">
+              <span className="text-sm font-semibold text-charcoal">
+                {domain.domainName}
+                {domain.expiresAt ? (
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    Expires {new Date(domain.expiresAt).toLocaleDateString()}
+                  </span>
+                ) : null}
+              </span>
+              {domain.canRetry ? (
+                <button type="button" disabled={Boolean(includedBusy)}
+                  onClick={() => claimIncludedDomain(domain.domainName)}
+                  className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-700 disabled:opacity-50">
+                  {includedBusy === domain.domainName ? 'Retrying...' : 'Retry setup'}
+                </button>
+              ) : domain.canRenew ? (
+                <button type="button" disabled={Boolean(includedBusy)}
+                  onClick={() => renewIncludedDomain(domain.domainName)}
+                  className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-bold text-emerald-700 disabled:opacity-50">
+                  {includedBusy === domain.domainName ? 'Renewing...' : 'Renew with Scale'}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </Card>
+      )}
+      {includedInfo?.lapsedDomains && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Your Scale-included domain will not renew while the annual plan is inactive. Renew Scale before the domain expires to claim its included renewal.
+        </p>
+      )}
       <form onSubmit={handleSearch} className="relative">
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"><Search size={16} aria-hidden="true" /></span>
         <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setSearchError(''); }}
@@ -433,12 +534,24 @@ function BuyNewDomainTab({ storeId = null }) {
                     </div>
                   </div>
                 <div className="flex items-center gap-3">
-                  {r.available && <span className="text-sm font-bold text-charcoal">{ghs(r.priceGhs)}<span className="text-[10px] font-normal text-slate-400"> / yr</span></span>}
-                  {r.available ? (
+                  {r.available && r.priceConfigured && (
+                    <span className="text-sm font-bold text-charcoal">
+                      {ghs(r.priceGhs)}<span className="text-[10px] font-normal text-slate-400"> / yr</span>
+                    </span>
+                  )}
+                  {r.available && includedInfo?.eligible && includedInfo.remaining > 0 ? (
+                    <button type="button" disabled={Boolean(includedBusy)}
+                      onClick={() => claimIncludedDomain(r.domain)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50">
+                      {includedBusy === r.domain ? 'Claiming...' : 'Claim free'}
+                    </button>
+                  ) : r.available && r.priceConfigured ? (
                     <button type="button" onClick={() => handleBuy(r.domain, r.priceGhs)}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3.5 py-1.5 text-xs font-bold text-white transition hover:from-blue-700 hover:to-blue-600">
                       <CreditCard size={12} aria-hidden="true" /> Buy Now
                     </button>
+                  ) : r.available ? (
+                    <span className="rounded-lg bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-700">Price unavailable</span>
                   ) : (
                     <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-medium text-slate-400"><XCircle size={12} aria-hidden="true" /> Taken</span>
                   )}

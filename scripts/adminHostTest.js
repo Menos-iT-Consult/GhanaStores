@@ -68,6 +68,7 @@ for (const [label, host] of [
   ['www', `www.${platformDomain()}`],
   ['api', `api.${platformDomain()}`],
   ['app', `app.${platformDomain()}`],
+  ['affiliate portal', `affiliate.${platformDomain()}`],
   ['a seller storefront', `kwame.${platformDomain()}`],
   ['a seller custom domain', 'kofifashion.com'],
   ['localhost', 'localhost'],
@@ -107,6 +108,12 @@ log('an empty host is platform traffic, not the admin', classifyHost('').isAdmin
   log('a seller subdomain is not platform traffic', seller.isPlatformRoot === false);
 }
 
+{
+  const affiliate = classifyHost(`affiliate.${platformDomain()}`);
+  log('affiliate host is platform traffic, not a tenant',
+    affiliate.isPlatformRoot === true && affiliate.slug === null && affiliate.isPlatformSubdomain === false);
+}
+
 /* ---------- The API reports the admin host to the client ---------- */
 {
   const routes = read('routes/domainRoutes.js');
@@ -133,6 +140,8 @@ log('an empty host is platform traffic, not the admin', classifyHost('').isAdmin
   log('the admin-host branch comes before the storefront branch',
     app.indexOf('if (onAdminHost) {') > 0
       && app.indexOf('if (onAdminHost) {') < app.indexOf('if (isTenantHost &&'));
+  log('the affiliate host renders its program and portal routes',
+    /if \(isAffiliateHost\) \{[\s\S]{0,500}AffiliateProgramPage/.test(app));
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);

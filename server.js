@@ -51,7 +51,6 @@ import mobileDeviceRoutes from './routes/mobileDeviceRoutes.js';
 import mobileRoutes from './routes/mobileRoutes.js';
 import seoRoutes from './routes/seoRoutes.js';
 import { startBillingCron } from './jobs/billingCron.js';
-import affiliateRoutes from './routes/affiliateRoutes.js';
 import affiliateApiRoutes from './routes/affiliateApiRoutes.js';
 
 dotenv.config();
@@ -147,9 +146,6 @@ app.use(cors({
 // through untouched.
 app.use(resolveTenantStore);
 
-/* --------------------------------- Affiliate middleware ---------------------- */
-// Rewrites affiliate.didwaghana.com to /affiliate-portal and sets the
-// didwa_ref cookie when ?ref=CODE is present on didwaghana.com.
 /* --------------------------------- API mounts ------------------------------- */
 app.get('/health', async (_req, res) => {
   try {
@@ -206,7 +202,6 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/affiliate', affiliateRoutes);
 app.use('/api/affiliate', affiliateApiRoutes);
 app.use('/api/cron', billingCronRoute);
 // Hubtel payment webhook — must be at /api/webhooks/hubtel (called by Hubtel infra)
@@ -273,4 +268,3 @@ if (invokedDirectly && !ON_VERCEL) {
 
 // Exported for the Vercel serverless entry point (api/index.js).
 export default app;
-

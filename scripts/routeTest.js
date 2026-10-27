@@ -31,6 +31,7 @@ console.log('\nDiDwa route table -> src/routes.js\n');
 
 /* ---------- Every reachable path stays routable ---------- */
 for (const path of [...PUBLIC_LINKS, ...SIDEBAR_LINKS, '/admin', '/login',
+  '/affiliate-program', '/affiliate/login', '/affiliate/signup', '/affiliate/dashboard',
   '/dashboard/themes/customizer', '/dashboard/themes/demo/clean-slate']) {
   log(`routable ${path}`, isKnownRoute(path) === true);
 }

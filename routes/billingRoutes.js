@@ -22,6 +22,7 @@ import { decryptSecret } from '../services/secretBox.js';
 import { verifyTotp } from '../services/totpService.js';
 import { billingCronHandler } from './billingCronRoute.js';
 import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
+import { findByReferralCode, linkStoreToAffiliate } from '../models/affiliate.js';
 
 const router = Router();
 
@@ -176,6 +177,19 @@ router.post('/register', async (req, res, next) => {
           continue;
         }
         throw err;
+      }
+    }
+    const referralCookie = String(req.headers.cookie || '')
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('didwa_ref='))
+      ?.slice('didwa_ref='.length);
+    if (referralCookie && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(referralCookie)) {
+      try {
+        const affiliate = await findByReferralCode(decodeURIComponent(referralCookie));
+        if (affiliate) await linkStoreToAffiliate(store.id, affiliate.id);
+      } catch (referralErr) {
+        console.warn('[affiliate] referral attribution failed for new store:', referralErr.message);
       }
     }
     const token = issueStoreToken(store);
@@ -662,4 +676,3 @@ router.get('/plans', optionalSeller, async (req, res, next) => {
 });
 
 export default router;
-

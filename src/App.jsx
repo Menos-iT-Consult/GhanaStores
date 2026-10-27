@@ -21,6 +21,8 @@ import AuthScreen from './pages/AuthScreen.jsx';
 import WelcomePage from './pages/WelcomePage.jsx';
 import { AboutPage, ContactPage, FeaturesPage, HowItWorksPage, PrivacyPage, PricingPage, TermsPage } from './pages/PublicPages.jsx';
 import AffiliateProgramPage from './pages/AffiliateProgramPage.jsx';
+import AffiliateAccessPage from './pages/affiliate/AffiliateAccessPage.jsx';
+import AffiliateDashboardPage from './pages/affiliate/AffiliateDashboardPage.jsx';
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
@@ -62,7 +64,7 @@ export default function App() {
      client-side guess is baked in at build time and can be stale, so the API
      owns the final word: platform root -> marketing site, tenant -> storefront. */
   const [hostState, setHostState] = useState({
-    status: 'pending', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '',
+    status: 'pending', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '', platformDomain: '',
   });
   /* Host reported by the storefront as having no store; only set when that
      differs from the server answer App already holds. */
@@ -96,6 +98,8 @@ export default function App() {
   // non-platform host is offered to the storefront, which resolves it through
   // the API and renders a clean error when no store claims it.
   const isPlatformHostWithSubdomains = isPlatformHost || host === `api.${platformHost}`;
+  const resolvedPlatformHost = String(hostState.platformDomain || platformHost).toLowerCase();
+  const isAffiliateHost = Boolean(resolvedPlatformHost) && host === `affiliate.${resolvedPlatformHost}`;
   const isTenantHost = isPlatformSubdomain
     || (!isPlatformHostWithSubdomains && host.includes('.') && host.split('.').length >= 2);
 
@@ -117,16 +121,30 @@ export default function App() {
           isPlatformRoot: Boolean(resolved?.isPlatformRoot),
           isAdminHost: Boolean(resolved?.isAdminHost),
           adminDomain: String(resolved?.adminDomain || ''),
+          platformDomain: String(resolved?.platformDomain || ''),
         });
       })
       .catch(() => {
         if (alive) {
           setHostState({
-            status: 'error', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '',
+            status: 'error', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '', platformDomain: '',
           });
         }
       });
     return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (!ref) return;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)) {
+      api.get(`/api/affiliate/attribution?ref=${encodeURIComponent(ref)}`)
+        .catch((error) => console.warn('[affiliate] Referral attribution could not be saved:', error.message));
+    }
+    params.delete('ref');
+    const search = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`);
   }, []);
 
   /* Derived from the server answer so the apex can never be treated as a
@@ -238,6 +256,24 @@ case '/messages': return <SellerMessages />;
     return page;
   }
 
+  if (isAffiliateHost) {
+    if (hostState.status === 'pending') {
+      return <div className="min-h-screen bg-white" aria-hidden="true" />;
+    }
+    if (route === '/affiliate/login' || route === '/affiliate/signup') {
+      return <AffiliateAccessPage initialMode={route.endsWith('/signup') ? 'signup' : 'login'} />;
+    }
+    if (route === '/affiliate/dashboard') return <AffiliateDashboardPage />;
+    if (route === '/' || route === '/affiliate-program') {
+      return (
+        <AffiliateProgramPage
+          onStart={(mode = 'signup') => navigate(mode === 'login' ? '/affiliate/login' : '/affiliate/signup')}
+          onDashboard={() => navigate('/affiliate/dashboard')}
+        />
+      );
+    }
+  }
+
   /* Public web pages - open to everyone, no dashboard chrome. The index
      (#/) plus About / Contact / Terms / Privacy stay reachable whether or
      not a seller is signed in. */
@@ -297,6 +333,9 @@ case '/messages': return <SellerMessages />;
     case '/about': return <AboutPage authed={authed} />;
     case '/contact': return <ContactPage authed={authed} />;
     case '/affiliate-program': return <AffiliateProgramPage authed={authed} onStart={openAuth} onDashboard={() => { navigate('/dashboard'); }} />;
+    case '/affiliate/login': return <AffiliateAccessPage initialMode="login" />;
+    case '/affiliate/signup': return <AffiliateAccessPage initialMode="signup" />;
+    case '/affiliate/dashboard': return <AffiliateDashboardPage />;
     case '/terms': return <TermsPage authed={authed} />;
     case '/privacy': return <PrivacyPage authed={authed} />;
     // Public: reachable from the forgot-password email while signed out.

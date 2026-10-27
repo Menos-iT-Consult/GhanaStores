@@ -78,9 +78,14 @@ INSERT INTO plans (id, name, tagline, monthly_price_ghs, yearly_price_ghs, featu
    ARRAY['Up to 500 products','Mobile money payments','Domain name included','Theme marketplace','Priority support'],
    500, 50, 2),
   ('scale', 'Scale', 'High-volume merchants', 199, 1990,
-   ARRAY['Unlimited products','Multi-currency pricing','Team seats','Dedicated account manager'],
+   ARRAY['Unlimited products','Multi-currency pricing','Team seats','Dedicated account manager','Custom domain included with annual subscription'],
    100000, 100, 3)
 ON CONFLICT (id) DO NOTHING;
+
+UPDATE plans
+   SET features = array_append(features, 'Custom domain included with annual subscription')
+ WHERE id = 'scale'
+   AND NOT (features @> ARRAY['Custom domain included with annual subscription']::text[]);
 
 -- ------------------------------------------------------------ stores (tenants)
 CREATE TABLE IF NOT EXISTS stores (
@@ -197,10 +202,14 @@ CREATE TABLE IF NOT EXISTS domain_pricing (
   tld             VARCHAR(32) PRIMARY KEY,          -- 'com', 'co.za' (no leading dot)
   label           TEXT,
   wholesale_ghs   NUMERIC(10,2),                   -- cached cost; NULL = ask the provider
+  provider_price  NUMERIC(10,4),                   -- latest OpenProvider reseller quote
+  provider_currency VARCHAR(3),                    -- currency reported by OpenProvider
+  provider_price_checked_at TIMESTAMPTZ,
   markup_pct      NUMERIC(5,2)  NOT NULL DEFAULT 25,
   retail_ghs      NUMERIC(10,2),                   -- flat price; NULL = wholesale + markup
   is_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
   is_curated      BOOLEAN NOT NULL DEFAULT TRUE,   -- in the default search set
+  scale_eligible BOOLEAN NOT NULL DEFAULT TRUE,    -- eligible for the Scale annual domain benefit
   sort_order      INTEGER NOT NULL DEFAULT 100,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -208,6 +217,10 @@ CREATE TABLE IF NOT EXISTS domain_pricing (
   CONSTRAINT domain_pricing_wholesale_check CHECK (wholesale_ghs IS NULL OR wholesale_ghs >= 0),
   CONSTRAINT domain_pricing_retail_check CHECK (retail_ghs IS NULL OR retail_ghs >= 0)
 );
+ALTER TABLE domain_pricing ADD COLUMN IF NOT EXISTS provider_price NUMERIC(10,4);
+ALTER TABLE domain_pricing ADD COLUMN IF NOT EXISTS provider_currency VARCHAR(3);
+ALTER TABLE domain_pricing ADD COLUMN IF NOT EXISTS provider_price_checked_at TIMESTAMPTZ;
+ALTER TABLE domain_pricing ADD COLUMN IF NOT EXISTS scale_eligible BOOLEAN NOT NULL DEFAULT TRUE;
 CREATE INDEX IF NOT EXISTS domain_pricing_offered_idx
   ON domain_pricing (is_enabled, is_curated, sort_order);
 
@@ -216,9 +229,23 @@ CREATE TABLE IF NOT EXISTS domain_settings (
   id                  INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   include_all_tlds    BOOLEAN NOT NULL DEFAULT FALSE,  -- widen search to every enabled TLD
   default_markup_pct  NUMERIC(5,2) NOT NULL DEFAULT 25,
+  usd_to_ghs_rate     NUMERIC(10,4),
+  scale_domain_count  INTEGER NOT NULL DEFAULT 1,
+  scale_domain_years  INTEGER NOT NULL DEFAULT 1,
+  scale_domain_max_usd NUMERIC(10,4),
+  scale_domain_renewals_enabled BOOLEAN NOT NULL DEFAULT TRUE,
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT domain_settings_markup_check CHECK (default_markup_pct >= 0 AND default_markup_pct <= 1000)
+  CONSTRAINT domain_settings_markup_check CHECK (default_markup_pct >= 0 AND default_markup_pct <= 1000),
+  CONSTRAINT domain_settings_usd_to_ghs_check CHECK (usd_to_ghs_rate IS NULL OR usd_to_ghs_rate > 0),
+  CONSTRAINT domain_settings_scale_count_check CHECK (scale_domain_count >= 0 AND scale_domain_count <= 100),
+  CONSTRAINT domain_settings_scale_years_check CHECK (scale_domain_years >= 1 AND scale_domain_years <= 10),
+  CONSTRAINT domain_settings_scale_max_usd_check CHECK (scale_domain_max_usd IS NULL OR scale_domain_max_usd >= 0)
 );
+ALTER TABLE domain_settings ADD COLUMN IF NOT EXISTS usd_to_ghs_rate NUMERIC(10,4);
+ALTER TABLE domain_settings ADD COLUMN IF NOT EXISTS scale_domain_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE domain_settings ADD COLUMN IF NOT EXISTS scale_domain_years INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE domain_settings ADD COLUMN IF NOT EXISTS scale_domain_max_usd NUMERIC(10,4);
+ALTER TABLE domain_settings ADD COLUMN IF NOT EXISTS scale_domain_renewals_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 INSERT INTO domain_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------ catalog
@@ -806,9 +833,15 @@ CREATE TABLE IF NOT EXISTS store_domains (
   purchase_reference  TEXT,
   verification_errors JSONB DEFAULT '[]'::jsonb,
   registered_at       TIMESTAMPTZ,
+  provider_domain_id  TEXT,
+  included_domain     BOOLEAN NOT NULL DEFAULT FALSE,
+  domain_expires_at   TIMESTAMPTZ,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE store_domains ADD COLUMN IF NOT EXISTS provider_domain_id TEXT;
+ALTER TABLE store_domains ADD COLUMN IF NOT EXISTS included_domain BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE store_domains ADD COLUMN IF NOT EXISTS domain_expires_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS store_domains_name_idx ON store_domains (LOWER(domain_name));
 CREATE INDEX IF NOT EXISTS store_domains_store_idx ON store_domains (store_id, status);
 CREATE INDEX IF NOT EXISTS store_domains_status_idx ON store_domains (status, created_at DESC);
@@ -817,6 +850,20 @@ CREATE INDEX IF NOT EXISTS store_domains_status_idx ON store_domains (status, cr
 -- webhook resolves the reference back to the row it may activate.
 CREATE UNIQUE INDEX IF NOT EXISTS store_domains_purchase_reference_idx
   ON store_domains (purchase_reference) WHERE purchase_reference IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS scale_domain_entitlements (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id      UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  domain_name   TEXT NOT NULL,
+  period_end    TIMESTAMPTZ NOT NULL,
+  action        TEXT NOT NULL CHECK (action IN ('REGISTER','RENEW')),
+  status        TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','COMPLETED','FAILED')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (store_id, domain_name, period_end)
+);
+CREATE INDEX IF NOT EXISTS scale_domain_entitlements_store_period_idx
+  ON scale_domain_entitlements (store_id, period_end, status);
 
 -- ------------------------------------------------- store account settings (Site Settings tab)
 -- Two additions to `stores` and one new table, all idempotent:

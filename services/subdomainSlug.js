@@ -29,7 +29,7 @@ import { slugifyStoreName } from '../utils/helpers.js';
  */
 export const RESERVED_SLUGS = new Set([
   // Platform / staff surfaces
-  'admin', 'superadmin', 'dashboard', 'app', 'seller', 'portal', 'console',
+  'admin', 'superadmin', 'dashboard', 'app', 'seller', 'portal', 'console', 'affiliate',
   'manage', 'management', 'owner', 'system', 'ops', 'status', 'health',
   'metrics', 'telemetry', 'logs', 'audit', 'internal', 'staff', 'employee',
   'backend', 'root', 'control',
@@ -70,7 +70,7 @@ export const RESERVED_PREFIXES = ['didwa', 'api-'];
  * than a tenant. It is a subset of RESERVED_SLUGS; exported for the classifier
  * and its tests to keep sharing one definition.
  */
-export const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
+export const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin', 'affiliate']);
 
 /**
  * The character rule, matching the column constraint exactly:

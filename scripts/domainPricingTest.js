@@ -19,7 +19,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveDomainPrice, roundTo5Ghs, tldOf } from '../services/domainPricing.js';
+import {
+  providerPriceToGhs, resolveDomainPrice, roundTo5Ghs, tldOf,
+} from '../services/domainPricing.js';
 import { CURATED_TLDS, EXTENDED_TLDS, buildDomainPricingRows } from '../db/domainCatalog.js';
 
 let pass = 0;
@@ -59,10 +61,18 @@ console.log('\nDiDwa domain pricing -> services/domainPricing.js\n');
     resolveDomainPrice({ retail_ghs: null, wholesale_ghs: null, markup_pct: 25 }, 200, MARKUP) === 250);
   log('a cached cost wins over a newer search price',
     resolveDomainPrice({ retail_ghs: null, wholesale_ghs: 100, markup_pct: 25 }, 999, MARKUP) === 125);
-  log('an unknown TLD with no cost still charges a real amount',
-    resolveDomainPrice(null, undefined, MARKUP) > 0);
+  log('an unknown TLD with no configured GHS cost is not priced',
+    resolveDomainPrice(null, undefined, MARKUP) === null);
   log('a zero markup is free but not negative',
     resolveDomainPrice({ retail_ghs: null, wholesale_ghs: 100, markup_pct: 0 }, 100, MARKUP) === 100);
+  log('converts an OpenProvider USD quote with the configured exchange rate',
+    providerPriceToGhs(8.06, 'USD', 15) === 120.9);
+  log('does not treat an OpenProvider USD quote as GHS when no rate is configured',
+    providerPriceToGhs(8.06, 'USD', null) === null);
+  log('passes through OpenProvider quotes already denominated in GHS',
+    providerPriceToGhs(8.06, 'GHS', null) === 8.06);
+  log('refuses to infer conversion for an unknown provider currency',
+    providerPriceToGhs(8.06, 'EUR', 15) === null);
 }
 
 /* ---------- TLD parsing: multi-part suffixes must not be split ---------- */
@@ -132,6 +142,12 @@ console.log('\nDiDwa domain pricing -> services/domainPricing.js\n');
     !/amountGhs:\s*Number\(amountGhs\)/.test(source));
   log('the buy endpoint resolves the price server-side', /priceDomainForPurchase\(/.test(source));
   log('the resolved price is what reaches the checkout', /amountGhs,\s*\n\s*domainName: clean,/.test(source));
+  log('checkout rechecks domain availability with OpenProvider',
+    /checkOpenproviderDomain\(clean\)/.test(source));
+  log('checkout reserves the domain before creating a payment page',
+    source.indexOf('INSERT INTO store_domains') < source.indexOf('initializeHubtelCheckout'));
+  log('a conflicting domain reservation is refused',
+    /This domain was just claimed by another purchase/.test(source));
 }
 
 /* ---------- The admin API owns the numbers checkout reads ---------- */
@@ -139,6 +155,11 @@ console.log('\nDiDwa domain pricing -> services/domainPricing.js\n');
   const admin = read('routes/admin/pricing.js');
   log('the admin API writes the pricing table', /UPDATE domain_pricing/.test(admin));
   log('the admin API writes the search switches', /UPDATE domain_settings/.test(admin));
+  log('the admin can refresh OpenProvider quotes', /refresh-provider-prices/.test(admin));
+  log('provider quotes are persisted with their currency', /provider_price = quotes\.price/.test(admin));
+  log('the exchange rate and Scale benefit are configurable', /usd_to_ghs_rate/.test(admin)
+    && /scale_domain_count/.test(admin) && /scale_domain_years/.test(admin));
+  log('the Scale annual benefit can be configured per TLD', /scale_eligible =/.test(admin));
   log('a price change requires a reason', /reasonProblem\(req\.body\?\.reason\)/.test(admin));
   log('a bulk reprice never overrides a fixed price', /retail_ghs IS NULL/.test(admin));
   log('the pricing cache is invalidated after a change',
@@ -149,6 +170,51 @@ console.log('\nDiDwa domain pricing -> services/domainPricing.js\n');
   for (const action of ['domain.price', 'domain.price_bulk', 'domain.settings']) {
     log(`${action} has a human label`, audit.includes(`'${action}':`));
   }
+  log('provider price refresh has an audit label',
+    audit.includes("'domain.provider_price_refresh':"));
+}
+
+/* ---------- OpenProvider owns availability and native quote currency ---------- */
+{
+  const service = read('services/domainService.js');
+  log('domain search fails closed if OpenProvider is not configured',
+    /if \(!openproviderConfigured\)[\s\S]{0,180}status: 503/.test(service));
+  log('domain search no longer synthesizes alternating availability',
+    !/available:\s*i % 2/.test(service));
+  log('only OpenProvider free, non-premium names are offered',
+    /String\(r\.status\)\.toLowerCase\(\) === 'free' && !r\.is_premium/.test(service));
+  log('OpenProvider quote currency is returned separately from GHS prices',
+    /providerCurrency:\s*quote\?\.currency/.test(service));
+  log('OpenProvider registration retries recover a prior successful registration',
+    /op\.get\('\/domains'/.test(service) && /domain\.extension/.test(service));
+  log('Cloudflare retries recover a prior successful hostname provision',
+    /cf\.get\(`\/zones\/\$\{CLOUDFLARE_ZONE_ID\}\/custom_hostnames`/.test(service));
+}
+
+/* ---------- Scale annual domain entitlement ---------- */
+{
+  const schema = read('db/schema.sql');
+  const routes = read('routes/domainRoutes.js');
+  const ui = read('src/pages/DomainManager.jsx');
+  log('Scale domain policy and entitlement ledger are in the schema',
+    /scale_domain_count/.test(schema) && /CREATE TABLE IF NOT EXISTS scale_domain_entitlements/.test(schema));
+  log('free domain claims require an active annual Scale plan',
+    /router\.post\('\/included\/claim', requireSeller/.test(routes)
+    && /plan_cycle !== 'yearly'/.test(routes));
+  log('free domain registration and renewal use OpenProvider',
+    /registerDomainOnOpenprovider/.test(routes) && /renewDomainOnOpenprovider/.test(routes));
+  log('included domains require a supported, non-premium provider quote',
+    /OpenProvider did not return a supported standard price/.test(routes)
+    && /availability\.status !== 'free' \|\| availability\.isPremium/.test(routes));
+  log('failed included-domain setup can be retried from the domain manager',
+    /canRetry: Boolean\(eligible && remaining > 0 && domain\.status === 'FAILED'\)/.test(routes)
+    && /domain\.canRetry/.test(ui));
+  log('paid domain activation attaches the domain and updates status atomically',
+    /async function activatePurchasedDomain[\s\S]{0,180}return withTransaction/.test(routes));
+  log('the seller can claim and renew through the domain manager',
+    /included\/claim/.test(ui) && /included\/renew/.test(ui));
+  log('the Scale plan advertises the annual custom domain benefit',
+    /Custom domain included with annual subscription/.test(read('services/planCatalog.js')));
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);

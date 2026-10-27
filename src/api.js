@@ -11,6 +11,7 @@ import { ErrorKind, isOffline, toApiError } from './lib/errors.js';
 const TOKEN_KEY = 'gs_token';
 const STORE_KEY = 'gs_store';
 const ADMIN_TOKEN_KEY = 'gs_admin_token';
+const AFFILIATE_TOKEN_KEY = 'gs_affiliate_token';
 export const OFFLINE_POS_KEY = 'didwa_pos_pending';
 
 /** How long a request may take before the browser is told to give up. */
@@ -40,6 +41,15 @@ export function getCachedStore() {
 
 export function getAdminToken() {
   return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+}
+export function getAffiliateToken() {
+  return localStorage.getItem(AFFILIATE_TOKEN_KEY) || '';
+}
+export function setAffiliateSession(token) {
+  localStorage.setItem(AFFILIATE_TOKEN_KEY, token);
+}
+export function clearAffiliateSession() {
+  localStorage.removeItem(AFFILIATE_TOKEN_KEY);
 }
 export function setAdminSession(token, admin) {
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
@@ -78,10 +88,12 @@ export async function flushOfflineSales() {
   return pending.length - remaining.length;
 }
 
-async function request(path, { method = 'GET', body, isForm, token: explicitToken, _retried = false } = {}) {
+async function request(path, {
+  method = 'GET', body, isForm, token: explicitToken, _retried = false, isAffiliate = false,
+} = {}) {
   const headers = {};
   const token = explicitToken !== undefined ? explicitToken : getToken();
-  const isAdmin = explicitToken === getAdminToken() && explicitToken !== undefined;
+  const isAdmin = !isAffiliate && explicitToken === getAdminToken() && explicitToken !== undefined;
   if (token) headers.Authorization = `Bearer ${token}`;
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -115,7 +127,7 @@ async function request(path, { method = 'GET', body, isForm, token: explicitToke
   if (res.status === 429 && !_retried) {
     const retryAfter = Number(res.headers.get?.('Retry-After') || 1);
     await new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(retryAfter, 1), 10) * 1000));
-    return request(path, { method, body, isForm, token: explicitToken, _retried: true });
+    return request(path, { method, body, isForm, token: explicitToken, _retried: true, isAffiliate });
   }
 
   if (!res.ok) {
@@ -127,6 +139,9 @@ async function request(path, { method = 'GET', body, isForm, token: explicitToke
       if (isAdmin) {
         clearAdminSession();
         window.dispatchEvent(new Event('gs:admin-logout'));
+      } else if (isAffiliate) {
+        clearAffiliateSession();
+        window.dispatchEvent(new Event('gs:affiliate-logout'));
       } else if (!explicitToken) {
         clearSession();
         window.dispatchEvent(new Event('gs:logout'));
@@ -151,6 +166,11 @@ export const adminApi = {
   // Revoking an administrator is a DELETE on the admin API; the seller client
   // has no equivalent because a merchant never deletes platform-level records.
   del: (p) => request(p, { method: 'DELETE', token: getAdminToken() }),
+};
+
+export const affiliateApi = {
+  get: (p) => request(p, { token: getAffiliateToken(), isAffiliate: true }),
+  post: (p, body) => request(p, { method: 'POST', body, token: getAffiliateToken(), isAffiliate: true }),
 };
 
 export const api = {

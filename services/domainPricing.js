@@ -8,8 +8,8 @@
  *
  * Precedence for a TLD's price:
  *   1. retail_ghs     - a flat advertised price the admin set. Always wins.
- *   2. wholesale_ghs  - a cached provider cost, marked up by markup_pct.
- *   3. the provider's own price from the search response, + markup_pct.
+ *   2. wholesale_ghs  - a configured cost in GHS, marked up by markup_pct.
+ *   3. a live OpenProvider quote converted using the configured USD/GHS rate.
  * Results are rounded to the nearest 5 GHS, which is what sellers expect to see.
  *
  * Reads are cached for a minute: a domain search runs once per keystroke batch
@@ -21,7 +21,11 @@ import { query } from '../config/database.js';
 const CACHE_MS = 60_000;
 
 /** Fallbacks used only if the catalogue has not been seeded at all. */
-const FALLBACK = { tlds: ['com'], includeAll: false, defaultMarkupPct: 25 };
+const FALLBACK = {
+  tlds: ['com'], includeAll: false, defaultMarkupPct: 25, usdToGhsRate: null,
+  scaleDomainCount: 1, scaleDomainYears: 1, scaleDomainMaxUsd: null,
+  scaleDomainRenewalsEnabled: true,
+};
 
 let cache = { at: 0, data: FALLBACK };
 
@@ -47,8 +51,8 @@ export async function loadPricingCatalog({ force = false } = {}) {
 
   try {
     const [rows, settings] = await Promise.all([
-      query('SELECT tld, label, wholesale_ghs, markup_pct, retail_ghs, is_enabled, is_curated, sort_order FROM domain_pricing ORDER BY sort_order, tld'),
-      query('SELECT include_all_tlds, default_markup_pct FROM domain_settings WHERE id = 1'),
+      query('SELECT tld, label, wholesale_ghs, provider_price, provider_currency, provider_price_checked_at, markup_pct, retail_ghs, is_enabled, is_curated, scale_eligible, sort_order FROM domain_pricing ORDER BY sort_order, tld'),
+      query('SELECT include_all_tlds, default_markup_pct, usd_to_ghs_rate, scale_domain_count, scale_domain_years, scale_domain_max_usd, scale_domain_renewals_enabled FROM domain_settings WHERE id = 1'),
     ]);
 
     const row = settings.rows[0] || {};
@@ -62,6 +66,13 @@ export async function loadPricingCatalog({ force = false } = {}) {
       byTld: new Map(rows.rows.map((entry) => [entry.tld, entry])),
       includeAll,
       defaultMarkupPct: Number(row.default_markup_pct ?? FALLBACK.defaultMarkupPct),
+      usdToGhsRate: row.usd_to_ghs_rate === null || row.usd_to_ghs_rate === undefined
+        ? null : Number(row.usd_to_ghs_rate),
+      scaleDomainCount: Number(row.scale_domain_count ?? FALLBACK.scaleDomainCount),
+      scaleDomainYears: Number(row.scale_domain_years ?? FALLBACK.scaleDomainYears),
+      scaleDomainMaxUsd: row.scale_domain_max_usd === null || row.scale_domain_max_usd === undefined
+        ? null : Number(row.scale_domain_max_usd),
+      scaleDomainRenewalsEnabled: row.scale_domain_renewals_enabled !== false,
       catalogued: rows.rows.length > 0,
     };
     cache = { at: Date.now(), data };
@@ -74,6 +85,18 @@ export async function loadPricingCatalog({ force = false } = {}) {
     }
     return cache.data;
   }
+}
+
+/** Convert an OpenProvider quote to GHS without treating USD as GHS. */
+export function providerPriceToGhs(amount, currency, usdToGhsRate) {
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const code = String(currency || '').trim().toUpperCase();
+  if (code === 'GHS') return value;
+  if (code === 'USD' && Number.isFinite(Number(usdToGhsRate)) && Number(usdToGhsRate) > 0) {
+    return value * Number(usdToGhsRate);
+  }
+  return null;
 }
 
 /**
@@ -89,8 +112,7 @@ export function resolveDomainPrice(row, wholesale, defaultMarkupPct) {
 
   const base = row?.wholesale_ghs ?? wholesale;
   if (base === null || base === undefined || !Number.isFinite(Number(base))) {
-    // No cost known yet: a premium placeholder keeps checkout from being free.
-    return roundTo5Ghs(200 * (1 + Number(defaultMarkupPct || 25) / 100));
+    return null;
   }
   const markup = Number(row?.markup_pct ?? defaultMarkupPct ?? 25);
   return roundTo5Ghs(Number(base) * (1 + markup / 100));
@@ -111,7 +133,7 @@ export function tldOf(domainName) {
  * server. Throws for a TLD the platform does not sell, so a caller cannot buy
  * a domain it has not priced.
  */
-export async function priceDomainForPurchase(domainName) {
+export async function priceDomainForPurchase(domainName, providerQuote = null) {
   const tld = tldOf(domainName);
   if (!tld) {
     throw Object.assign(new Error('Enter a valid domain name, for example kwame.shop.'), { status: 400 });
@@ -124,9 +146,14 @@ export async function priceDomainForPurchase(domainName) {
   if (!row.is_enabled) {
     throw Object.assign(new Error(`.${tld} is not currently available.`), { status: 400 });
   }
-  const priceGhs = resolveDomainPrice(row, undefined, catalog.defaultMarkupPct);
-  if (priceGhs <= 0) {
-    throw Object.assign(new Error(`.${tld} is temporarily unavailable.`), { status: 409 });
+  const providerCostGhs = row.wholesale_ghs ?? providerPriceToGhs(
+    providerQuote?.price,
+    providerQuote?.currency,
+    catalog.usdToGhsRate,
+  );
+  const priceGhs = resolveDomainPrice(row, providerCostGhs, catalog.defaultMarkupPct);
+  if (!Number.isFinite(priceGhs) || priceGhs <= 0) {
+    throw Object.assign(new Error(`Pricing for .${tld} is not configured in GHS yet.`), { status: 409 });
   }
-  return { tld, priceGhs, row };
+  return { tld, priceGhs, row, providerCostGhs };
 }

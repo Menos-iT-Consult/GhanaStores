@@ -13,7 +13,10 @@
 import { Router } from 'express';
 import { query } from '../../config/database.js';
 import { recordAdminAction } from '../../services/adminAudit.js';
-import { invalidatePricingCache, resolveDomainPrice } from '../../services/domainPricing.js';
+import {
+  invalidatePricingCache, providerPriceToGhs, resolveDomainPrice,
+} from '../../services/domainPricing.js';
+import * as domainService from '../../services/domainService.js';
 import { requireAdmin } from './helpers.js';
 
 const router = Router();
@@ -25,17 +28,25 @@ function cleanTld(value) {
   return tld;
 }
 
-const priceOut = (row, defaultMarkupPct) => ({
+const priceOut = (row, defaultMarkupPct, usdToGhsRate) => ({
   tld: row.tld,
   label: row.label,
   wholesaleGhs: row.wholesale_ghs,
+  openproviderPrice: row.provider_price === null ? null : Number(row.provider_price),
+  openproviderCurrency: row.provider_currency,
+  providerPriceCheckedAt: row.provider_price_checked_at,
   markupPct: Number(row.markup_pct),
   retailGhs: row.retail_ghs,
   isEnabled: row.is_enabled,
   isCurated: row.is_curated,
+  scaleEligible: row.scale_eligible,
   sortOrder: row.sort_order,
   // What a seller pays right now, given the cheapest known cost source.
-  effectiveGhs: resolveDomainPrice(row, undefined, defaultMarkupPct),
+  effectiveGhs: resolveDomainPrice(
+    row,
+    row.wholesale_ghs ?? providerPriceToGhs(row.provider_price, row.provider_currency, usdToGhsRate),
+    defaultMarkupPct,
+  ),
   updatedAt: row.updated_at,
 });
 
@@ -44,16 +55,28 @@ router.get('/domain-pricing', requireAdmin, async (_req, res, next) => {
   try {
     const [rows, settings] = await Promise.all([
       query('SELECT * FROM domain_pricing ORDER BY sort_order, tld'),
-      query('SELECT include_all_tlds, default_markup_pct, updated_at FROM domain_settings WHERE id = 1'),
+      query(`SELECT include_all_tlds, default_markup_pct, usd_to_ghs_rate,
+                    scale_domain_count, scale_domain_years, scale_domain_max_usd,
+                    scale_domain_renewals_enabled, updated_at
+               FROM domain_settings WHERE id = 1`),
     ]);
-    const setting = settings.rows[0] || { include_all_tlds: false, default_markup_pct: 25 };
+    const setting = settings.rows[0] || {
+      include_all_tlds: false, default_markup_pct: 25, scale_domain_count: 1,
+      scale_domain_years: 1, scale_domain_renewals_enabled: true,
+    };
     const defaultMarkupPct = Number(setting.default_markup_pct);
+    const usdToGhsRate = setting.usd_to_ghs_rate === null ? null : Number(setting.usd_to_ghs_rate);
 
-    const tlds = rows.rows.map((row) => priceOut(row, defaultMarkupPct));
+    const tlds = rows.rows.map((row) => priceOut(row, defaultMarkupPct, usdToGhsRate));
     res.json({
       settings: {
         includeAllTlds: Boolean(setting.include_all_tlds),
         defaultMarkupPct,
+        usdToGhsRate: setting.usd_to_ghs_rate === null ? '' : Number(setting.usd_to_ghs_rate),
+        scaleDomainCount: Number(setting.scale_domain_count),
+        scaleDomainYears: Number(setting.scale_domain_years),
+        scaleDomainMaxUsd: setting.scale_domain_max_usd === null ? '' : Number(setting.scale_domain_max_usd),
+        scaleDomainRenewalsEnabled: Boolean(setting.scale_domain_renewals_enabled),
         updatedAt: setting.updated_at,
       },
       summary: {
@@ -93,6 +116,49 @@ router.patch('/domain-pricing', requireAdmin, async (req, res, next) => {
       updates.push(`default_markup_pct = $${params.length}`);
       detail.defaultMarkupPct = pct;
     }
+    if (req.body?.usdToGhsRate !== undefined) {
+      const raw = String(req.body.usdToGhsRate).trim();
+      const rate = raw === '' ? null : Number(raw);
+      if (rate !== null && (!Number.isFinite(rate) || rate <= 0 || rate > 10000)) {
+        return res.status(400).json({ error: 'The USD to GHS rate must be greater than zero, or blank to disable conversion.' });
+      }
+      params.push(rate);
+      updates.push(`usd_to_ghs_rate = $${params.length}`);
+      detail.usdToGhsRate = rate;
+    }
+    if (req.body?.scaleDomainCount !== undefined) {
+      const count = Number(req.body.scaleDomainCount);
+      if (!Number.isInteger(count) || count < 0 || count > 100) {
+        return res.status(400).json({ error: 'Included domain count must be a whole number from 0 to 100.' });
+      }
+      params.push(count);
+      updates.push(`scale_domain_count = $${params.length}`);
+      detail.scaleDomainCount = count;
+    }
+    if (req.body?.scaleDomainYears !== undefined) {
+      const years = Number(req.body.scaleDomainYears);
+      if (!Number.isInteger(years) || years < 1 || years > 10) {
+        return res.status(400).json({ error: 'Included domain registration period must be a whole number from 1 to 10 years.' });
+      }
+      params.push(years);
+      updates.push(`scale_domain_years = $${params.length}`);
+      detail.scaleDomainYears = years;
+    }
+    if (req.body?.scaleDomainMaxUsd !== undefined) {
+      const raw = String(req.body.scaleDomainMaxUsd).trim();
+      const max = raw === '' ? null : Number(raw);
+      if (max !== null && (!Number.isFinite(max) || max < 0)) {
+        return res.status(400).json({ error: 'The OpenProvider price cap must be zero or greater, or blank for no cap.' });
+      }
+      params.push(max);
+      updates.push(`scale_domain_max_usd = $${params.length}`);
+      detail.scaleDomainMaxUsd = max;
+    }
+    if (req.body?.scaleDomainRenewalsEnabled !== undefined) {
+      params.push(Boolean(req.body.scaleDomainRenewalsEnabled));
+      updates.push(`scale_domain_renewals_enabled = $${params.length}`);
+      detail.scaleDomainRenewalsEnabled = Boolean(req.body.scaleDomainRenewalsEnabled);
+    }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
 
     params.push(new Date().toISOString());
@@ -110,6 +176,43 @@ router.patch('/domain-pricing', requireAdmin, async (req, res, next) => {
     });
     res.json({ updated: detail });
   } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/domain-pricing/refresh-provider-prices', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT tld FROM domain_pricing ORDER BY sort_order, tld');
+    const prices = await domainService.fetchOpenproviderTldPrices(rows.map((row) => row.tld));
+    if (!prices.length) {
+      return res.status(503).json({ error: 'OpenProvider returned no TLD prices to refresh.' });
+    }
+    const values = [];
+    const params = [];
+    prices.forEach(({ tld, price, currency }, index) => {
+      const offset = index * 3;
+      params.push(tld, price, currency);
+      values.push(`($${offset + 1}::text, $${offset + 2}::numeric, $${offset + 3}::text)`);
+    });
+    await query(
+      `UPDATE domain_pricing AS pricing
+          SET provider_price = quotes.price,
+              provider_currency = quotes.currency,
+              provider_price_checked_at = NOW(),
+              updated_at = NOW()
+         FROM (VALUES ${values.join(', ')}) AS quotes(tld, price, currency)
+        WHERE pricing.tld = quotes.tld`,
+      params,
+    );
+    invalidatePricingCache();
+    await recordAdminAction(req, {
+      action: 'domain.provider_price_refresh',
+      targetType: 'domain_pricing',
+      detail: { count: prices.length, tlds: prices.map((price) => price.tld) },
+    });
+    res.json({ refreshed: prices.length });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });
@@ -147,6 +250,12 @@ router.patch('/domain-pricing/:tld', requireAdmin, async (req, res, next) => {
       updates.push(`is_curated = $${params.length}`);
       detail.from.isCurated = was.is_curated;
       detail.isCurated = Boolean(req.body.isCurated);
+    }
+    if (req.body?.scaleEligible !== undefined) {
+      params.push(Boolean(req.body.scaleEligible));
+      updates.push(`scale_eligible = $${params.length}`);
+      detail.from.scaleEligible = was.scale_eligible;
+      detail.scaleEligible = Boolean(req.body.scaleEligible);
     }
     if (req.body?.label !== undefined) {
       const label = String(req.body.label || '').trim().slice(0, 80) || null;
@@ -214,9 +323,16 @@ router.patch('/domain-pricing/:tld', requireAdmin, async (req, res, next) => {
     });
 
     const { rows: settingRows } = await query(
-      'SELECT default_markup_pct FROM domain_settings WHERE id = 1',
+      'SELECT default_markup_pct, usd_to_ghs_rate FROM domain_settings WHERE id = 1',
     );
-    res.json({ tld: priceOut(rows[0], Number(settingRows[0]?.default_markup_pct ?? 25)) });
+    const rate = settingRows[0]?.usd_to_ghs_rate == null ? null : Number(settingRows[0].usd_to_ghs_rate);
+    res.json({
+      tld: priceOut(
+        rows[0],
+        Number(settingRows[0]?.default_markup_pct ?? 25),
+        rate,
+      ),
+    });
   } catch (err) {
     next(err);
   }

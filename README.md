@@ -142,12 +142,15 @@ public/                       manifest.webmanifest, sw.js, favicon.svg
 | 5 | WhatsApp & PDF invoices | `routes/whatsappInvoiceRoutes.js`, `pdfService.js` | Cart-to-`wa.me` structured payload, stock reservation, cancel-restock, PDFKit receipts with QR verification tokens |
 | 6 | Variants & low-stock SMS | `routes/inventoryRoutes.js`, `SellerInventory.jsx` | Multi-option variants (size/colour/SKU), custom thresholds, alert latch prevents duplicate SMS, re-arms after restock |
 | 7 | Domains & SSL | `routes/domainRoutes.js` | Host-header tenant resolution (`custom_domain` or `subdomain_slug`), CNAME instructions, Caddy on-demand TLS `/api/domains/caddy-ask` |
+| 8 | Affiliate portal | `routes/affiliateApiRoutes.js`, `src/pages/affiliate/` | Reserved `affiliate.<PLATFORM_DOMAIN>` host, affiliate-only sign-in/signup, referral dashboard and cookie-based attribution |
 
 ## API Surface
 
 ```
 POST   /api/billing/register          Register store (trial auto-starts)
 POST   /api/billing/login             Seller login -> JWT
+POST   /api/affiliate/signup          Create an affiliate account
+POST   /api/affiliate/login           Affiliate login -> affiliate-scoped JWT
 GET    /api/billing/status            Trial countdown + lifecycle state
 GET    /api/analytics/dashboard       KPIs, monthlyTrend, recentOrders, operations
 GET    /api/pos/loyalty/:phone        Points balance + redeemable GHS value
@@ -321,6 +324,23 @@ Notes:
   `didwaghana.com` zone, so keep the zone on Cloudflare if you want that
   automated custom-hostname provisioning.
 
+Domain purchases and the Scale annual domain benefit use live OpenProvider
+availability; if OpenProvider is not configured or cannot verify a name, the
+search fails closed rather than displaying simulated availability. Registrar
+orders also require an existing OpenProvider contact handle in
+`OPENPROVIDER_OWNER_HANDLE` (the admin, technical, and billing roles default to
+that handle). In the super-admin **Domain pricing** page, refresh the
+OpenProvider TLD quotes, set the USD/GHS rate, and configure markup or fixed
+retail prices. An optional GHS wholesale cost overrides conversion of the live
+quote. Quotes are stored with their original currency and timestamp.
+
+Annual Scale subscribers can claim an eligible standard-priced domain in the
+domain manager after payment settles. Registration count, term, USD price cap,
+renewal availability, and per-TLD eligibility are configurable in the same
+super-admin page. Domain registrar auto-renew remains off: after manually
+renewing Scale, the seller must request the included domain renewal from the
+domain manager. If Scale lapses, the included renewal is unavailable.
+
 ### 5. Serverless caveats (already handled)
 
 - **Balance safety** - wallet rows are locked with `SELECT ... FOR UPDATE`, and
@@ -394,4 +414,3 @@ writes are the only half that needs the bucket rule above.
 
 > Tip: run `npx vercel` locally for a preview deployment; every push to your
 > git branch redeploys automatically.
-

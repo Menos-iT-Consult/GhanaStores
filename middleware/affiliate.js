@@ -2,8 +2,7 @@
 // DiDwa - Affiliate Program Middleware (Express)
 //
 // Responsibilities:
-// 1. Rewrite requests from affiliate.didwaghana.com to internal /affiliate-portal routes
-// 2. Intercept ?ref=CODE query params and set a configured-duration didwa_ref cookie
+// Intercept ?ref=CODE query params and set a configured-duration didwa_ref cookie.
 //
 // Usage in server.js:
 //   const affiliateMiddleware = require('./middleware/affiliate');
@@ -12,8 +11,6 @@
 import cookie from 'cookie';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 
-// Affiliate subdomain host
-const AFFILIATE_HOST = 'affiliate.didwaghana.com';
 const MAIN_HOST = 'didwaghana.com';
 
 /**
@@ -24,17 +21,7 @@ export default async function affiliateMiddleware(req, res, next) {
   const hostname = host.split(':')[0]; // strip port
 
   // -----------------------------------------------------------
-  // 1. Subdomain rewrite: affiliate.didwaghana.com -> /affiliate-portal
-  // -----------------------------------------------------------
-  if (hostname === AFFILIATE_HOST) {
-    // Rewrite the URL so Express route matching sees /affiliate-portal/...
-    req.url = '/affiliate-portal' + req.url;
-    // Optional: set a flag so downstream code knows this is an affiliate portal request
-    req.isAffiliatePortal = true;
-  }
-
-  // -----------------------------------------------------------
-  // 2. Referral cookie: ?ref=CODE on didwaghana.com -> set didwa_ref cookie (30 days)
+  // Referral cookie: ?ref=CODE on didwaghana.com -> set didwa_ref cookie
   // -----------------------------------------------------------
   const isMainHost = hostname === MAIN_HOST || hostname.endsWith('.' + MAIN_HOST);
   const refCode = req.query && req.query.ref;

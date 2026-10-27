@@ -12,6 +12,7 @@
  * `req.storeFromHost`) plus a `req.tenantInfo` descriptor.
  */
 import { query } from '../config/database.js';
+import { RESERVED_SUBDOMAINS } from '../services/subdomainSlug.js';
 
 /** Final fallback apex so a missing env var can never declassify every host. */
 const DEFAULT_PLATFORM_DOMAIN = 'didwaghana.com';
@@ -35,9 +36,6 @@ export const platformDomain = () => {
     .split(':')[0]
     .replace(/\.+$/, '');
 };
-
-/** Subdomain labels that always belong to the platform, never to a seller. */
-const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
 
 /**
  * The host the super admin is served on: `admin.didwaghana.com`.

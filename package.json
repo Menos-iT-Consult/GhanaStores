@@ -21,6 +21,7 @@
     "test:developer-guide": "node scripts/developerGuideTest.js",
     "test:admin": "node scripts/adminApiTest.js",
     "test:admin-host": "node scripts/adminHostTest.js",
+    "test:affiliate-portal": "node scripts/affiliatePortalTest.js",
     "test:uploads": "node scripts/uploadTest.js",
     "test:domain-pricing": "node scripts/domainPricingTest.js",
     "test:plan-pricing": "node scripts/planPricingTest.js",
