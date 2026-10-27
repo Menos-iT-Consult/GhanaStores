@@ -23,6 +23,7 @@ import SoftwareApplicationSchema from '../components/seo/SoftwareApplicationSche
 import FAQSchema from '../components/seo/FAQSchema.jsx';
 import { META_CONTENT } from '../lib/seo.js';
 
+const AFFILIATE_DASHBOARD_URL = 'https://affiliate.didwaghana.com';
 
 export default function WelcomePage({ authed = false, onStart, onDashboard }) {
   const start = onStart || (() => {});
@@ -338,9 +339,9 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
                 <button type="button" onClick={dashboard} className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-blue-700 shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
                   Open your dashboard <ArrowRight size={16} aria-hidden="true" />
                 </button>
-                <button type="button" onClick={() => window.location.href='/affiliate/signup'} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ml-3">
+                <a href={AFFILIATE_DASHBOARD_URL} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ml-3">
                   Affiliate program <Smartphone size={16} aria-hidden="true" />
-                </button>
+                </a>
               </>
             ) : (
               <>
@@ -350,6 +351,9 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
                 <button type="button" onClick={() => start('login')} className="rounded-xl border border-white/40 px-7 py-3.5 text-sm font-bold text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
                   I already have a store
                 </button>
+                <a href={AFFILIATE_DASHBOARD_URL} className="inline-flex items-center gap-2 rounded-xl border border-white/40 px-7 py-3.5 text-sm font-bold text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                  Affiliate program <Smartphone size={16} aria-hidden="true" />
+                </a>
               </>
             )}
           </div>

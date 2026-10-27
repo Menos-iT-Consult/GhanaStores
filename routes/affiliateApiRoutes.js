@@ -11,9 +11,9 @@ import {
   create,
   listPayoutRequests,
 } from '../models/affiliate.js';
-import { formatGHS } from '../lib/affiliate.js';
+import { formatGHS, isValidReferralCode } from '../lib/affiliate.js';
 import { issueAffiliateToken, requireAuth } from '../middleware/authMiddleware.js';
-import { query } from '../config/database.js';
+import { query, withTransaction } from '../config/database.js';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 import { platformDomain } from '../middleware/domainMiddleware.js';
 
@@ -47,7 +47,7 @@ router.get('/program', async (_req, res, next) => {
 router.get('/attribution', async (req, res, next) => {
   try {
     const referralCode = String(req.query?.ref || '');
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(referralCode)) {
+    if (!isValidReferralCode(referralCode)) {
       return res.status(400).json({ error: 'Referral code is invalid.' });
     }
     const affiliate = await findByReferralCode(referralCode);
@@ -139,11 +139,29 @@ router.get('/stats', requireAffiliate, async (req, res) => {
     `SELECT
        (SELECT COALESCE(SUM(earned_amount_ghs), 0)
           FROM affiliate_commissions
-         WHERE affiliate_id = $1 AND status <> 'reversed') AS total_earned,
+         WHERE affiliate_id = $1 AND status IN ('pending', 'paid')) AS total_earned,
+       (SELECT COALESCE(SUM(earned_amount_ghs), 0)
+          FROM affiliate_commissions
+         WHERE affiliate_id = $1 AND status = 'pending') AS pending_commissions,
+       (SELECT COALESCE(SUM(earned_amount_ghs), 0)
+          FROM affiliate_commissions
+         WHERE affiliate_id = $1 AND status = 'paid') AS paid_commissions,
+       (SELECT COALESCE(SUM(amount_ghs), 0)
+          FROM affiliate_payouts
+         WHERE affiliate_id = $1 AND status = 'pending') AS pending_payouts,
+       (SELECT COALESCE(SUM(amount_ghs), 0)
+          FROM affiliate_payouts
+         WHERE affiliate_id = $1 AND status = 'paid') AS completed_payouts,
        (SELECT COUNT(*)::int
           FROM referrals
          WHERE affiliate_id = $1) AS referred_count`,
     [req.affiliate.id]
+  );
+  stats[0].available_payout = Math.max(
+    0,
+    Number(stats[0].paid_commissions || 0)
+      - Number(stats[0].pending_payouts || 0)
+      - Number(stats[0].completed_payouts || 0),
   );
   res.json(stats[0]);
 });
@@ -171,49 +189,58 @@ router.get('/payouts', requireAffiliate, async (req, res) => {
 });
 
 // 🔹 POST /api/affiliate/payouts - Request a payout
-router.post('/payouts', requireAffiliate, async (req, res) => {
-  const { amountGHS } = req.body;
-  if (!amountGHS || isNaN(amountGHS) || amountGHS <= 0) {
-    return res.status(400).json({ error: 'Invalid amount' });
-  }
+router.post('/payouts', requireAffiliate, async (req, res, next) => {
+  try {
+    const rawAmount = req.body?.amountGHS;
+    const amountGhs = Number(rawAmount);
+    if (!Number.isFinite(amountGhs) || amountGhs <= 0 || Math.abs(amountGhs * 100 - Math.round(amountGhs * 100)) > 1e-8) {
+      return res.status(400).json({ error: 'Enter a valid payout amount with up to two decimal places.' });
+    }
 
-  const programSettings = await getAffiliateProgramSettings();
-  const minPayout = programSettings.minimumPayoutGhs;
+    const programSettings = await getAffiliateProgramSettings();
+    const minPayout = programSettings.minimumPayoutGhs;
+    if (amountGhs < Number(minPayout)) {
+      return res.status(400).json({
+        error: `Minimum payout is ${formatGHS(minPayout)}`,
+      });
+    }
 
-  if (Number(amountGHS) < Number(minPayout)) {
-    return res.status(400).json({
-      error: `Minimum payout is ${formatGHS(minPayout)}`,
+    const payout = await withTransaction(async (t) => {
+      await t.query('SELECT id FROM affiliates WHERE id = $1 FOR UPDATE', [req.affiliate.id]);
+      const { rows } = await t.query(
+        `SELECT
+           (SELECT COALESCE(SUM(earned_amount_ghs), 0)
+              FROM affiliate_commissions
+             WHERE affiliate_id = $1 AND status = 'paid') AS paid_commissions,
+           (SELECT COALESCE(SUM(amount_ghs), 0)
+              FROM affiliate_payouts
+             WHERE affiliate_id = $1 AND status IN ('pending', 'paid')) AS reserved_payouts`,
+        [req.affiliate.id],
+      );
+      const available = Math.max(0, Number(rows[0].paid_commissions) - Number(rows[0].reserved_payouts));
+      if (amountGhs > available) {
+        const err = new Error(`Insufficient available balance. Available: ${formatGHS(available)}.`);
+        err.status = 400;
+        throw err;
+      }
+      const { rows: inserted } = await t.query(
+        `INSERT INTO affiliate_payouts (affiliate_id, amount_ghs, momo_network, momo_number, status)
+         VALUES ($1, $2, $3, $4, 'pending')
+         RETURNING id, amount_ghs, status, requested_at`,
+        [req.affiliate.id, amountGhs, req.affiliate.momo_network, req.affiliate.momo_number],
+      );
+      return inserted[0];
     });
-  }
 
-  // Check sufficient balance
-  const { rows: summary } = await query(
-    `SELECT total_earned FROM (
-      SELECT COALESCE(SUM(earned_amount_ghs), 0) AS total_earned
-      FROM affiliate_commissions
-      WHERE affiliate_id = $1 AND status = 'paid'
-    ) sub`,
-    [req.affiliate.id]
-  );
-  const earned = Number(summary[0].total_earned);
-
-  if (Number(amountGHS) > earned) {
-    return res.status(400).json({
-      error: `Insufficient balance. Earned: ${formatGHS(earned)}, Requested: ${formatGHS(amountGHS)}`,
+    return res.json({
+      success: true,
+      payout,
+      message: `Payout request of ${formatGHS(amountGhs)} submitted. Processing time: ${programSettings.payoutProcessingMinDays}-${programSettings.payoutProcessingMaxDays} business days.`,
     });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
   }
-
-  // Record payout request
-  await query(
-    `INSERT INTO affiliate_payouts (affiliate_id, amount_ghs, momo_network, momo_number, status)
-     VALUES ($1, $2, $3, $4, 'pending')`,
-    [req.affiliate.id, amountGHS, req.affiliate.momo_network, req.affiliate.momo_number]
-  );
-
-  res.json({
-    success: true,
-    message: `Payout request of ${formatGHS(amountGHS)} submitted. Processing time: ${programSettings.payoutProcessingMinDays}-${programSettings.payoutProcessingMaxDays} business days.`,
-  });
 });
 
 export default router;

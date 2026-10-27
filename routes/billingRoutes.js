@@ -22,7 +22,8 @@ import { decryptSecret } from '../services/secretBox.js';
 import { verifyTotp } from '../services/totpService.js';
 import { billingCronHandler } from './billingCronRoute.js';
 import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
-import { findByReferralCode, linkStoreToAffiliate } from '../models/affiliate.js';
+import { findByReferralCode } from '../models/affiliate.js';
+import { isValidReferralCode } from '../lib/affiliate.js';
 
 const router = Router();
 
@@ -95,6 +96,33 @@ router.post('/register', async (req, res, next) => {
       return res.status(409).json({ error: 'This phone number is already registered to an account.' });
     }
 
+    const submittedReferralCode = String(req.body?.referralCode || '').trim();
+    const referralCookie = String(req.headers.cookie || '')
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('didwa_ref='))
+      ?.slice('didwa_ref='.length);
+    let cookieReferralCode = '';
+    try {
+      cookieReferralCode = referralCookie ? decodeURIComponent(referralCookie) : '';
+    } catch {
+      cookieReferralCode = '';
+    }
+    const referralCode = submittedReferralCode || cookieReferralCode;
+    let referredAffiliate = null;
+    if (referralCode) {
+      const validReferralCode = isValidReferralCode(referralCode);
+      if (!validReferralCode && submittedReferralCode) {
+        return res.status(400).json({ error: 'The referral code is invalid.' });
+      }
+      if (validReferralCode) {
+        referredAffiliate = await findByReferralCode(referralCode);
+      }
+      if (submittedReferralCode && !referredAffiliate) {
+        return res.status(400).json({ error: 'The referral code was not found or is inactive.' });
+      }
+    }
+
     /* The seller's CHOSEN address, when the signup form supplied one. Taken
        verbatim - never silently substituted with a generated one, because the
        form promised them this exact URL. */
@@ -138,7 +166,7 @@ router.post('/register', async (req, res, next) => {
             err.code = 'PHONE_DUPLICATE';
             throw err;
           }
-          return t.query(
+          const createdStore = await t.query(
             `INSERT INTO stores (name, owner_name, email, phone, password_hash,
                                  subdomain_slug, whatsapp_number, momo_number)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
@@ -149,6 +177,15 @@ router.post('/register', async (req, res, next) => {
                 : await uniqueSlug(`${slug}-retry-${Math.random().toString(36).slice(2, 6)}`),
               normWhatsapp, normMomo],
           );
+          if (referredAffiliate) {
+            await t.query(
+              `INSERT INTO referrals (affiliate_id, referred_store_id, status)
+               VALUES ($1, $2, 'pending_upgrade')
+               ON CONFLICT (referred_store_id) DO NOTHING`,
+              [referredAffiliate.id, createdStore.rows[0].id],
+            );
+          }
+          return createdStore;
         });
         store = inserted.rows[0];
         break;
@@ -177,19 +214,6 @@ router.post('/register', async (req, res, next) => {
           continue;
         }
         throw err;
-      }
-    }
-    const referralCookie = String(req.headers.cookie || '')
-      .split(';')
-      .map((part) => part.trim())
-      .find((part) => part.startsWith('didwa_ref='))
-      ?.slice('didwa_ref='.length);
-    if (referralCookie && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(referralCookie)) {
-      try {
-        const affiliate = await findByReferralCode(decodeURIComponent(referralCookie));
-        if (affiliate) await linkStoreToAffiliate(store.id, affiliate.id);
-      } catch (referralErr) {
-        console.warn('[affiliate] referral attribution failed for new store:', referralErr.message);
       }
     }
     const token = issueStoreToken(store);

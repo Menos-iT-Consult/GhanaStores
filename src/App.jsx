@@ -263,15 +263,8 @@ case '/messages': return <SellerMessages />;
     if (route === '/affiliate/login' || route === '/affiliate/signup') {
       return <AffiliateAccessPage initialMode={route.endsWith('/signup') ? 'signup' : 'login'} />;
     }
-    if (route === '/affiliate/dashboard') return <AffiliateDashboardPage />;
-    if (route === '/' || route === '/affiliate-program') {
-      return (
-        <AffiliateProgramPage
-          onStart={(mode = 'signup') => navigate(mode === 'login' ? '/affiliate/login' : '/affiliate/signup')}
-          onDashboard={() => navigate('/affiliate/dashboard')}
-        />
-      );
-    }
+    if (route === '/affiliate-program') return <AffiliateProgramPage />;
+    if (route === '/' || route === '/affiliate/dashboard') return <AffiliateDashboardPage />;
   }
 
   /* Public web pages - open to everyone, no dashboard chrome. The index

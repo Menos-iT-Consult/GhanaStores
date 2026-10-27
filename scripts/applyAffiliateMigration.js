@@ -41,15 +41,16 @@ if (!dbUrl) {
   process.exit(1);
 }
 
-// Read SQL migration
-const sqlPath = path.join(__dirname, '..', 'db', 'migrations', '001_affiliate_program.sql');
-if (!fs.existsSync(sqlPath)) {
-  console.error('ERROR: Migration file not found at', sqlPath);
-  process.exit(1);
+const migrationPaths = [
+  path.join(__dirname, '..', 'db', 'migrations', '001_affiliate_program.sql'),
+  path.join(__dirname, '..', 'db', 'migrations', '002_short_affiliate_referral_codes.sql'),
+];
+for (const migrationPath of migrationPaths) {
+  if (!fs.existsSync(migrationPath)) {
+    console.error('ERROR: Migration file not found at', migrationPath);
+    process.exit(1);
+  }
 }
-
-const sqlContent = fs.readFileSync(sqlPath, 'utf8');
-console.log('Migration file loaded:', sqlContent.length, 'chars');
 
 // Apply migration
 const { Pool } = pg;
@@ -57,8 +58,11 @@ const pool = new Pool({ connectionString: dbUrl });
 
 console.log('Connecting to database...');
 try {
-  await pool.query(sqlContent);
-  console.log('✅ Migration applied successfully!');
+  for (const migrationPath of migrationPaths) {
+    const sqlContent = fs.readFileSync(migrationPath, 'utf8');
+    await pool.query(sqlContent);
+    console.log('Migration applied:', path.basename(migrationPath));
+  }
 
   // Verify affiliate tables
   const result = await pool.query("SELECT tablename FROM pg_tables WHERE tablename LIKE 'affiliate%' ORDER BY tablename");
@@ -68,10 +72,15 @@ try {
   }
 
   // Show settings
-  const settings = await pool.query('SELECT key, value FROM affiliate_settings ORDER BY key');
+  const settings = await pool.query(
+    `SELECT setting_key, setting_value
+       FROM system_settings
+      WHERE setting_key LIKE 'affiliate_%'
+      ORDER BY setting_key`,
+  );
   if (settings.rows.length > 0) {
     console.log('\nAffiliate settings:');
-    settings.rows.forEach(r => console.log(`  - ${r.key} = ${r.value}`));
+    settings.rows.forEach(r => console.log(`  - ${r.setting_key} = ${r.setting_value}`));
   }
 
   console.log('\n🎉 Database migration complete!');

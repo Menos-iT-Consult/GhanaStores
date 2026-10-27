@@ -93,6 +93,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
   const [acceptsTerms, setAcceptsTerms] = useState(false);
   const [form, setForm] = useState({
     name: '', ownerName: '', email: '', phone: '', password: '', subdomain: '',
+    referralCode: new URLSearchParams(window.location.search).get('ref') || '',
   });
   /* Once the seller edits the address themselves, the shop name must stop
      overwriting it. Derived slug, they can type; derived slug they never touch,
@@ -384,6 +385,18 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
                   {fieldErrors.phone && (
                     <p className="mt-1 text-xs font-semibold text-red-600" role="alert">{fieldErrors.phone}</p>
                   )}
+                  <Field id="referralCode" label="Referral code (optional)" icon={UserPlus}>
+                    <input
+                      id="referralCode"
+                      type="text"
+                      className={inputCls}
+                      value={form.referralCode}
+                      onChange={set('referralCode')}
+                      placeholder="Enter your referral code"
+                      maxLength={64}
+                      autoComplete="off"
+                    />
+                  </Field>
                 </>
               )}
 

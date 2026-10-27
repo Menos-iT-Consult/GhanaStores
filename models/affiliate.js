@@ -3,7 +3,16 @@
 
 import { query } from '../config/database.js';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
-import { randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
+
+const REFERRAL_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateShortReferralCode() {
+  return Array.from(
+    { length: 8 },
+    () => REFERRAL_CODE_ALPHABET[randomInt(REFERRAL_CODE_ALPHABET.length)],
+  ).join('');
+}
 
 // Find affiliate by referral code
 export async function findByReferralCode(code) {
@@ -12,8 +21,17 @@ export async function findByReferralCode(code) {
             a.momo_network, a.momo_number, a.is_active,
             a.created_at, a.updated_at
      FROM affiliates a
-     WHERE a.referral_code = $1 AND a.is_active = TRUE`,
-    [code]
+     WHERE a.is_active = TRUE
+       AND (
+         UPPER(a.referral_code) = UPPER($1)
+         OR EXISTS (
+          SELECT 1
+            FROM affiliate_referral_code_aliases alias
+           WHERE alias.affiliate_id = a.id
+             AND UPPER(alias.code) = UPPER($1)
+         )
+       )`,
+    [String(code || '').trim()]
   );
   return rows[0];
 }
@@ -57,20 +75,26 @@ export async function findById(id) {
 
 // Create new affiliate profile
 export async function create({ fullName, email, phone, momoNetwork, momoNumber, passwordHash, referralCode }) {
-  const finalCode = referralCode || randomUUID();
-
-  const { rows } = await query(
-    `INSERT INTO affiliates
-       (referral_code, full_name, email, phone, momo_network, momo_number, password_hash, is_active)
-     VALUES
-       ($1, $2, $3, $4, $5, $6, $7, TRUE)
-     RETURNING
-       id, referral_code, full_name, email, phone,
-       momo_network, momo_number, is_active,
-       created_at, updated_at`,
-    [finalCode, fullName, email, phone, momoNetwork, momoNumber, passwordHash]
-  );
-  return rows[0];
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const finalCode = referralCode || generateShortReferralCode();
+    try {
+      const { rows } = await query(
+        `INSERT INTO affiliates
+           (referral_code, full_name, email, phone, momo_network, momo_number, password_hash, is_active)
+         VALUES
+           ($1, $2, $3, $4, $5, $6, $7, TRUE)
+         RETURNING
+           id, referral_code, full_name, email, phone,
+           momo_network, momo_number, is_active,
+           created_at, updated_at`,
+        [finalCode, fullName, email, phone, momoNetwork, momoNumber, passwordHash]
+      );
+      return rows[0];
+    } catch (err) {
+      if (err.code !== '23505' || referralCode || attempt === 4) throw err;
+    }
+  }
+  throw new Error('Could not generate a unique affiliate referral code.');
 }
 
 // Link store to affiliate assignment
