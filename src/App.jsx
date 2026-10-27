@@ -98,7 +98,7 @@ export default function App() {
   // non-platform host is offered to the storefront, which resolves it through
   // the API and renders a clean error when no store claims it.
   const isPlatformHostWithSubdomains = isPlatformHost || host === `api.${platformHost}`;
-  const resolvedPlatformHost = String(hostState.platformDomain || platformHost).toLowerCase();
+  const resolvedPlatformHost = String(hostState.platformDomain || platformHost || 'didwaghana.com').toLowerCase();
   const isAffiliateHost = Boolean(resolvedPlatformHost) && host === `affiliate.${resolvedPlatformHost}`;
   const isTenantHost = isPlatformSubdomain
     || (!isPlatformHostWithSubdomains && host.includes('.') && host.split('.').length >= 2);

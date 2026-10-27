@@ -10,10 +10,13 @@ const server = read('../server.js');
 const uiRoutes = read('../src/routes.js');
 const accessPage = read('../src/pages/affiliate/AffiliateAccessPage.jsx');
 const dashboardPage = read('../src/pages/affiliate/AffiliateDashboardPage.jsx');
+const programPage = read('../src/pages/AffiliateProgramPage.jsx');
 
 const checks = [
   ['affiliate subdomain is reserved from tenant lookup', /RESERVED_SUBDOMAINS/.test(middleware) && /new Set\(\[[^\]]*'affiliate'[^\]]*\]\)/.test(slugRules)],
   ['affiliate root renders program info', /if \(isAffiliateHost\) \{[\s\S]{0,500}AffiliateProgramPage/.test(app)],
+  ['affiliate host detection has a platform apex fallback', /hostState\.platformDomain \|\| platformHost \|\| 'didwaghana\.com'/.test(app)],
+  ['affiliate program CTAs lead to live signup and login routes', /AFFILIATE_SIGNUP_URL = `\$\{AFFILIATE_PLATFORM_URL\}\/affiliate\/signup`/.test(programPage) && /AFFILIATE_LOGIN_URL = `\$\{AFFILIATE_PLATFORM_URL\}\/affiliate\/login`/.test(programPage) && /href=\{AFFILIATE_SIGNUP_URL\}/.test(programPage) && /href=\{AFFILIATE_LOGIN_URL\}/.test(programPage)],
   ['affiliate login and signup are registered public routes', ['/affiliate/login', '/affiliate/signup'].every((route) => uiRoutes.includes(`'${route}'`))],
   ['affiliate dashboard is registered as a public route', uiRoutes.includes("'/affiliate/dashboard'")],
   ['affiliate signup endpoint creates a separate affiliate account', /router\.post\('\/signup'/.test(routes) && /create\(\{[\s\S]{0,200}passwordHash/.test(routes)],

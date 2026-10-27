@@ -7,6 +7,7 @@ import MetaTags from '../components/seo/MetaTags.jsx';
 const AFFILIATE_PLATFORM_URL = String(
   import.meta.env.VITE_AFFILIATE_PLATFORM_URL || 'https://affiliate.didwaghana.com',
 ).replace(/\/+$/, '');
+const AFFILIATE_SIGNUP_URL = `${AFFILIATE_PLATFORM_URL}/affiliate/signup`;
 const AFFILIATE_LOGIN_URL = `${AFFILIATE_PLATFORM_URL}/affiliate/login`;
 
 export default function AffiliateProgramPage({ authed = false, onStart, onDashboard }) {
@@ -58,16 +59,16 @@ export default function AffiliateProgramPage({ authed = false, onStart, onDashbo
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <a
-              href={AFFILIATE_LOGIN_URL}
+              href={AFFILIATE_SIGNUP_URL}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
             >
-              Sign in or join the affiliate platform <ArrowRight size={16} aria-hidden="true" />
+              Join the affiliate program <ArrowRight size={16} aria-hidden="true" />
             </a>
             <a
-              href="/how-it-works"
+              href={AFFILIATE_LOGIN_URL}
               className="rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal"
             >
-              Learn about DiDwa
+              Affiliate sign in
             </a>
           </div>
         </section>
