@@ -6,6 +6,14 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     },
@@ -22,7 +30,7 @@
       "destination": "/assets/$1"
     },
     {
-      "source": "/((?!assets/|api/|health).*)",
+      "source": "/((?!assets/|api/|health|sitemap.xml|robots.txt).*)",
       "destination": "/index.html"
     }
   ],
