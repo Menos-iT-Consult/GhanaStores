@@ -3,14 +3,16 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import * as endpoints from '@/api/endpoints';
 
+let registrationInFlight: Promise<PushRegistrationResult> | null = null;
+
 /**
  * Expo push-notification plumbing for the seller app.
  *
- * - Asks for permission (ideally right after login).
+ * - Registers only after permission is granted; the explicit prompt lives in Settings.
  * - Retrieves the Expo push token and registers it with the backend so the
  *   dispatch service can reach this device.
- * - Configures how notifications present while the app is foregrounded, and a
- *   background handler so a push still shows if the app is closed.
+ * - Configures foreground presentation and routes notification taps, including
+ *   the response that launched a cold app.
  * - Deep-links a "new order" notification to /orders/[id].
  *
  * NOTE: Expo push tokens only mint once a real EAS `projectId` exists
@@ -30,24 +32,30 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export async function getPushPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined' | 'unavailable'> {
+  if (!Device.isDevice) return 'unavailable';
+  const existing = await Notifications.getPermissionsAsync();
+  if (existing.granted) return 'granted';
+  return existing.canAskAgain ? 'undetermined' : 'denied';
+}
+
 export async function requestPushPermission(): Promise<boolean> {
   if (!Device.isDevice) return false;
   const existing = await Notifications.getPermissionsAsync();
   let granted = existing.granted;
-  if (!granted && existing.canAskAgain) {
-    const ask = await Notifications.requestPermissionsAsync();
-    granted = ask.granted;
-  }
-  // Android requires a channel for heads-up notifications.
-  if (granted && Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('orders', {
-      name: 'Orders',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#0066FF',
-    });
-  }
+  if (!granted && existing.canAskAgain) granted = (await Notifications.requestPermissionsAsync()).granted;
+  if (granted) await ensureNotificationChannel();
   return granted;
+}
+
+async function ensureNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync('orders', {
+    name: 'Orders',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#0066FF',
+  });
 }
 
 /**
@@ -94,33 +102,88 @@ export type PushRegistrationResult =
  * diagnostic result so the Settings screen can tell the merchant exactly what
  * happened instead of failing silently.
  */
-export async function registerDeviceForPush(): Promise<PushRegistrationResult> {
-  if (!Device.isDevice) return 'unavailable';
-  const granted = await requestPushPermission();
-  if (!granted) return 'permission-denied';
-  const token = await getExpoPushToken();
-  if (!token) return 'token-error';
-  try {
-    await endpoints.registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android');
-    return 'registered';
-  } catch (err) {
-    console.warn('[push] device register failed:', err);
-    return 'register-failed';
+export async function registerDeviceForPush(
+  options: { requestPermission?: boolean } = {},
+): Promise<PushRegistrationResult> {
+  if (registrationInFlight) {
+    if (options.requestPermission) {
+      return registrationInFlight.then((result) =>
+        result === 'permission-denied' ? registerDeviceForPush(options) : result,
+      );
+    }
+    return registrationInFlight;
   }
+  registrationInFlight = (async (): Promise<PushRegistrationResult> => {
+    if (!Device.isDevice) return 'unavailable';
+    const granted = options.requestPermission
+      ? await requestPushPermission()
+      : (await Notifications.getPermissionsAsync()).granted;
+    if (!granted) return 'permission-denied';
+    await ensureNotificationChannel();
+    const token = await getExpoPushToken();
+    if (!token) return 'token-error';
+    try {
+      await endpoints.registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android');
+      return 'registered';
+    } catch (err) {
+      console.warn('[push] device register failed:', err);
+      return 'register-failed';
+    }
+  })().finally(() => {
+    registrationInFlight = null;
+  });
+  return registrationInFlight;
 }
 
 /** Unregister this device on logout. */
 export async function unregisterDeviceForPush(): Promise<void> {
-  const token = await getExpoPushToken().catch(() => null);
+  const token = await getExpoPushToken();
   if (!token) return;
-  await endpoints.unregisterDevice(token).catch(() => undefined);
+  try {
+    await endpoints.unregisterDevice(token);
+  } catch (error) {
+    console.warn('[push] device unregister failed:', error);
+  }
 }
 
 /** Configure a deep-link router for notification taps (e.g. new order). */
-export function addNotificationResponseListener(handler: (data: Record<string, unknown>) => void) {
+export interface NotificationTap {
+  id: string;
+  data: Record<string, unknown>;
+}
+
+function notificationTapFromResponse(
+  response: Notifications.NotificationResponse | null,
+): NotificationTap | null {
+  if (!response) return null;
+  return {
+    id: response.notification.request.identifier,
+    data: response.notification.request.content.data as Record<string, unknown>,
+  };
+}
+
+/** Notification which launched the app or was tapped before JS listeners mounted. */
+export async function getLastNotificationTap(): Promise<NotificationTap | null> {
+  return notificationTapFromResponse(await Notifications.getLastNotificationResponseAsync());
+}
+
+export async function clearLastNotificationTap(): Promise<void> {
+  await Notifications.clearLastNotificationResponseAsync();
+}
+
+export function addNotificationResponseListener(handler: (tap: NotificationTap) => void) {
   return Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = (response?.notification?.request?.content?.data ?? {}) as Record<string, unknown>;
-    handler(data);
+    const tap = notificationTapFromResponse(response);
+    if (tap) handler(tap);
+  });
+}
+
+/** Re-register when native APNs/FCM tokens rotate; Expo push tokens are re-read. */
+export function addPushTokenRefreshListener() {
+  return Notifications.addPushTokenListener(() => {
+    void registerDeviceForPush().catch((err) => {
+      console.warn('[push] could not refresh device registration:', err);
+    });
   });
 }
 
@@ -138,7 +201,9 @@ export function routeForNotification(data: Record<string, unknown>): string | nu
   const type = data?.type;
   if (type === 'order_created' || type === 'order_status' || type === 'order_paid' || type === 'payment_received') {
     const id = data?.orderId ?? data?.order_id;
-    return id ? `/orders/${id}` : '/orders';
+    return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      ? `/orders/${id}`
+      : '/orders';
   }
   if (type === 'low_stock') return '/products';
   if (type === 'subscription_active') return '/settings';

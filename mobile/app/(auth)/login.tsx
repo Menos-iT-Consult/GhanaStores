@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Modal, Snackbar, Text, ActivityIndicator as PaperActivityIndicator } from 'react-native-paper';
+import { Modal, Snackbar, Text, ActivityIndicator as PaperActivityIndicator, useTheme } from 'react-native-paper';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,6 +20,9 @@ import Animated, {
   withTiming,
   withDelay,
   interpolate,
+  FadeInUp,
+  FadeOutDown,
+  useReducedMotion,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
@@ -42,14 +45,17 @@ function openExternal(url: string) {
 }
 
 export default function LoginScreen() {
-  const { signIn, completeTwoFactor } = useAuth();
+  const { signIn, completeTwoFactor, restoreError, clearRestoreError } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const reduceMotion = useReducedMotion();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [challenge, setChallenge] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [secure, setSecure] = useState(true);
   const [emailFocused, setEmailFocused] = useState(false);
@@ -63,17 +69,22 @@ export default function LoginScreen() {
   const [resetError, setResetError] = useState<string | null>(null);
 
   /* Entrance animations */
-  const brandScale = useSharedValue(0);
-  const brandOpacity = useSharedValue(0);
-  const cardScale = useSharedValue(0);
-  const cardOpacity = useSharedValue(0);
-  const formOpacity = useSharedValue(0);
-  const formTranslateY = useSharedValue(20);
-  const footerOpacity = useSharedValue(0);
-  const footerTranslateY = useSharedValue(20);
+  const brandScale = useSharedValue(reduceMotion ? 1 : 0);
+  const brandOpacity = useSharedValue(reduceMotion ? 1 : 0);
+  const cardScale = useSharedValue(reduceMotion ? 1 : 0);
+  const cardOpacity = useSharedValue(reduceMotion ? 1 : 0);
+  const formOpacity = useSharedValue(reduceMotion ? 1 : 0);
+  const formTranslateY = useSharedValue(reduceMotion ? 0 : 20);
+  const footerOpacity = useSharedValue(reduceMotion ? 1 : 0);
+  const footerTranslateY = useSharedValue(reduceMotion ? 0 : 20);
   const buttonScale = useSharedValue(1);
 
   useEffect(() => {
+    if (restoreError) setError(restoreError);
+  }, [restoreError]);
+
+  useEffect(() => {
+    if (reduceMotion) return;
     brandScale.value = withSpring(1, { damping: 22, stiffness: 180 });
     brandOpacity.value = withTiming(1, { duration: 700 });
 
@@ -85,7 +96,7 @@ export default function LoginScreen() {
 
     footerOpacity.value = withDelay(450, withTiming(1, { duration: 600 }));
     footerTranslateY.value = withDelay(450, withTiming(0, { duration: 600 }));
-  }, []);
+  }, [reduceMotion]);
 
   const brandAnim = useAnimatedStyle(() => ({
     opacity: brandOpacity.value,
@@ -115,22 +126,29 @@ export default function LoginScreen() {
   }));
 
   const onButtonPressIn = () => {
+    if (reduceMotion) return;
     buttonScale.value = withSpring(0.98, { damping: 18, stiffness: 120 });
   };
 
   const onButtonPressOut = () => {
+    if (reduceMotion) return;
     buttonScale.value = withSpring(1, { damping: 18, stiffness: 120 });
   };
 
   async function onSubmit() {
+    clearRestoreError();
     setError(null);
     setBusy(true);
     try {
       const result = await signIn(email.trim(), password);
       if ('twoFactorRequired' in result && result.twoFactorRequired) {
         setChallenge(result.challenge);
+      } else {
+        setRedirecting(true);
+        router.replace('/(tabs)/dashboard');
       }
     } catch (err) {
+      setRedirecting(false);
       setError(apiErrorMessage(err, 'Could not sign in. Please try again.'));
     } finally {
       setBusy(false);
@@ -143,7 +161,10 @@ export default function LoginScreen() {
     setBusy(true);
     try {
       await completeTwoFactor(challenge, code.trim());
+      setRedirecting(true);
+      router.replace('/(tabs)/dashboard');
     } catch (err) {
+      setRedirecting(false);
       setError(apiErrorMessage(err, 'That code is not correct.'));
     } finally {
       setBusy(false);
@@ -173,10 +194,10 @@ export default function LoginScreen() {
   const isCodeValid = code.length >= 6;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.root}
+        style={[styles.root, { backgroundColor: colors.background }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
       >
         <ScrollView
@@ -187,27 +208,30 @@ export default function LoginScreen() {
         >
           {/* Brand header */}
           <Animated.View style={[styles.brand, brandAnim]}>
-            <View style={styles.logoWrap}>
+            <View style={[styles.logoWrap, { backgroundColor: colors.surface }]}>
               <Image source={logoImage} style={styles.logoImage} />
             </View>
-            <Text style={styles.appName}>DiDwa</Text>
-            <Text style={styles.appSubtitle}>Seller App</Text>
+            <Text style={[styles.appName, { color: colors.onSurface }]}>DiDwa</Text>
+            <Text style={[styles.appSubtitle, { color: colors.onSurfaceVariant }]}>Seller App</Text>
           </Animated.View>
 
           {/* Login card */}
           <Animated.View style={[styles.cardWrap, cardAnim]}>
-            <View style={[styles.card, { backgroundColor: CARD_BG }]}>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.outlineVariant }]}>
               <Animated.View style={[styles.cardBody, formAnim]}>
-                <Text style={styles.heading}>Welcome back 👋</Text>
-                <Text style={styles.subheading}>Sign in to manage your store on the go.</Text>
+                <Text style={[styles.heading, { color: colors.onSurface }]}>Welcome back</Text>
+                <Text style={[styles.subheading, { color: colors.onSurfaceVariant }]}>Sign in to manage your store on the go.</Text>
 
                 {!twoFactor ? (
-                  <>
+                  <Animated.View
+                    entering={reduceMotion ? undefined : FadeInUp.duration(220)}
+                    exiting={reduceMotion ? undefined : FadeOutDown.duration(120)}
+                  >
                     <View style={styles.inputWrap}>
                       <MaterialCommunityIcons
                         name="email-outline"
                         size={20}
-                        color={emailFocused ? ACCENT : TEXT_MUTED}
+                        color={emailFocused ? colors.primary : colors.onSurfaceVariant}
                         style={styles.inputIcon}
                       />
                       <TextInput
@@ -220,9 +244,16 @@ export default function LoginScreen() {
                         autoComplete="email"
                         keyboardType="email-address"
                         returnKeyType="next"
-                        style={[styles.input, emailFocused ? styles.inputFocused : null]}
-                        placeholderTextColor="#64748B"
-                        selectionColor={ACCENT}
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: colors.surfaceVariant,
+                            borderColor: emailFocused ? colors.primary : colors.outline,
+                            color: colors.onSurface,
+                          },
+                        ]}
+                        placeholderTextColor={colors.onSurfaceVariant}
+                        selectionColor={colors.primary}
                       />
                     </View>
 
@@ -230,7 +261,7 @@ export default function LoginScreen() {
                       <MaterialCommunityIcons
                         name="lock-outline"
                         size={20}
-                        color={passwordFocused ? ACCENT : TEXT_MUTED}
+                        color={passwordFocused ? colors.primary : colors.onSurfaceVariant}
                         style={styles.inputIcon}
                       />
                       <TextInput
@@ -242,9 +273,16 @@ export default function LoginScreen() {
                         secureTextEntry={secure}
                         autoCapitalize="none"
                         returnKeyType="done"
-                        style={[styles.input, passwordFocused ? styles.inputFocused : null]}
-                        placeholderTextColor="#64748B"
-                        selectionColor={ACCENT}
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: colors.surfaceVariant,
+                            borderColor: passwordFocused ? colors.primary : colors.outline,
+                            color: colors.onSurface,
+                          },
+                        ]}
+                        placeholderTextColor={colors.onSurfaceVariant}
+                        selectionColor={colors.primary}
                       />
                       <Pressable
                         onPress={() => setSecure((s) => !s)}
@@ -254,43 +292,60 @@ export default function LoginScreen() {
                         <MaterialCommunityIcons
                           name={secure ? 'eye-off-outline' : 'eye-outline'}
                           size={20}
-                          color={TEXT_MUTED}
+                          color={colors.onSurfaceVariant}
                         />
                       </Pressable>
                     </View>
 
-                    <Pressable onPress={() => setResetModalVisible(true)} hitSlop={12} style={styles.forgotWrap}>
-                      <Text style={styles.forgotText}>Forgot password?</Text>
+                    <Pressable
+                      onPress={() => {
+                        setResetEmail(email.trim());
+                        setResetError(null);
+                        setResetSent(false);
+                        setResetModalVisible(true);
+                      }}
+                      hitSlop={12}
+                      style={styles.forgotWrap}
+                    >
+                      <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
                     </Pressable>
 
                     <Pressable
                       onPressIn={onButtonPressIn}
                       onPressOut={onButtonPressOut}
                       onPress={onSubmit}
-                      disabled={busy || !isFormValid}
+                      disabled={busy || redirecting || !isFormValid}
                       style={[
                         styles.button,
-                        { backgroundColor: busy || !isFormValid ? '#475569' : ACCENT },
+                        { backgroundColor: busy || redirecting || !isFormValid ? colors.surfaceDisabled : colors.primary },
                       ]}
                     >
                       <Animated.View style={buttonAnim}>
-                        {busy ? (
-                          <PaperActivityIndicator color="#fff" size="small" />
+                        {busy || redirecting ? (
+                          <View style={styles.buttonProgress}>
+                            <PaperActivityIndicator color={colors.onPrimary} size="small" />
+                            {redirecting ? (
+                              <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Opening your store…</Text>
+                            ) : null}
+                          </View>
                         ) : (
-                          <Text style={styles.buttonText}>Sign in</Text>
+                          <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Sign in</Text>
                         )}
                       </Animated.View>
                     </Pressable>
-                  </>
+                  </Animated.View>
 
                 ) : (
 
-                  <>
+                  <Animated.View
+                    entering={reduceMotion ? undefined : FadeInUp.duration(220)}
+                    exiting={reduceMotion ? undefined : FadeOutDown.duration(120)}
+                  >
                     <View style={styles.inputWrap}>
                       <MaterialCommunityIcons
                         name="lock-outline"
                         size={20}
-                        color={TEXT_MUTED}
+                        color={colors.onSurfaceVariant}
                         style={styles.inputIcon}
                       />
                       <TextInput
@@ -300,9 +355,16 @@ export default function LoginScreen() {
                         autoCapitalize="none"
                         keyboardType="numeric"
                         maxLength={6}
-                        style={styles.input}
-                        placeholderTextColor="#64748B"
-                        selectionColor={ACCENT}
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: colors.surfaceVariant,
+                            borderColor: colors.outline,
+                            color: colors.onSurface,
+                          },
+                        ]}
+                        placeholderTextColor={colors.onSurfaceVariant}
+                        selectionColor={colors.primary}
                       />
                     </View>
 
@@ -310,21 +372,26 @@ export default function LoginScreen() {
                       onPressIn={onButtonPressIn}
                       onPressOut={onButtonPressOut}
                       onPress={onSubmitCode}
-                      disabled={busy || !isCodeValid}
+                      disabled={busy || redirecting || !isCodeValid}
                       style={[
                         styles.button,
-                        { backgroundColor: busy || !isCodeValid ? '#475569' : ACCENT },
+                        { backgroundColor: busy || redirecting || !isCodeValid ? colors.surfaceDisabled : colors.primary },
                       ]}
                     >
                       <Animated.View style={buttonAnim}>
-                        {busy ? (
-                          <PaperActivityIndicator color="#fff" size="small" />
+                        {busy || redirecting ? (
+                          <View style={styles.buttonProgress}>
+                            <PaperActivityIndicator color={colors.onPrimary} size="small" />
+                            {redirecting ? (
+                              <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Opening your store…</Text>
+                            ) : null}
+                          </View>
                         ) : (
-                          <Text style={styles.buttonText}>Verify</Text>
+                          <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Verify</Text>
                         )}
                       </Animated.View>
                     </Pressable>
-                  </>
+                  </Animated.View>
                 )}
               </Animated.View>
             </View>
@@ -332,28 +399,28 @@ export default function LoginScreen() {
 
           {/* Footer */}
           <Animated.View style={[styles.footer, footerAnim]}>
-            <Text style={styles.footerText}>No account yet?</Text>
+            <Text style={[styles.footerText, { color: colors.onSurfaceVariant }]}>No account yet?</Text>
             <Pressable onPress={() => openExternal(SIGNUP_URL)} hitSlop={12}>
-              <Text style={styles.footerLink}>Create one on DiDwa Web</Text>
+              <Text style={[styles.footerLink, { color: colors.primary }]}>Create one on DiDwa Web</Text>
             </Pressable>
           </Animated.View>
 
           {/* Forgot password modal */}
           <Modal visible={resetModalVisible} onDismiss={() => setResetModalVisible(false)}>
             <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
+              <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.outlineVariant }]}>
                 <View style={styles.modalHeader}>
                   {!resetSent ? (
                     <>
-                      <Text style={styles.modalTitle}>Forgot password?</Text>
-                      <Text style={styles.modalSubtitle}>
+                      <Text style={[styles.modalTitle, { color: colors.onSurface }]}>Forgot password?</Text>
+                      <Text style={[styles.modalSubtitle, { color: colors.onSurfaceVariant }]}>
                         Enter your email and we'll send a reset link.
                       </Text>
                       <View style={styles.inputWrap}>
                         <MaterialCommunityIcons
                           name="email-outline"
                           size={20}
-                          color={TEXT_MUTED}
+                          color={colors.onSurfaceVariant}
                           style={styles.inputIcon}
                         />
                         <TextInput
@@ -364,9 +431,16 @@ export default function LoginScreen() {
                           autoComplete="email"
                           keyboardType="email-address"
                           returnKeyType="done"
-                          style={[styles.modalInput, { borderColor: resetError ? '#EF4444' : BORDER }]}
-                          placeholderTextColor="#64748B"
-                          selectionColor={ACCENT}
+                          style={[
+                            styles.modalInput,
+                            {
+                              backgroundColor: colors.surfaceVariant,
+                              borderColor: resetError ? colors.error : colors.outline,
+                              color: colors.onSurface,
+                            },
+                          ]}
+                          placeholderTextColor={colors.onSurfaceVariant}
+                          selectionColor={colors.primary}
                         />
                       </View>
                       {resetError && <Text style={styles.resetErrorText}>{resetError}</Text>}
@@ -376,7 +450,7 @@ export default function LoginScreen() {
                         style={[
                           styles.button,
                           {
-                            backgroundColor: resetBusy || !resetEmail.trim() ? '#475569' : ACCENT,
+                            backgroundColor: resetBusy || !resetEmail.trim() ? colors.surfaceDisabled : colors.primary,
                           },
                         ]}
                       >
@@ -394,8 +468,8 @@ export default function LoginScreen() {
                     </>
                   ) : (
                     <>
-                      <Text style={styles.modalTitle}>Reset link sent</Text>
-                      <Text style={styles.modalSubtitle}>
+                      <Text style={[styles.modalTitle, { color: colors.onSurface }]}>Reset link sent</Text>
+                      <Text style={[styles.modalSubtitle, { color: colors.onSurfaceVariant }]}>
                         Check your inbox for a link to reset your password.
                       </Text>
                       <Pressable onPress={() => setResetModalVisible(false)} style={styles.button}>
@@ -553,6 +627,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TEXT_PRIMARY,
     letterSpacing: 0.2,
+  },
+  buttonProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   biometricButton: {
     width: '100%',

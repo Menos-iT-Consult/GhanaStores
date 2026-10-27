@@ -14,6 +14,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:routing": "node scripts/routeTest.js",
+    "test:seo": "node scripts/seoTest.js",
     "test:retired-schema": "node scripts/retiredSchemaTest.js",
     "test:jsx-undefined": "node scripts/undefinedJsxTest.js",
     "test:admin-sql": "node scripts/adminSqlTest.js",

@@ -14,7 +14,12 @@ import jwt from 'jsonwebtoken';
 
 import { orderFilterToStatuses } from '../routes/mobileRoutes.js';
 import { isExpoPushToken } from '../routes/mobileDeviceRoutes.js';
-import { EXPO_PUSH_URL, sendMerchantPushNotification } from '../services/pushService.js';
+import {
+  chunkExpoMessages,
+  EXPO_PUSH_URL,
+  sendMerchantPushNotification,
+  summarizeExpoTickets,
+} from '../services/pushService.js';
 import { issueMobileAccessToken, authenticateMobileToken } from '../middleware/authMiddleware.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +58,27 @@ test('expo push token validation accepts only Expo tokens', () => {
   assert.equal(isExpoPushToken('nope'), false);
   assert.equal(isExpoPushToken(''), false);
   assert.equal(isExpoPushToken(null), false);
+});
+
+test('Expo push sends are batched and per-device tickets are accounted for', () => {
+  const messages = Array.from({ length: 205 }, (_, i) => ({ to: `token-${i}` }));
+  assert.deepEqual(chunkExpoMessages(messages).map((batch) => batch.length), [100, 100, 5]);
+  assert.deepEqual(chunkExpoMessages([]), []);
+  assert.throws(() => chunkExpoMessages(messages, 0), RangeError);
+
+  const summary = summarizeExpoTickets(
+    ['valid-token', 'revoked-token', 'rejected-token'],
+    [
+      { status: 'ok', id: 'ticket-1' },
+      { status: 'error', details: { error: 'DeviceNotRegistered' } },
+      { status: 'error', details: { error: 'MessageTooBig' } },
+    ],
+  );
+  assert.deepEqual(summary, {
+    acceptedTokens: ['valid-token'],
+    invalidTokens: ['revoked-token'],
+    failed: 2,
+  });
 });
 
 test('mobile access token carries { userId, storeId, role } + typ tag', () => {
@@ -194,6 +220,20 @@ test('v1.1 wraps the shared engines instead of duplicating logic', () => {
             analytics.includes('getDashboardFull('), 'PWA dashboard must call the shared engine');
 });
 
+test('dashboard pending count is store-wide, not derived from recent orders', () => {
+  const analytics = read('routes/analyticsRoutes.js');
+  assert.match(
+    analytics,
+    /SELECT COUNT\(\*\)::int FROM orders\s+WHERE store_id = \$1 AND status = 'PENDING'/,
+    'dashboard needs an aggregate count of every pending order for this store',
+  );
+  assert.ok(analytics.includes('pendingOrderCount: ops.rows[0].pending_order_count'));
+
+  const dashboard = read('mobile/app/(tabs)/dashboard/index.tsx');
+  assert.ok(dashboard.includes('const pendingOrders = safeOps.pendingOrderCount'));
+  assert.ok(!dashboard.includes('const pendingOrders = safeOrders.filter'), 'pending metric must not be inferred from the recent-order sample');
+});
+
 test('POS sale route is idempotency-ready and operationally gated', () => {
   const src = read('routes/mobileRoutes.js');
   const posLine = src.split(/\r?\n/).find((l) => l.includes("router.post('/pos/sales'"));
@@ -248,6 +288,31 @@ test('notifications endpoints are authenticated and store-scoped', () => {
   assert.ok(src.includes('merchant_notifications WHERE store_id'), 'feed must be store-scoped');
 });
 
+test('push tap handling covers cold starts, token refresh, and permission settings', () => {
+  const root = read('mobile/app/_layout.tsx');
+  assert.ok(root.includes('getLastNotificationTap()'), 'cold-start notification response must be read');
+  assert.ok(root.includes('addNotificationResponseListener(handleNotificationTap)'), 'tap listener must be mounted independently of auth');
+  assert.ok(root.includes('pendingNotificationRoute'), 'tap destination must wait until the signed-in route is ready');
+  assert.ok(root.includes('addPushTokenRefreshListener()'), 'native token rotation must trigger re-registration');
+
+  const push = read('mobile/src/services/pushNotifications.ts');
+  assert.ok(push.includes('getExpoPushTokenAsync'), 'registered token must be an Expo token');
+  assert.ok(push.includes('Device.isDevice'), 'push setup must tolerate simulators');
+  assert.ok(
+    push.includes("result === 'permission-denied' ? registerDeviceForPush(options) : result"),
+    'explicit permission requests must not be swallowed by a concurrent silent registration',
+  );
+  assert.ok(push.includes("console.warn('[push] device unregister failed:'"), 'unregister failures must be logged');
+
+  const settings = read('mobile/app/settings.tsx');
+  assert.ok(settings.includes('Enable notifications'), 'seller can opt into push from Settings');
+  assert.ok(settings.includes('Linking.openSettings()'), 'blocked permission has a recovery action');
+
+  const service = read('services/pushService.js');
+  assert.ok(service.includes('summarizeExpoTickets'), 'Expo ticket-level delivery results must be checked');
+  assert.ok(service.includes('DeviceNotRegistered'), 'revoked tokens must be cleaned up');
+});
+
 test('every SMS/email trigger also fires a merchant push', () => {
   const cron = read('jobs/billingCron.js');
   assert.ok(cron.includes('function notifyPush('), 'billing cron push helper missing');
@@ -286,11 +351,23 @@ test('root layout always mounts the stack behind the splash overlay', () => {
   assert.ok(screen.includes('markAllNotificationsRead'));
 });
 
+test('successful password and 2FA login navigate directly to the seller dashboard', () => {
+  const login = read('mobile/app/(auth)/login.tsx');
+  assert.ok(login.includes("router.replace('/(tabs)/dashboard')"), 'login must route successful auth directly to dashboard');
+  assert.ok(login.includes('await signIn(email.trim(), password)'), 'password login is wired');
+  assert.ok(login.includes('await completeTwoFactor(challenge, code.trim())'), '2FA completion is wired');
+  assert.ok(login.includes('Opening your store'), 'show a clear redirect-in-progress state');
+
+  const root = read('mobile/app/_layout.tsx');
+  assert.ok(root.includes("segments[0] === '(auth)'"), 'root auth-group redirect remains as a fallback guard');
+  assert.ok(root.includes("router.replace('/(tabs)/dashboard')"), 'signed-in users must leave auth routes');
+});
+
 test('dashboard header order is ThemeToggle, bell, gear', () => {
   const dash = read('mobile/app/(tabs)/dashboard/index.tsx');
   const themeIdx = dash.indexOf('<ThemeToggle');
   const bellIdx = dash.indexOf('<NotificationBell');
-  const gearIdx = dash.indexOf('icon="cog"');
+  const gearIdx = dash.indexOf('icon="cog');
   assert.ok(themeIdx >= 0 && bellIdx > themeIdx && gearIdx > bellIdx,
     'header order must be ThemeToggle → Notification → Settings');
 });
@@ -301,4 +378,3 @@ if (failed > 0) {
   process.exit(1);
 }
 console.log(`\nAll ${passed} checks passed.`);
-

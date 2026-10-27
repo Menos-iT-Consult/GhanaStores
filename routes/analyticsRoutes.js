@@ -69,6 +69,8 @@ export async function getDashboardFull(storeId) {
       // Operational counters: low stock, loyalty members, open rider cash.
       query(
         `SELECT
+           (SELECT COUNT(*)::int FROM orders
+             WHERE store_id = $1 AND status = 'PENDING')                                   AS pending_order_count,
            (SELECT COUNT(*)::int FROM product_variants
              WHERE store_id = $1 AND stock_quantity <= low_stock_threshold)              AS low_stock_count,
            (SELECT COUNT(*)::int FROM customers WHERE store_id = $1)                     AS loyalty_members,
@@ -107,6 +109,7 @@ export async function getDashboardFull(storeId) {
         createdAt: r.created_at,
       })),
       operations: {
+        pendingOrderCount: ops.rows[0].pending_order_count,
         lowStockCount: ops.rows[0].low_stock_count,
         loyaltyMembers: ops.rows[0].loyalty_members,
         outstandingPoints: ops.rows[0].outstanding_points,

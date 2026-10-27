@@ -24,7 +24,7 @@ import { getPlatformDomain } from '../config.js';
 import { navigate } from '../router.js';
 import { buildLabel } from '../buildInfo.js';
 import MetaTags from '../components/seo/MetaTags.jsx';
-import { META_CONTENT } from '../lib/seo.js';
+import { META_CONTENT, siteUrl } from '../lib/seo.js';
 
 const UPDATED = 'August 2026';
 /** Contact address, built at render time so the API's apex always wins.
@@ -323,7 +323,7 @@ export function AboutPage({ authed = false }) {
       <MetaTags
         title="About Us | DiDwa – Commerce Tools Made for Ghana"
         description="DiDwa exists because running a shop in Ghana should not require five notebooks, two calculators and a leap of faith. Built for local merchants, by people who understand Mobile Money, patchy networks and cedi pricing."
-        canonical="https://didwaghana.com/about"
+        canonical={siteUrl('/about')}
         keywords={['about us', 'DiDwa Ghana', 'e-commerce platform Ghana', 'Ghana SME']}
       />
       <PublicShell authed={authed}>
@@ -414,7 +414,7 @@ export function ContactPage({ authed = false }) {
       <MetaTags
         title="Contact | DiDwa – Talk to a Human"
         description="Sales questions, payout issues or feature ideas - we reply within one business day. Contact DiDwa support in Accra, Ghana by email, phone or WhatsApp."
-        canonical="https://didwaghana.com/contact"
+        canonical={siteUrl('/contact')}
         keywords={['contact', 'DiDwa Ghana', 'e-commerce support Ghana', 'Ghana SME help']}
       />
       <PublicShell authed={authed}>
@@ -616,7 +616,7 @@ export function TermsPage({ authed = false }) {
       <MetaTags
         title="Terms of Service | DiDwa Ghana"
         description="These terms form the agreement between you and DiDwa governing use of the seller platform, POS tools and storefronts. Read them before creating an account."
-        canonical="https://didwaghana.com/terms"
+        canonical={siteUrl('/terms')}
         keywords={['terms of service', 'DiDwa Ghana', 'e-commerce terms Ghana', 'Ghana SME legal']}
       />
       <LegalDoc
@@ -693,7 +693,7 @@ export function PrivacyPage({ authed = false }) {
       <MetaTags
         title="Privacy Policy | DiDwa Ghana"
         description="Your shop data belongs to you. This policy explains exactly what DiDwa collects, why, how it is protected and the control you keep over it under Ghana's Data Protection Act, 2012 (Act 843)."
-        canonical="https://didwaghana.com/privacy"
+        canonical={siteUrl('/privacy')}
         keywords={['privacy policy', 'DiDwa Ghana', 'data protection Ghana', 'Ghana SME privacy']}
       />
       <LegalDoc
@@ -760,7 +760,7 @@ export function FeaturesPage({ authed = false }) {
       <MetaTags
         title="Features | DiDwa – Everything a Ghanaian Shop Needs in One Login"
         description="Built for merchants who sell across the counter, over the phone and online at the same time. DiDwa features include Mobile Money POS, inventory management, WhatsApp ordering, and a themable storefront."
-        canonical="https://didwaghana.com/features"
+        canonical={siteUrl('/features')}
         keywords={['features', 'e-commerce platform Ghana', 'digital POS Ghana', 'online store builder Ghana']}
       />
       <PublicShell authed={authed}>
@@ -796,7 +796,7 @@ export function HowItWorksPage({ authed = false }) {
       <MetaTags
         title="How It Works | DiDwa – Live in Three Steps"
         description="No onboarding call, no paperwork. Most merchants are selling within an hour of registering. Create your store, stock your catalog, and sell online with Mobile Money in Ghana."
-        canonical="https://didwaghana.com/how-it-works"
+        canonical={siteUrl('/how-it-works')}
         keywords={['how it works', 'start online store Ghana', 'e-commerce platform Ghana', 'digital POS Ghana']}
       />
       <PublicShell authed={authed}>
@@ -860,7 +860,7 @@ export function PricingPage({ authed = false }) {
       <MetaTags
         title={pricing.title}
         description={pricing.description}
-        canonical="https://didwaghana.com/pricing"
+        canonical={siteUrl('/pricing')}
         keywords={['e-commerce platform pricing Ghana', 'online store builder Ghana cost', 'digital POS Ghana pricing']}
       />
       <PublicShell authed={authed} wide>

@@ -3,6 +3,7 @@ import { ArrowRight, BadgePercent, CalendarDays, Clock3, Wallet } from 'lucide-r
 import { api } from '../api.js';
 import { PublicShell } from './PublicPages.jsx';
 import MetaTags from '../components/seo/MetaTags.jsx';
+import { siteUrl } from '../lib/seo.js';
 
 const configuredAffiliateUrl = String(
   import.meta.env.VITE_AFFILIATE_PLATFORM_URL || 'affiliate.didwaghana.com',
@@ -50,7 +51,7 @@ export default function AffiliateProgramPage({ authed = false, onStart, onDashbo
       <MetaTags
         title="Affiliate program | DiDwa"
         description="Refer businesses to DiDwa and earn recurring commissions. View the current affiliate program terms and join the affiliate platform."
-        canonical="https://didwaghana.com/affiliate-program"
+        canonical={siteUrl('/affiliate-program')}
       />
       <main className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:py-24">
         <section className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-emerald-50 px-6 py-12 text-center sm:px-12">

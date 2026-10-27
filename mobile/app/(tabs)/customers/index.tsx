@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList, Linking, RefreshControl, StyleSheet, View } from 'react-native';
-import { Appbar, Card, Chip, IconButton, Text, TextInput, useTheme } from 'react-native-paper';
+import { Appbar, Card, Chip, IconButton, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
@@ -25,6 +25,12 @@ export default function CustomersScreen() {
   const { colors } = useTheme();
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const [snack, setSnack] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const { data, isLoading, isError, error, refetch, isRefetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
@@ -40,6 +46,7 @@ export default function CustomersScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
         <Appbar.Content title="Customers" />
+        <Appbar.Action icon="refresh" onPress={() => { void refetch(); }} accessibilityLabel="Refresh customers" />
       </Appbar.Header>
 
       <View style={styles.searchRow}>
@@ -49,7 +56,7 @@ export default function CustomersScreen() {
           placeholder="Search name or phone…"
           value={search}
           onChangeText={setSearch}
-          onSubmitEditing={() => setQuery(search.trim())}
+          returnKeyType="search"
           left={<TextInput.Icon icon="magnify" />}
           right={search ? <TextInput.Icon icon="close" onPress={() => { setSearch(''); setQuery(''); }} /> : undefined}
         />
@@ -76,22 +83,49 @@ export default function CustomersScreen() {
           }}
           renderItem={({ item }) => {
             const msisdn = toMsisdn(item.phone);
+            const contact = async (url: string, fallback: string) => {
+              try {
+                await Linking.openURL(url);
+              } catch {
+                setSnack(fallback);
+              }
+            };
             return (
               <Card mode="elevated">
                 <View style={styles.cardBody}>
                   <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text variant="titleMedium" style={styles.name} numberOfLines={1}>{item.name}</Text>
-                    <Text variant="bodySmall" style={styles.meta}>{item.phone}</Text>
-                    <Text variant="bodySmall" style={styles.meta}>
+                    <Text variant="titleMedium" style={[styles.name, { color: colors.onSurface }]} numberOfLines={1}>{item.name}</Text>
+                    <Text variant="bodySmall" style={[styles.meta, { color: colors.onSurfaceVariant }]}>{item.phone}</Text>
+                    <Text variant="bodySmall" style={[styles.meta, { color: colors.onSurfaceVariant }]}>
                       {item.ordersCount} order{item.ordersCount === 1 ? '' : 's'} · {formatGhs(item.totalSpent)} lifetime
                     </Text>
-                    <Chip compact style={styles.pointsChip} textStyle={styles.pointsText}>
+                    {item.lastOrderAt ? (
+                      <Text variant="bodySmall" style={[styles.meta, { color: colors.onSurfaceVariant }]}>
+                        Last order {new Date(item.lastOrderAt).toLocaleDateString()}
+                      </Text>
+                    ) : null}
+                    <Chip
+                      compact
+                      style={[styles.pointsChip, { backgroundColor: colors.tertiaryContainer }]}
+                      textStyle={[styles.pointsText, { color: colors.onTertiaryContainer }]}
+                    >
                       {item.loyaltyPoints} loyalty points
                     </Chip>
                   </View>
                   <View style={styles.actions}>
-                    <IconButton icon="phone" onPress={() => Linking.openURL(`tel:${msisdn}`)} accessibilityLabel="Call" />
-                    <IconButton icon="whatsapp" iconColor={colors.tertiary} onPress={() => Linking.openURL(`https://wa.me/${msisdn}`)} accessibilityLabel="WhatsApp" />
+                    <IconButton
+                      icon="phone"
+                      disabled={msisdn.length !== 12}
+                      onPress={() => { void contact(`tel:${msisdn}`, 'Could not open the phone app.'); }}
+                      accessibilityLabel={`Call ${item.name}`}
+                    />
+                    <IconButton
+                      icon="whatsapp"
+                      iconColor={colors.tertiary}
+                      disabled={msisdn.length !== 12}
+                      onPress={() => { void contact(`https://wa.me/${msisdn}`, 'Could not open WhatsApp.'); }}
+                      accessibilityLabel={`Message ${item.name} on WhatsApp`}
+                    />
                   </View>
                 </View>
               </Card>
@@ -99,6 +133,9 @@ export default function CustomersScreen() {
           }}
         />
       )}
+      <Snackbar visible={Boolean(snack)} onDismiss={() => setSnack(null)} duration={3000}>
+        {snack}
+      </Snackbar>
     </View>
   );
 }
@@ -110,7 +147,7 @@ const styles = StyleSheet.create({
   cardBody: { flexDirection: 'row', alignItems: 'center', padding: 14 },
   name: { fontWeight: '700' },
   meta: { marginTop: 2 },
-  pointsChip: { backgroundColor: '#CFEEDE', marginTop: 8, alignSelf: 'flex-start' },
-  pointsText: { color: '#0B6B45', fontWeight: '700' },
+  pointsChip: { marginTop: 8, alignSelf: 'flex-start' },
+  pointsText: { fontWeight: '700' },
   actions: { alignItems: 'center' },
 });

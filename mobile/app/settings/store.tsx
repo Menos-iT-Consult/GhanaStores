@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import {
+  ActivityIndicator,
   Appbar,
   Button,
   Card,
@@ -10,11 +11,11 @@ import {
   useTheme,
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/lib/useSafeBack';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
+import { ErrorState } from '@/components/ScreenState';
 
 /**
  * Store site settings — the mobile twin of the PWA's /settings/site page
@@ -170,59 +171,70 @@ export default function StoreSettingsScreen() {
             <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>
               Two-factor authentication
             </Text>
-            <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-              {twofaEnabled
-                ? 'Two-factor is on. Enter a code from your authenticator app to turn it off.'
-                : 'Require a 6-digit code from an authenticator app when you sign in.'}
-            </Text>
-            {setup ? (
-              <View>
-                <Image source={{ uri: setup.qrDataUrl }} style={styles.qr} resizeMode="contain" />
-                <Text
-                  variant="bodySmall"
-                  style={[styles.hint, { color: colors.onSurfaceVariant, textAlign: 'center' }]}
-                  selectable
-                >
-                  Setup key: {setup.secret}
-                </Text>
-                <TextInput
-                  label="6-digit code"
-                  value={code}
-                  onChangeText={setCode}
-                  mode="outlined"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  style={styles.input}
-                />
-                <Button mode="contained" onPress={() => enable2fa.mutate()} loading={enable2fa.isPending} disabled={!codeValid}>
-                  Turn on two-factor
-                </Button>
-              </View>
-            ) : twofaEnabled ? (
-              <View>
-                <TextInput
-                  label="6-digit code"
-                  value={code}
-                  onChangeText={setCode}
-                  mode="outlined"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  style={styles.input}
-                />
-                <Button
-                  mode="outlined"
-                  textColor={colors.error}
-                  onPress={() => disable2fa.mutate()}
-                  loading={disable2fa.isPending}
-                  disabled={!codeValid}
-                >
-                  Turn off two-factor
-                </Button>
-              </View>
+            {twofa.isLoading ? (
+              <ActivityIndicator style={styles.spaced} />
+            ) : twofa.isError ? (
+              <ErrorState
+                message={apiErrorMessage(twofa.error, 'Could not load two-factor status.')}
+                onRetry={() => { void twofa.refetch(); }}
+              />
             ) : (
-              <Button mode="outlined" onPress={() => startSetup.mutate()} loading={startSetup.isPending} style={styles.spaced}>
-                Set up two-factor
-              </Button>
+              <>
+                <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
+                  {twofaEnabled
+                    ? 'Two-factor is on. Enter a code from your authenticator app to turn it off.'
+                    : 'Require a 6-digit code from an authenticator app when you sign in.'}
+                </Text>
+                {setup ? (
+                  <View>
+                    <Image source={{ uri: setup.qrDataUrl }} style={styles.qr} resizeMode="contain" />
+                    <Text
+                      variant="bodySmall"
+                      style={[styles.hint, { color: colors.onSurfaceVariant, textAlign: 'center' }]}
+                      selectable
+                    >
+                      Setup key: {setup.secret}
+                    </Text>
+                    <TextInput
+                      label="6-digit code"
+                      value={code}
+                      onChangeText={setCode}
+                      mode="outlined"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      style={styles.input}
+                    />
+                    <Button mode="contained" onPress={() => enable2fa.mutate()} loading={enable2fa.isPending} disabled={!codeValid}>
+                      Turn on two-factor
+                    </Button>
+                  </View>
+                ) : twofaEnabled ? (
+                  <View>
+                    <TextInput
+                      label="6-digit code"
+                      value={code}
+                      onChangeText={setCode}
+                      mode="outlined"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      style={styles.input}
+                    />
+                    <Button
+                      mode="outlined"
+                      textColor={colors.error}
+                      onPress={() => disable2fa.mutate()}
+                      loading={disable2fa.isPending}
+                      disabled={!codeValid}
+                    >
+                      Turn off two-factor
+                    </Button>
+                  </View>
+                ) : (
+                  <Button mode="outlined" onPress={() => startSetup.mutate()} loading={startSetup.isPending} style={styles.spaced}>
+                    Set up two-factor
+                  </Button>
+                )}
+              </>
             )}
           </View>
         </Card>
@@ -335,4 +347,3 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
 });
-

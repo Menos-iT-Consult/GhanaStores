@@ -96,6 +96,15 @@ export default function ResetPassword() {
                 </div>
               )}
 
+              {!done && token && (
+                <a
+                  href={`didwa://reset-password?token=${encodeURIComponent(token)}`}
+                  className="mt-4 flex w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+                >
+                  Open in DiDwa Seller app
+                </a>
+              )}
+
               <button
                 type="submit" disabled={busy}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:from-blue-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"

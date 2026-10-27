@@ -21,6 +21,37 @@ import axios from 'axios';
 import { query } from '../config/database.js';
 
 export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const EXPO_BATCH_SIZE = 100;
+
+export function chunkExpoMessages(messages, batchSize = EXPO_BATCH_SIZE) {
+  if (!Number.isInteger(batchSize) || batchSize < 1) {
+    throw new RangeError('batchSize must be a positive integer');
+  }
+  const chunks = [];
+  for (let index = 0; index < messages.length; index += batchSize) {
+    chunks.push(messages.slice(index, index + batchSize));
+  }
+  return chunks;
+}
+
+export function summarizeExpoTickets(tokens, tickets) {
+  const acceptedTokens = [];
+  const invalidTokens = [];
+  let failed = 0;
+
+  tokens.forEach((token, index) => {
+    const ticket = tickets[index];
+    if (ticket?.status === 'ok') {
+      acceptedTokens.push(token);
+      return;
+    }
+
+    failed += 1;
+    if (ticket?.details?.error === 'DeviceNotRegistered') invalidTokens.push(token);
+  });
+
+  return { acceptedTokens, invalidTokens, failed };
+}
 
 /**
  * Send a push notification to every device registered for a store.
@@ -30,7 +61,7 @@ export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
  * @param {string} args.title    notification title
  * @param {string} args.body     notification body
  * @param {object} [args.data]   arbitrary deep-link payload (order ids, etc.)
- * @returns {Promise<{sent:number, error?:string}>} count of messages dispatched
+ * @returns {Promise<{sent:number, failed:number, error?:string}>} Expo-accepted and failed messages
  */
 /** Days of history kept per store in merchant_notifications (pruned on dispatch). */
 const NOTIFICATION_RETENTION_DAYS = 180;
@@ -46,7 +77,7 @@ const NOTIFICATION_RETENTION_DAYS = 180;
  * @param {string} args.title
  * @param {string} args.body
  * @param {object} [args.data]
- * @param {number} args.sent devices the dispatch reached (0 when none/error)
+ * @param {number} args.sent devices Expo accepted (not a delivery receipt)
  */
 async function recordNotification({ storeId, title, body, data, sent }) {
   await query(
@@ -71,9 +102,10 @@ async function recordNotification({ storeId, title, body, data, sent }) {
 
 export async function sendMerchantPushNotification({ storeId, title, body, data }) {
   // Nothing valid to say -> nothing dispatched, nothing recorded (unchanged).
-  if (!storeId || !title || !body) return { sent: 0 };
+  if (!storeId || !title || !body) return { sent: 0, failed: 0 };
 
   let sent = 0;
+  let failed = 0;
   let pushError;
   try {
     const { rows } = await query(
@@ -81,8 +113,7 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
       [storeId],
     );
 
-    // Expo accepts a single message object or an array of message objects; we
-    // always send the array form so one call reaches every logged-in device.
+
     if (rows.length > 0) {
       const messages = rows.map((r) => ({
         to: r.expo_push_token,
@@ -98,11 +129,43 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
         ...(r.platform === 'android' ? { channelId: 'orders' } : {}),
       }));
 
-      await axios.post(EXPO_PUSH_URL, messages, {
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        timeout: 10_000,
-      });
-      sent = rows.length;
+      const invalidTokens = [];
+      let offset = 0;
+      for (const batch of chunkExpoMessages(messages)) {
+        const batchTokens = rows.slice(offset, offset + batch.length).map((row) => row.expo_push_token);
+        offset += batch.length;
+        try {
+          const response = await axios.post(EXPO_PUSH_URL, batch, {
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            timeout: 10_000,
+          });
+          const tickets = Array.isArray(response.data?.data) ? response.data.data : [];
+          const summary = summarizeExpoTickets(batchTokens, tickets);
+          sent += summary.acceptedTokens.length;
+          failed += Math.max(batch.length - summary.acceptedTokens.length, summary.failed);
+          invalidTokens.push(...summary.invalidTokens);
+          if (summary.failed > 0) {
+            pushError = 'expo_ticket_error';
+            console.warn(`[push] Expo rejected ${summary.failed} message(s) for store ${storeId}.`);
+          }
+        } catch (err) {
+          failed += batch.length;
+          pushError = err?.message || 'push_failed';
+          console.error(
+            `[push] failed to notify store ${storeId}:`,
+            err?.response?.data || err?.message || err,
+          );
+        }
+      }
+
+      if (invalidTokens.length > 0) {
+        await query(
+          'DELETE FROM device_tokens WHERE expo_push_token = ANY($1::text[])',
+          [invalidTokens],
+        ).catch((err) => {
+          console.warn('[push] could not remove unregistered device tokens:', err?.message || err);
+        });
+      }
     }
   } catch (err) {
     pushError = err?.message || 'push_failed';
@@ -119,5 +182,5 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
     console.warn('[push] could not record notification history:', err?.message || err),
   );
 
-  return pushError ? { sent, error: pushError } : { sent };
+  return pushError ? { sent, failed, error: pushError } : { sent, failed };
 }

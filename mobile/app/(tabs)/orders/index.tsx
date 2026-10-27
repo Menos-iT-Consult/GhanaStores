@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { Appbar, Card, SegmentedButtons, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Appbar, Card, SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
@@ -16,6 +16,13 @@ const FILTERS: { value: OrderFilter; label: string }[] = [
   { value: 'dispatched', label: 'Processing' },
   { value: 'completed', label: 'Delivered' },
 ];
+
+const EMPTY_MESSAGES: Record<OrderFilter, string> = {
+  all: 'Orders placed on your store will appear here.',
+  pending: 'New orders that need your attention will appear here.',
+  dispatched: 'Orders being processed will appear here.',
+  completed: 'Delivered orders will appear here.',
+};
 
 export default function OrdersScreen() {
   const router = useRouter();
@@ -36,6 +43,7 @@ export default function OrdersScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
         <Appbar.Content title="Orders" />
+        <Appbar.Action icon="refresh" onPress={() => { void refetch(); }} accessibilityLabel="Refresh orders" />
       </Appbar.Header>
 
       <View style={styles.filters}>
@@ -52,12 +60,20 @@ export default function OrdersScreen() {
       ) : isError ? (
         <ErrorState message={apiErrorMessage(error)} onRetry={refetch} />
       ) : orders.length === 0 ? (
-        <EmptyState title="No orders yet" message="Orders placed on your store will appear here." />
+        <EmptyState
+          title={filter === 'all' ? 'No orders yet' : `No ${FILTERS.find((item) => item.value === filter)?.label.toLowerCase()} orders`}
+          message={EMPTY_MESSAGES[filter]}
+        />
       ) : (
         <FlatList
           data={orders}
           keyExtractor={(o) => o.id}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={(
+            <Text variant="bodySmall" style={[styles.listHint, { color: colors.onSurfaceVariant }]}>
+              Showing {orders.length} of {data?.pages[0]?.total ?? orders.length} orders
+            </Text>
+          )}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
           onEndReachedThreshold={0.4}
           onEndReached={() => {
@@ -89,7 +105,7 @@ export default function OrdersScreen() {
           )}
           ListFooterComponent={
             isFetchingNextPage ? (
-              <Text style={{ padding: 16, color: colors.onSurfaceVariant, textAlign: 'center' }}>{' '}</Text>
+              <ActivityIndicator color={colors.primary} style={styles.footerLoader} />
             ) : (
               <View />
             )
@@ -104,6 +120,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   filters: { paddingHorizontal: 16, paddingVertical: 10 },
   list: { padding: 16, paddingTop: 4, gap: 12 },
+  listHint: { marginBottom: 2 },
+  footerLoader: { padding: 16 },
   cardBody: { padding: 14 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   orderNumber: { fontWeight: '700' },

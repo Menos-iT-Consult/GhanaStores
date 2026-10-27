@@ -68,6 +68,16 @@ export default function ProductsScreen() {
           data={products}
           keyExtractor={(p) => p.id}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={(
+            <View style={styles.listHeader}>
+              <Text variant="titleSmall" style={{ color: colors.onSurface, fontWeight: '700' }}>
+                {products.length} product{products.length === 1 ? '' : 's'}
+              </Text>
+              <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+                Manage stock, prices, and online availability.
+              </Text>
+            </View>
+          )}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
           renderItem={({ item }) => (
             <Card mode="elevated" onPress={() => router.push(`/products/${item.id}`)}>
@@ -75,8 +85,8 @@ export default function ProductsScreen() {
                 {item.imageUrl ? (
                   <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
                 ) : (
-                  <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                    <Text style={styles.thumbLetter}>{item.name.charAt(0).toUpperCase()}</Text>
+                  <View style={[styles.thumb, { backgroundColor: colors.surfaceVariant }]}>
+                    <Text style={[styles.thumbLetter, { color: colors.onSurfaceVariant }]}>{item.name.charAt(0).toUpperCase()}</Text>
                   </View>
                 )}
                 <View style={{ flex: 1, marginRight: 12 }}>
@@ -84,13 +94,18 @@ export default function ProductsScreen() {
                   <Text variant="bodySmall" style={styles.meta}>
                     {item.category || 'Uncategorised'} · {formatGhs(item.price)}
                   </Text>
-                  <Text variant="bodySmall" style={[styles.stock, { color: item.isActive ? colors.tertiary : colors.error }]}>
-                    {item.isActive ? 'In stock' : 'Sold out'}
+                  <Text variant="bodySmall" style={[styles.stock, { color: colors.onSurfaceVariant }]}>
+                    {item.variants.reduce((total, variant) => total + Math.max(0, Number(variant.stockQuantity) || 0), 0)} units in stock
+                  </Text>
+                  <Text variant="bodySmall" style={[styles.availability, { color: item.isActive ? colors.tertiary : colors.error }]}>
+                    {item.isActive ? 'Available online' : 'Hidden from online store'}
                   </Text>
                 </View>
                 <Switch
                   value={item.isActive}
                   color={colors.primary}
+                  disabled={stockMutation.isPending}
+                  accessibilityLabel={`${item.isActive ? 'Hide' : 'Show'} ${item.name} ${item.isActive ? 'from' : 'in'} online store`}
                   onValueChange={(v) => stockMutation.mutate({ id: item.id, isActive: v })}
                 />
               </View>
@@ -115,13 +130,14 @@ export default function ProductsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  list: { padding: 16, gap: 12, paddingBottom: 96 },
+  list: { padding: 16, paddingTop: 8, gap: 12, paddingBottom: 96 },
+  listHeader: { marginBottom: 4, gap: 2 },
   cardBody: { flexDirection: 'row', alignItems: 'center', padding: 12 },
   thumb: { width: 52, height: 52, borderRadius: 10, marginRight: 12 },
-  thumbPlaceholder: { backgroundColor: '#EEF1F5', alignItems: 'center', justifyContent: 'center' },
-  thumbLetter: { color: '#475569', fontWeight: '700', fontSize: 20 },
+  thumbLetter: { fontWeight: '700', fontSize: 20, textAlign: 'center', textAlignVertical: 'center', flex: 1 },
   name: { fontWeight: '700' },
   meta: { marginTop: 2 },
   stock: { marginTop: 4, fontWeight: '700' },
+  availability: { marginTop: 2, fontWeight: '700' },
   fab: { position: 'absolute', right: 16, bottom: 16 },
 });

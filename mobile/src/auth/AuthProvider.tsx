@@ -28,6 +28,8 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
+  restoreError: string | null;
+  clearRestoreError: () => void;
   signIn: (email: string, password: string) => Promise<LoginResult>;
   completeTwoFactor: (challenge: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -48,17 +50,23 @@ async function saveSessionMeta(session: Session) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading', session: null, store: null });
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   const applySession = useCallback(async (session: Session) => {
     await storeSession(session.token, session.refreshToken);
     await saveSessionMeta(session);
+    setRestoreError(null);
     setState({ status: 'signedIn', session, store: session.store });
   }, []);
+
+  const clearRestoreError = useCallback(() => setRestoreError(null), []);
 
   const signOut = useCallback(async () => {
     // Detach this device's push token FIRST (while the access token is still
     // valid) so a logged-out phone stops receiving the store's notifications.
-    await unregisterDeviceForPush().catch(() => undefined);
+    await unregisterDeviceForPush().catch((error) =>
+      console.warn('[push] Could not unregister this device during sign-out:', error),
+    );
     const rt = currentRefreshToken();
     if (rt) await endpoints.logout(rt).catch(() => undefined);
     await clearSession();
@@ -80,34 +88,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Restore session on boot from SecureStore.
   useEffect(() => {
-    (async () => {
-      const { accessToken, refreshToken } = await loadStoredSession();
-      if (!refreshToken) {
-        setState({ status: 'signedOut', session: null, store: null });
-        return;
-      }
-      const metaRaw = await SecureStore.getItemAsync(BOOTSTRAP_KEY);
-      let store: StoreMeta | null = null;
-      let user = null;
+    let active = true;
+    const restoreSession = async () => {
       try {
-        const parsed = JSON.parse(metaRaw || '{}');
-        store = parsed.store ?? null;
-        user = parsed.user ?? null;
-      } catch {
-        /* ignore */
-      }
-      if (accessToken && store && user) {
-        setState({ status: 'signedIn', session: { token: accessToken, refreshToken } as Session, store });
-      } else {
-        // Have a refresh token but no access token yet -> let the API client
-        // refresh on the first authenticated call. Optimistically show signed-in.
-        if (store && user) {
-          setState({ status: 'signedIn', session: { token: '', refreshToken } as Session, store });
+        const { accessToken, refreshToken } = await loadStoredSession();
+        if (!refreshToken) {
+          if (active) setState({ status: 'signedOut', session: null, store: null });
+          return;
+        }
+        const metaRaw = await SecureStore.getItemAsync(BOOTSTRAP_KEY);
+        let store: StoreMeta | null = null;
+        let user = null;
+        try {
+          const parsed = JSON.parse(metaRaw || '{}');
+          store = parsed.store ?? null;
+          user = parsed.user ?? null;
+        } catch {
+          store = null;
+          user = null;
+        }
+        if (!active) return;
+        if (accessToken && store && user) {
+          setState({ status: 'signedIn', session: { token: accessToken, refreshToken } as Session, store });
         } else {
+          // Have a refresh token but no access token yet -> let the API client
+          // refresh on the first authenticated call. Optimistically show signed-in.
+          if (store && user) {
+            setState({ status: 'signedIn', session: { token: '', refreshToken } as Session, store });
+          } else {
+            setState({ status: 'signedOut', session: null, store: null });
+          }
+        }
+      } catch (error) {
+        console.error('[mobile-auth] Could not restore the saved session:', error);
+        if (active) {
+          setRestoreError('We could not restore your saved session. Please sign in again.');
           setState({ status: 'signedOut', session: null, store: null });
         }
       }
-    })();
+    };
+    void restoreSession();
+    return () => { active = false; };
   }, []);
 
   const signIn = useCallback(
@@ -142,8 +163,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, signIn, completeTwoFactor, signOut, updateStoreName }),
-    [state, signIn, completeTwoFactor, signOut, updateStoreName],
+    () => ({ ...state, restoreError, clearRestoreError, signIn, completeTwoFactor, signOut, updateStoreName }),
+    [state, restoreError, clearRestoreError, signIn, completeTwoFactor, signOut, updateStoreName],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

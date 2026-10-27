@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Card, Divider, Snackbar, Switch, Text, TextInput, useTheme } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/lib/useSafeBack';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
@@ -19,7 +18,7 @@ export default function PaymentsSettingsScreen() {
   const qc = useQueryClient();
   const { colors } = useTheme();
 
-  const { data, isLoading, isError, error } = useQuery<{ settings: PaymentSettings; storageConfigured: boolean }>({
+  const { data, isLoading, isError, error, refetch } = useQuery<{ settings: PaymentSettings; storageConfigured: boolean }>({
     queryKey: ['payment-keys'],
     queryFn: endpoints.getPaymentKeys,
   });
@@ -66,7 +65,7 @@ export default function PaymentsSettingsScreen() {
   });
 
   if (isLoading) return <LoadingState label="Loading payment settings…" />;
-  if (isError) return <ErrorState message={apiErrorMessage(error)} />;
+  if (isError) return <ErrorState message={apiErrorMessage(error)} onRetry={() => { void refetch(); }} />;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -138,7 +137,13 @@ export default function PaymentsSettingsScreen() {
           </Text>
         ) : null}
 
-        <Button mode="contained" onPress={() => saveMutation.mutate()} loading={saveMutation.isPending} style={styles.save}>
+        <Button
+          mode="contained"
+          onPress={() => saveMutation.mutate()}
+          loading={saveMutation.isPending}
+          disabled={saveMutation.isPending || Boolean(data && !data.storageConfigured)}
+          style={styles.save}
+        >
           Save changes
         </Button>
       </ScrollView>

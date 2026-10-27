@@ -65,6 +65,22 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 | `VERCEL_API_VERSION` | Vercel REST API version. `v10` is retired and answers 404 | `13` |
 | `CNAME_TARGET` | Self-hosted / Caddy target only - no longer the record shown to sellers | Vercel project CNAME, e.g. `01c53a14e266ef4f.vercel-dns-017.com`; else `cname.<PLATFORM_DOMAIN>` |
 
+### SEO and sitemaps
+
+- `https://<PLATFORM_DOMAIN>/sitemap.xml` lists the public marketing pages and
+  active stores that use platform subdomains. A store's own
+  `/sitemap.xml` lists its public storefront pages and active products; custom
+  domains therefore publish their sitemap on their own host.
+- `/robots.txt` is generated for the requested host and points crawlers to the
+  matching sitemap. The Vercel rewrites forward both SEO files to the Express
+  routes in `routes/seoRoutes.js`.
+- Marketing-page canonical, title, description, and social-card metadata live
+  with each page. Seller/admin routes and private storefront flows are marked
+  `noindex`; cart, checkout, and order-tracking URLs are excluded from store
+  sitemaps.
+- Run `npm run test:seo` to validate sitemap generation rules and the SEO route
+  configuration.
+
 ### Responsive behaviour
 
 Three tiers, one definition, shared by the app shell and the storefront

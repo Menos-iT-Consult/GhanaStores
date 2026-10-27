@@ -48,6 +48,7 @@ import StoreNotFoundPage from './pages/StoreNotFoundPage.jsx';
 import { isKnownRoute } from './routes.js';
 import StoreUrlWelcome, { welcomeSuppressed } from './components/StoreUrlWelcome.jsx';
 import { setPlatformDomain } from './config.js';
+import { INDEXABLE_PUBLIC_ROUTES } from './lib/seo.js';
 
 export default function App() {
   const [authed, setAuthed] = useState(Boolean(getToken()));
@@ -102,6 +103,34 @@ export default function App() {
   const isAffiliateHost = Boolean(resolvedPlatformHost) && host === `affiliate.${resolvedPlatformHost}`;
   const isTenantHost = isPlatformSubdomain
     || (!isPlatformHostWithSubdomains && host.includes('.') && host.split('.').length >= 2);
+
+  useEffect(() => {
+    if (hostState.tenant && !isAffiliateHost) return;
+
+    const shouldIndex = INDEXABLE_PUBLIC_ROUTES.has(route)
+      && !hostState.isAdminHost
+      && (!isAffiliateHost || route === '/affiliate-program');
+    if (shouldIndex) return;
+
+    document.title = 'DiDwa Seller App';
+    let robots = document.querySelector('meta[name="robots"]');
+    if (!robots) {
+      robots = document.createElement('meta');
+      robots.setAttribute('name', 'robots');
+      document.head.appendChild(robots);
+    }
+    robots.setAttribute('content', 'noindex, nofollow');
+    let description = document.querySelector('meta[name="description"]');
+    if (!description) {
+      description = document.createElement('meta');
+      description.setAttribute('name', 'description');
+      document.head.appendChild(description);
+    }
+    description.setAttribute('content', 'Manage your DiDwa store, orders, inventory and payments.');
+    document.querySelector('link[rel="canonical"]')?.remove();
+    document.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"], meta[name="keywords"]')
+      .forEach((meta) => meta.remove());
+  }, [route, hostState.tenant, hostState.isAdminHost, isAffiliateHost]);
 
   /* The API classifies the Host header. This is the authoritative answer: the
      client-side guess above depends on a build-time env var that can be stale,

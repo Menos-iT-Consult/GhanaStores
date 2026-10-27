@@ -21,7 +21,7 @@ import MetaTags from '../components/seo/MetaTags.jsx';
 import OrganizationSchema from '../components/seo/OrganizationSchema.jsx';
 import SoftwareApplicationSchema from '../components/seo/SoftwareApplicationSchema.jsx';
 import FAQSchema from '../components/seo/FAQSchema.jsx';
-import { META_CONTENT } from '../lib/seo.js';
+import { META_CONTENT, siteUrl } from '../lib/seo.js';
 
 const AFFILIATE_DASHBOARD_URL = 'https://affiliate.didwaghana.com';
 
@@ -36,8 +36,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
       <MetaTags
         title={homepage.title}
         description={homepage.description}
-        canonical="https://didwaghana.com"
-        ogImage="https://didwaghana.com/og-homepage.jpg"
+        canonical={siteUrl('/')}
+        ogImage={siteUrl('/didwa-logo.jpg')}
         keywords={['online store builder Ghana', 'e-commerce platform Ghana', 'digital POS Ghana']}
       />
       <OrganizationSchema />

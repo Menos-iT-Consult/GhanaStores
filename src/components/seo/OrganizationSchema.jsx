@@ -1,13 +1,14 @@
 // src/components/seo/OrganizationSchema.jsx
 // JSON-LD Organization schema for DiDwa homepage
+import { siteUrl } from '../../lib/seo.js';
 
 export default function OrganizationSchema() {
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'DiDwa',
-    url: 'https://didwaghana.com',
-    logo: 'https://didwaghana.com/logo.png',
+    url: siteUrl('/'),
+    logo: siteUrl('/didwa-logo.jpg'),
     sameAs: [
       'https://twitter.com/didwaapp',
       'https://linkedin.com/company/didwaapp',

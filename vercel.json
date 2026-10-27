@@ -7,11 +7,11 @@
   "rewrites": [
     {
       "source": "/sitemap.xml",
-      "destination": "/sitemap.xml"
+      "destination": "/api/sitemap.xml"
     },
     {
       "source": "/robots.txt",
-      "destination": "/robots.txt"
+      "destination": "/api/robots.txt"
     },
     {
       "source": "/api/(.*)",

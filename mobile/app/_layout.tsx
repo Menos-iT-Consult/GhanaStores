@@ -2,17 +2,25 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { queryClient } from '@/queryClient';
 import { ThemeProvider, useThemeMode } from '@/theme/ThemeContext';
-import { addNotificationResponseListener, registerDeviceForPush, routeForNotification } from '@/services/pushNotifications';
+import {
+  addNotificationResponseListener,
+  addPushTokenRefreshListener,
+  clearLastNotificationTap,
+  getLastNotificationTap,
+  registerDeviceForPush,
+  routeForNotification,
+} from '@/services/pushNotifications';
 import { hasOnboarded } from '@/onboarding/onboarded';
 import { DidwaLottieSplash } from '@/components/DidwaLottieSplash';
 import { AppLockOverlay } from '@/components/AppLockOverlay';
 import { isBiometricLockEnabled } from '@/services/biometricService';
+import { useMotionScreenOptions } from '@/navigation/useMotionScreenOptions';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -33,10 +41,15 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
  */
 function RootNavigator() {
   const { status } = useAuth();
+  const screenOptions = useMotionScreenOptions();
   const router = useRouter();
   const pathname = usePathname();
+  const segments = useSegments();
   const splashHidden = useRef(false);
   const prevStatus = useRef(status);
+  const lastHandledNotificationId = useRef<string | null>(null);
+  const [splashPainted, setSplashPainted] = useState(false);
+  const [pendingNotificationRoute, setPendingNotificationRoute] = useState<string | null>(null);
   // null = still checking whether onboarding has been seen on this device.
   const [onboarded, setOnboardedState] = useState<boolean | null>(null);
   // App lock state
@@ -54,18 +67,27 @@ function RootNavigator() {
 
   // Cold start: check the biometric lock preference once auth is known.
   useEffect(() => {
-    const checkLock = async () => {
-      if (status !== 'signedIn') {
-        setLockChecked(true);
-        return;
-      }
-      const enabled = await isBiometricLockEnabled();
-      if (enabled) {
-        setIsLocked(true);
-      }
+    let active = true;
+    if (status === 'loading') return () => { active = false; };
+    if (status === 'signedOut') {
+      setIsLocked(false);
       setLockChecked(true);
+      return () => { active = false; };
+    }
+
+    setLockChecked(false);
+    const checkLock = async () => {
+      try {
+        const enabled = await isBiometricLockEnabled();
+        if (active && enabled) setIsLocked(true);
+      } catch (error) {
+        console.error('[mobile-auth] Could not read the app-lock preference:', error);
+      } finally {
+        if (active) setLockChecked(true);
+      }
     };
     void checkLock();
+    return () => { active = false; };
   }, [status]);
 
   // Foreground transition: re-lock when the app returns from background/inactive.
@@ -73,9 +95,10 @@ function RootNavigator() {
     const subscription = AppState.addEventListener('change', async (nextState) => {
       const wasBackgrounded = appStateRef.current.match(/inactive|background/);
       if (wasBackgrounded && nextState === 'active' && status === 'signedIn') {
-        const enabled = await isBiometricLockEnabled();
-        if (enabled) {
-          setIsLocked(true);
+        try {
+          if (await isBiometricLockEnabled()) setIsLocked(true);
+        } catch (error) {
+          console.error('[mobile-auth] Could not check the app-lock preference:', error);
         }
       }
       appStateRef.current = nextState;
@@ -86,21 +109,20 @@ function RootNavigator() {
   const ready = status !== 'loading' && onboarded !== null && lockChecked;
   // Keep the splash up while boot is unresolved AND until the entry route has
   // been replaced, so the real destination is mounted before it lifts.
-  const showSplash = !ready || pathname === '/';
+  const showSplash = !ready || pathname === '/' || !splashPainted;
 
-  // Reveal our own first frame from under the native splash (idempotent).
-  // Primary signal is the Lottie first decoded frame (onReady); the
-  // ready-effect below is a timeout fallback only.
   const hideNativeSplash = useCallback(() => {
     if (splashHidden.current) return;
     splashHidden.current = true;
     SplashScreen.hideAsync().catch(() => undefined);
   }, []);
 
-  // Belt-and-braces: if onLayout never fires, still lift the native splash.
+  // Hide the native splash only after the custom splash has painted and the
+  // entry redirect has mounted its destination. This avoids revealing the
+  // intentionally empty root route during cold startup.
   useEffect(() => {
-    if (ready) hideNativeSplash();
-  }, [ready, hideNativeSplash]);
+    if (ready && pathname !== '/' && splashPainted) hideNativeSplash();
+  }, [ready, pathname, splashPainted, hideNativeSplash]);
 
   // Entry redirect from the root index route: signed in -> dashboard; otherwise
   // welcome (new device) or login. Never fires off `/`, so a mid-session auth
@@ -111,14 +133,12 @@ function RootNavigator() {
     if (status === 'signedOut') router.replace(onboarded ? '/(auth)/login' : '/(auth)/welcome');
   }, [ready, pathname, status, onboarded, router]);
 
-  // Signed-in redirect: after signIn()/completeTwoFactor() the auth state flips
-  // while the pathname is still /(auth)/login, so without this nothing moves
-  // until the app is backgrounded and re-rendered. Covers login + 2FA +
-  // session restore. The cold-boot '/' gate above stays untouched.
+  // Expo URL pathnames omit route-group names. Use route segments to detect
+  // the auth group so successful login and 2FA always leave the auth screens.
   useEffect(() => {
     if (status !== 'signedIn' || !ready) return;
-    if (pathname.startsWith('/(auth)')) router.replace('/(tabs)/dashboard');
-  }, [status, ready, pathname, router]);
+    if (segments[0] === '(auth)') router.replace('/(tabs)/dashboard');
+  }, [status, ready, segments, router]);
 
   // Mid-session sign-out (explicit, or a hard 401) leaves whatever screen is
   // open — the entry route is long gone by then.
@@ -129,20 +149,69 @@ function RootNavigator() {
     prevStatus.current = status;
   }, [status, onboarded, router]);
 
-  // Register for push + wire deep-links once signed in.
+  const handleNotificationTap = useCallback((tap: { id: string; data: Record<string, unknown> }) => {
+    if (lastHandledNotificationId.current === tap.id) return;
+    lastHandledNotificationId.current = tap.id;
+    const route = routeForNotification(tap.data);
+    setPendingNotificationRoute(route);
+    if (!route) {
+      clearLastNotificationTap().catch((error) =>
+        console.warn('[push] Could not clear an unsupported notification response:', error),
+      );
+    }
+  }, []);
+
+  // Subscribe before auth resolves so a cold-start notification tap is not
+  // lost. Keep its route queued until the signed-in destination is mounted.
+  useEffect(() => {
+    const sub = addNotificationResponseListener(handleNotificationTap);
+    getLastNotificationTap()
+      .then((tap) => {
+        if (tap) handleNotificationTap(tap);
+      })
+      .catch((error) => console.error('[push] Could not read the launch notification:', error));
+    return () => sub.remove();
+  }, [handleNotificationTap]);
+
+  useEffect(() => {
+    const route = pendingNotificationRoute;
+    if (!route || status !== 'signedIn' || !ready || pathname === '/' || isLocked) return;
+    setPendingNotificationRoute(null);
+    router.push(route as never);
+    clearLastNotificationTap().catch((error) =>
+      console.warn('[push] Could not clear the handled notification response:', error),
+    );
+  }, [pendingNotificationRoute, status, ready, pathname, isLocked, router]);
+
+  // Register on sign-in without interrupting the seller with an unexpected
+  // permission prompt. Permission can be enabled explicitly from Settings.
   useEffect(() => {
     if (status !== 'signedIn') return;
-    registerDeviceForPush().catch(() => undefined);
-    const sub = addNotificationResponseListener((data) => {
-      const route = routeForNotification(data);
-      if (route) router.push(route as never);
+    registerDeviceForPush().catch((error) =>
+      console.warn('[push] Could not register this device:', error),
+    );
+    const tokenSub = addPushTokenRefreshListener();
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        registerDeviceForPush().catch((error) =>
+          console.warn('[push] Could not refresh this device registration:', error),
+        );
+      }
     });
-    return () => sub.remove();
-  }, [status, router]);
+    return () => {
+      tokenSub.remove();
+      appStateSub.remove();
+    };
+  }, [status]);
+
+  const markSplashPainted = useCallback(() => {
+    setSplashPainted(true);
+    if (ready && pathname !== '/') hideNativeSplash();
+  }, [ready, pathname, hideNativeSplash]);
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={screenOptions}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(auth)" />
@@ -158,7 +227,7 @@ function RootNavigator() {
       ) : null}
       {showSplash ? (
         <View style={StyleSheet.absoluteFill}>
-          <DidwaLottieSplash onReady={hideNativeSplash} />
+          <DidwaLottieSplash onReady={markSplashPainted} />
         </View>
       ) : null}
     </>

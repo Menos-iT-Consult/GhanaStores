@@ -1,8 +1,31 @@
 // src/lib/seo.js
 // DiDwa - SEO constants, meta content, and keyword strategy
 
+import { getPlatformDomain } from '../config.js';
+
 export const SITE_NAME = 'DiDwa';
-export const SITE_URL = 'https://didwaghana.com';
+export const INDEXABLE_PUBLIC_ROUTES = new Set([
+  '/',
+  '/pricing',
+  '/features',
+  '/how-it-works',
+  '/about',
+  '/contact',
+  '/terms',
+  '/privacy',
+  '/affiliate-program',
+]);
+
+export function siteUrl(path = '') {
+  const host = String(getPlatformDomain() || 'didwaghana.com')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    .split(':')[0];
+  const suffix = path ? `/${String(path).replace(/^\/+/, '')}` : '';
+  return `https://${host}${suffix}`;
+}
 
 export const PRIMARY_KEYWORDS = [
   'online store builder in Ghana',
@@ -22,14 +45,14 @@ export const SECONDARY_KEYWORDS = [
 
 export const META_CONTENT = {
   homepage: {
-    title: 'DiDwa – Online Store Builder in Ghana | E-commerce Platform for Ghanaian Businesses',
-    titleLength: 79,
+    title: 'Online Store Builder in Ghana & POS | DiDwa',
+    titleLength: 43,
     description:
-      'Build and manage your Ghanaian online store with DiDwa. All-in-one e-commerce platform and digital POS for retail businesses. Accept Mobile Money, manage inventory, and grow sales across Accra and Kumasi. Start free today.',
-    descriptionLength: 163,
-    h1: 'Build Your Online Store in Ghana with DiDwa',
+      'Run your Ghanaian shop online and in-store with DiDwa. Accept Mobile Money, manage inventory and orders, and launch your own online store.',
+    descriptionLength: 138,
+    h1: 'Sell in-store and online with DiDwa',
     h2s: [
-      'The All-in-One E-commerce Platform for Ghanaian Merchants',
+      'The All-in-One Commerce Platform for Ghanaian Merchants',
       'Accept Mobile Money & Card Payments',
       'Digital POS Built for Ghanaian Retail',
       'Inventory Management for Local Shops',
@@ -41,7 +64,7 @@ export const META_CONTENT = {
       'Step 1: Register Your Store',
       'Step 2: Add Products & Set Prices',
       'Step 3: Go Live & Accept Orders',
-      'Frequently Asked Questions (Ghana E-commerce)',
+      'Frequently Asked Questions',
     ],
   },
   merchantLanding: {
@@ -90,28 +113,3 @@ export const FAQ_CONTENT = [
     a: 'Yes. DiDwa integrates with MTN MoMo, Vodafone Cash, and AirtelTigo Money for Ghanaian customers.',
   },
 ];
-
-export const ROBOTS_TXT = `# DiDwa - didwaghana.com
-# Robots Exclusion Protocol
-
-User-agent: *
-Allow: /
-Allow: /blog/
-Allow: /pricing
-Allow: /features
-Allow: /about
-Allow: /contact
-Allow: /developer-guide
-Allow: /stores/
-
-# Protect private admin and dashboard routes
-Disallow: /admin/
-Disallow: /dashboard/
-Disallow: /pos/
-Disallow: /settings/
-Disallow: /api/
-Disallow: /_next/
-Disallow: /private/
-
-# Sitemap location
-Sitemap: https://didwaghana.com/sitemap.xml`;

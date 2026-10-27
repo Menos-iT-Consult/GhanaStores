@@ -1,14 +1,13 @@
 import React from 'react';
 import { RefreshControl, ScrollView, View, type TextStyle, type ViewStyle } from 'react-native';
-import { IconButton, Snackbar, Text } from 'react-native-paper';
+import { Appbar, Snackbar, Text } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OrdersWidget } from '@/components/widgets/OrdersWidget';
-import { OpsWidget } from '@/components/widgets/OpsWidget';
 import { writeWidgetSnapshot } from '@/widgets/snapshot';
 import { refreshAndroidWidget } from '@/widgets/refreshAndroidWidget';
 
@@ -17,7 +16,6 @@ import { ThemeToggle } from '@/components/glass/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { RevenueCarousel } from '@/components/glass/RevenueCarousel';
 import { useGlass } from '@/components/glass/glass';
-import { type HeroRange } from '@/components/glass/HeroRevenueCard';
 import { QuickActions } from '@/components/glass/QuickActions';
 import { MetricGrid } from '@/components/glass/MetricGrid';
 import { AlertBanner } from '@/components/glass/AlertBanner';
@@ -31,7 +29,7 @@ import type { DashboardFull } from '@/types';
 
 /**
  * Command center (Material 3): flat tonal hero revenue card, outlined
- * quick actions, 2x2 metric grid, amber low-stock banner, top products and
+ * Today's sales, seller quick actions, 2x2 metric grid, amber low-stock banner, top products and
  * recent orders in plain surface cards. Data layer unchanged — one round
  * trip to /dashboard/full powers most of the screen.
  */
@@ -39,10 +37,9 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { store } = useAuth();
   const g = useGlass();
+  const reduceMotion = useReducedMotion();
   const sync = usePosSync();
-  const insets = useSafeAreaInsets();
   const [snack, setSnack] = React.useState<string | null>(null);
-  const [heroRange, setHeroRange] = React.useState<HeroRange>(7);
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['dashboard-full'],
@@ -66,15 +63,12 @@ export default function DashboardScreen() {
   // Best-effort: snapshot + Android push must never break the screen.
   React.useEffect(() => {
     if (!data) return;
-    const pending = (Array.isArray(data.recentOrders) ? data.recentOrders : []).filter(
-      (o) => String(o?.status).toUpperCase() === 'PENDING',
-    ).length;
     writeWidgetSnapshot({
       storeName: store?.name ?? null,
       todayRevenue: Number(data.kpis?.todayRevenue) || 0,
       weekRevenue: Number(data.kpis?.weekRevenue) || 0,
       paidOrders: Number(data.kpis?.paidOrders) || 0,
-      pendingOrders: pending,
+      pendingOrders: Number(data.operations?.pendingOrderCount) || 0,
       lowStockCount: Number(data.operations?.lowStockCount) || 0,
       transitCash: Number(data.operations?.transitCash) || 0,
       recentOrders: (Array.isArray(data.recentOrders) ? data.recentOrders : []).slice(0, 5).map((o) => ({
@@ -114,71 +108,65 @@ export default function DashboardScreen() {
   const safeOrders = Array.isArray(recentOrders) ? recentOrders : [];
   const safeKpis = {
     todayRevenue: Number(kpis?.todayRevenue) || 0,
-    weekRevenue: Number(kpis?.weekRevenue) || 0,
     paidOrders: Number(kpis?.paidOrders) || 0,
-    averageOrderValue: Number(kpis?.averageOrderValue) || 0,
     totalRevenue: Number(kpis?.totalRevenue) || 0,
+    averageOrderValue: Number(kpis?.averageOrderValue) || 0,
+    weekRevenue: Number(kpis?.weekRevenue) || 0,
   };
   const safeOps = {
+    pendingOrderCount: Number(operations?.pendingOrderCount) || 0,
     lowStockCount: Number(operations?.lowStockCount) || 0,
     loyaltyMembers: Number(operations?.loyaltyMembers) || 0,
     outstandingPoints: Number(operations?.outstandingPoints) || 0,
     transitCash: Number(operations?.transitCash) || 0,
   };
-  const pendingOrders = safeOrders.filter((o) => String(o?.status).toUpperCase() === 'PENDING').length;
-  const sparkSource = heroRange === 7 ? safeTrend.slice(-7) : safeTrend;
-  const sparkValues = sparkSource.map((m) => Number(m?.revenue) || 0);
-  const heroRevenue = heroRange === 7 ? safeKpis.weekRevenue : safeKpis.totalRevenue;
-  const heroLabel = heroRange === 7 ? 'Last 7 days' : 'All-time pace (30d)';
+  const pendingOrders = safeOps.pendingOrderCount;
+  const recentPendingOrders = safeOrders.filter((o) => String(o?.status).toUpperCase() === 'PENDING');
   return (
     <View style={[styles.root, { backgroundColor: g.slate }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View style={{ flex: 1 }}>
-          <Text variant="headlineSmall" style={styles.greeting(g)}>
-            {greetingFor(new Date().getHours())}{store?.name ? `, ${store.name}` : ''}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          <ThemeToggle />
-          <NotificationBell iconColor={g.muted} onPress={() => router.push('/notifications')} />
-          <IconButton
-            icon="cog"
-            size={22}
-            iconColor={g.muted}
-            accessibilityLabel="Settings"
-            onPress={() => router.push('/settings')}
-          />
-        </View>
-      </View>
+      <Appbar.Header mode="small" style={{ backgroundColor: g.slate }}>
+        <Appbar.Content
+          title={greetingFor(new Date().getHours())}
+          subtitle={store?.name ?? 'Your store'}
+          titleStyle={{ fontWeight: '700' }}
+        />
+        <ThemeToggle />
+        <NotificationBell iconColor={g.muted} onPress={() => router.push('/notifications')} />
+        <Appbar.Action
+          icon="cog-outline"
+          accessibilityLabel="Settings"
+          onPress={() => router.push('/settings')}
+        />
+      </Appbar.Header>
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={ACCENT.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={g.blue} />}
       >
-        {/* 1 · Revenue carousel: hero card + trend card (swipe horizontally) */}
-        <RevenueCarousel
-          storeName={store?.name ?? 'My store'}
-          heroRevenue={heroRevenue}
-          range={heroRange}
-          onRangeChange={setHeroRange}
-          sparkValues={sparkValues}
-          heroLabel={heroLabel}
-          trendPoints={safeTrend.map((m) => ({
-            month: String(m?.month ?? ''),
-            revenue: Number(m?.revenue) || 0,
-          }))}
-        />
+        <Animated.View entering={reduceMotion ? undefined : FadeInDown.duration(300)}>
+          <RevenueCarousel
+            storeName={store?.name ?? 'My store'}
+            heroRevenue={safeKpis.todayRevenue}
+            heroLabel="Today"
+            trendPoints={safeTrend.map((m) => ({
+              month: String(m?.month ?? ''),
+              revenue: Number(m?.revenue) || 0,
+            }))}
+          />
+        </Animated.View>
 
-        {/* 2 · Quick action glass pills */}
-        <View style={styles.pills}>
+        <Animated.View
+          style={styles.pills}
+          entering={reduceMotion ? undefined : FadeInDown.delay(80).duration(280)}
+        >
           <QuickActions
             actions={[
-              { label: 'New Sale', icon: 'cash-register', onPress: () => router.push('/pos') },
-              { label: 'Add Product', icon: 'plus-box-outline', onPress: () => router.push('/products/new') },
-              { label: 'POS', icon: 'point-of-sale', onPress: () => router.push('/pos') },
+              { label: 'New sale', icon: 'cash-register', emphasis: 'primary', onPress: () => router.push('/pos') },
+              { label: 'Orders', icon: 'receipt', onPress: () => router.push('/orders') },
+              { label: 'Add product', icon: 'plus-box-outline', onPress: () => router.push('/products/new') },
             ]}
           />
-        </View>
+        </Animated.View>
 
         {/* Offline queue needs attention: surface it above everything. */}
         {sync.failed > 0 ? (
@@ -203,43 +191,25 @@ export default function DashboardScreen() {
           </GlassCard>
         ) : null}
 
-        {/* 3 · Live metric grid */}
-        <View style={styles.metricsWrap}>
-          <MetricGrid
-            metrics={[
-              {
-                label: 'Paid orders',
-                value: safeKpis.paidOrders,
-                format: (n) => String(Math.round(n)),
-                icon: 'receipt-text-check-outline',
-                accent: ACCENT.revenue,
-              },
-              {
-                label: 'Pending',
-                value: pendingOrders,
-                format: (n) => String(Math.round(n)),
-                icon: 'clock-outline',
-                accent: ACCENT.orders,
-              },
-              {
-                label: 'Low stock',
-                value: safeOps.lowStockCount,
-                format: (n) => String(Math.round(n)),
-                icon: 'alert-outline',
-                accent: safeOps.lowStockCount > 0 ? ACCENT.inventory : ACCENT.revenue,
-              },
-              {
-                label: 'Rider cash',
-                value: safeOps.transitCash,
-                format: (n) => formatGhs(n),
-                icon: 'bike-fast',
-                accent: ACCENT.pos,
-              },
-            ]}
-          />
-        </View>
+        <SectionHeader
+          title="Needs attention"
+        />
+        <OrdersWidget
+          title="Pending orders"
+          emptyMessage={pendingOrders > 0
+            ? 'Open the orders list to review pending orders.'
+            : 'No orders need your attention right now.'}
+          orders={recentPendingOrders.slice(0, 3).map((o) => ({
+            id: String(o.id),
+            orderNumber: String(o.orderNumber),
+            customerName: String(o.customerName),
+            total: Number(o.total) || 0,
+            status: String(o.status),
+          }))}
+          pendingOrders={pendingOrders}
+          onSeeAll={() => router.push('/orders')}
+        />
 
-        {/* 4 · Animated amber alert (low inventory only) */}
         {safeOps.lowStockCount > 0 ? (
           <View style={styles.alertWrap}>
             <AlertBanner
@@ -250,19 +220,65 @@ export default function DashboardScreen() {
           </View>
         ) : null}
 
-        <OrdersWidget
-          orders={safeOrders.slice(0, 3).map((o) => ({
-            id: String(o.id),
-            orderNumber: String(o.orderNumber),
-            customerName: String(o.customerName),
-            total: Number(o.total) || 0,
-            status: String(o.status),
-          }))}
-          pendingOrders={pendingOrders}
-          onSeeAll={() => router.push('/orders')}
-        />
-        <OpsWidget lowStockCount={safeOps.lowStockCount} transitCash={safeOps.transitCash} onRestock={() => router.push('/products')} />
+        <SectionHeader title="Recent orders" actionLabel="See all" onAction={() => router.push('/orders')} />
+        {safeOrders.length === 0 ? (
+          <GlassCard style={styles.listBody}>
+            <Text variant="bodyMedium" style={styles.mutedCenter(g)}>
+              Orders from your storefront and POS will show here.
+            </Text>
+          </GlassCard>
+        ) : (
+          <GlassCard>
+            {safeOrders.slice(0, 6).map((o, i) => (
+              <View key={o.id} style={[styles.rankRow, i > 0 && styles.divider(g)]}>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text variant="titleSmall" style={styles.rankName(g)} numberOfLines={1}>
+                    #{o.orderNumber} · {o.customerName}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.muted(g)}>
+                    {o.paymentMethod} · {new Date(o.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
+                <StatusBadge status={o.status} />
+                <Text variant="titleSmall" style={styles.rankRevenue(g)}>{formatGhs(o.total)}</Text>
+              </View>
+            ))}
+          </GlassCard>
+        )}
 
+        <SectionHeader title="Sales snapshot" />
+        <MetricGrid
+          metrics={[
+            {
+              label: 'Revenue this week',
+              value: safeKpis.weekRevenue,
+              format: (n) => formatGhs(n),
+              icon: 'chart-line',
+              accent: ACCENT.revenue,
+            },
+            {
+              label: 'Paid orders',
+              value: safeKpis.paidOrders,
+              format: (n) => String(Math.round(n)),
+              icon: 'receipt-text-check-outline',
+              accent: ACCENT.orders,
+            },
+            {
+              label: 'Average order',
+              value: safeKpis.averageOrderValue,
+              format: (n) => formatGhs(n),
+              icon: 'cash-multiple',
+              accent: ACCENT.pos,
+            },
+            {
+              label: 'Lifetime revenue',
+              value: safeKpis.totalRevenue,
+              format: (n) => formatGhs(n),
+              icon: 'cash-check',
+              accent: ACCENT.primary,
+            },
+          ]}
+        />
 
         <SectionHeader
           title="Top products"
@@ -292,37 +308,14 @@ export default function DashboardScreen() {
           </GlassCard>
         )}
 
-        <SectionHeader title="Recent orders" actionLabel="See all" onAction={() => router.push('/orders')} />
-        {safeOrders.length === 0 ? (
-          <GlassCard style={styles.listBody}>
-            <Text variant="bodyMedium" style={styles.mutedCenter(g)}>
-              Orders from your storefront and POS will show here.
-            </Text>
-          </GlassCard>
-        ) : (
-          <GlassCard>
-            {safeOrders.slice(0, 6).map((o, i) => (
-              <View key={o.id} style={[styles.rankRow, i > 0 && styles.divider(g)]}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text variant="titleSmall" style={styles.rankName(g)} numberOfLines={1}>
-                    #{o.orderNumber} · {o.customerName}
-                  </Text>
-                  <Text variant="bodySmall" style={styles.muted(g)}>
-                    {o.paymentMethod} · {new Date(o.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-                <StatusBadge status={o.status} />
-                <Text variant="titleSmall" style={styles.rankRevenue(g)}>{formatGhs(o.total)}</Text>
-              </View>
-            ))}
-          </GlassCard>
-        )}
-
-        <SectionHeader title="Operations" />
+        <SectionHeader title="Loyalty & operations" />
         <GlassCard style={styles.opsCard}>
-          <OpsRow label="Low stock" value={String(safeOps.lowStockCount)} hint={safeOps.lowStockCount > 0 ? 'Variants to restock' : 'All good'} />
           <OpsRow label="Loyalty members" value={String(safeOps.loyaltyMembers)} />
-          <OpsRow label="Points outstanding" value={String(safeOps.outstandingPoints)} last={safeOps.transitCash === 0} />
+          <OpsRow
+            label="Points outstanding"
+            value={String(safeOps.outstandingPoints)}
+            last={safeOps.transitCash === 0}
+          />
           {safeOps.transitCash > 0 ? (
             <OpsRow label="Rider cash in transit" value={formatGhs(safeOps.transitCash)} last />
           ) : null}
@@ -368,12 +361,8 @@ function OpsRow({ label, value, hint, last }: { label: string; value: string; hi
 const styles = {
   root: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingTop: 16 } satisfies ViewStyle,
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 } satisfies ViewStyle,
-  greeting: (g: ReturnType<typeof useGlass>): TextStyle => ({ color: g.ink, fontWeight: '800' }),
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 } satisfies ViewStyle,
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 } satisfies ViewStyle,
   noteCard: { padding: 0, marginTop: 14 },
-  metricsWrap: { marginTop: 14 },
   alertWrap: { marginTop: 14 },
   trendCard: { padding: 16, alignItems: 'center' } satisfies ViewStyle,
   listBody: { padding: 16 },
@@ -398,4 +387,3 @@ const styles = {
     marginBottom: 12,
   }),
 };
-

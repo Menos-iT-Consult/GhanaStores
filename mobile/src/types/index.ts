@@ -173,6 +173,7 @@ export interface DashboardFull {
   monthlyTrend: MonthlyTrendPoint[];
   recentOrders: DashboardRecentOrder[];
   operations: {
+    pendingOrderCount: number;
     lowStockCount: number;
     loyaltyMembers: number;
     outstandingPoints: number;

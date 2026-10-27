@@ -1,7 +1,7 @@
-import React from 'react';
-import { ScrollView, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { useGlass, type GlassTokens } from './glass';
-import { HeroRevenueCard, type HeroRange } from './HeroRevenueCard';
+import { HeroRevenueCard } from './HeroRevenueCard';
 import { TrendWidget } from '@/components/widgets/TrendWidget';
 import { GlassCard } from './GlassCard';
 
@@ -12,65 +12,89 @@ import { GlassCard } from './GlassCard';
 export function RevenueCarousel({
   storeName,
   heroRevenue,
-  range,
-  onRangeChange,
-  sparkValues,
   heroLabel,
   trendPoints,
 }: {
   storeName: string;
   heroRevenue: number;
-  range: HeroRange;
-  onRangeChange: (r: HeroRange) => void;
-  sparkValues: number[];
   heroLabel: string;
   trendPoints: { month: string; revenue: number }[];
 }) {
   const g = useGlass();
   const { width } = useWindowDimensions();
+  const [activePage, setActivePage] = useState(0);
+  const cardWidth = Math.max(0, width - 32);
 
   return (
-    <ScrollView
-      horizontal
-      pagingEnabled
-      showsHorizontalScrollIndicator={false}
-      decelerationRate="fast"
-      contentContainerStyle={styles.row(g)}
-    >
-      {/* Card 1 · Hero revenue (7d / 30d) */}
-      <View style={[styles.cardWrap(g), { width }]}>
-        <HeroRevenueCard
-          storeName={storeName}
-          todayRevenue={heroRevenue}
-          range={range}
-          onRangeChange={onRangeChange}
-          sparkValues={sparkValues}
-          periodLabel={heroLabel}
-        />
-      </View>
+    <View>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        onMomentumScrollEnd={(event) => {
+          setActivePage(Math.round(event.nativeEvent.contentOffset.x / cardWidth));
+        }}
+        contentContainerStyle={styles.row}
+        accessibilityLabel="Revenue overview and six-month trend"
+      >
+        <View style={[styles.cardWrap, { width: cardWidth }]}>
+          <HeroRevenueCard
+            storeName={storeName}
+            revenue={heroRevenue}
+            periodLabel={heroLabel}
+          />
+        </View>
 
-      {/* Card 2 · Revenue trend (6-month bars) */}
-      <View style={[styles.cardWrap(g), { width }]}>
-        <GlassCard style={styles.trendCard(g)}>
-          <TrendWidget points={trendPoints} />
-        </GlassCard>
+        <View style={[styles.cardWrap, { width: cardWidth }]}>
+          <GlassCard style={styles.trendCard(g)}>
+            <TrendWidget points={trendPoints} />
+          </GlassCard>
+        </View>
+      </ScrollView>
+      <View style={styles.indicatorRow} accessibilityLabel={`Card ${activePage + 1} of 2`}>
+        {[0, 1].map((page) => (
+          <View
+            key={page}
+            style={[
+              styles.indicator,
+              { backgroundColor: page === activePage ? g.blue : g.glassBorder },
+            ]}
+          />
+        ))}
+        <Text style={[styles.indicatorLabel, { color: g.muted }]}>
+          {activePage === 0 ? 'Today' : '6-month trend'}
+        </Text>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = {
-  row: (g: GlassTokens): ViewStyle => ({
-    paddingHorizontal: 0,
+  row: {
     paddingVertical: 8,
-    gap: 0,
     alignItems: 'flex-start',
-  }) satisfies ViewStyle,
-  cardWrap: (g: GlassTokens): ViewStyle => ({
-    width: '100%',
-  }) satisfies ViewStyle,
+  } satisfies ViewStyle,
+  cardWrap: { paddingRight: 0 } satisfies ViewStyle,
   trendCard: (g: GlassTokens): ViewStyle => ({
     padding: 16,
     alignItems: 'center',
   }) satisfies ViewStyle,
+  indicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 18,
+    marginTop: 1,
+  } satisfies ViewStyle,
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  } satisfies ViewStyle,
+  indicatorLabel: {
+    fontSize: 11,
+    marginLeft: 4,
+  },
 };

@@ -1,25 +1,16 @@
 // src/components/seo/SoftwareApplicationSchema.jsx
 // JSON-LD SoftwareApplication schema for DiDwa product/landing pages
+import { siteUrl } from '../../lib/seo.js';
 
 export default function SoftwareApplicationSchema() {
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    applicationCategory: 'E-commerce',
+    applicationCategory: 'BusinessApplication',
     name: 'DiDwa Digital POS',
     operatingSystem: 'Web, iOS, Android',
-    offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'GHS',
-      availability: 'https://schema.org/InStock',
-    },
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.8',
-      reviewCount: '42',
-    },
-    screenshot: 'https://didwaghana.com/dashboard-preview.png',
+    url: siteUrl('/'),
+    description: 'Commerce tools for Ghanaian businesses, including an online storefront, Mobile Money payments, inventory management, and point of sale.',
     featureList: [
       'Mobile Money integration',
       'Inventory management',

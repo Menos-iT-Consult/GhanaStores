@@ -9,6 +9,7 @@ import {
 import { navigate } from '../router.js';
 import StorefrontRouter, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
 import StorefrontSplash from '../components/StorefrontSplash.jsx';
+import MetaTags from '../components/seo/MetaTags.jsx';
 import { useContainerTier } from '../lib/responsive.js';
 import { getPlatformDomain } from '../config.js';
 
@@ -278,6 +279,43 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
   }, []);
 
   const displayProducts = useMemo(() => (products || []).map(toDisplayProduct), [products]);
+  const activeProduct = displayProducts.find((product) => String(product.id) === productId);
+  const cleanPath = pathname.replace(/\/+$/, '') || '/';
+  const indexableStorePaths = new Set(['/', '/home', '/shop', '/catalog', '/about', '/contact']);
+  const productPathIsIndexable = /^\/products?\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanPath);
+  const isIndexableStorePage = indexableStorePaths.has(cleanPath) || productPathIsIndexable;
+  const canonicalPath = page === 'product'
+    ? `/product/${encodeURIComponent(String(productId || ''))}`
+    : page === 'shop'
+      ? '/shop'
+      : page === 'about'
+        ? '/about'
+        : page === 'contact'
+          ? '/contact'
+          : '/';
+  const storeHost = tenant?.customDomain
+    || (tenant?.subdomainSlug ? `${tenant.subdomainSlug}.${getPlatformDomain()}` : '');
+  const storeOrigin = storeHost ? `https://${storeHost}` : window.location.origin;
+  const canonical = isIndexableStorePage && (page !== 'product' || activeProduct)
+    ? `${storeOrigin}${canonicalPath}`
+    : undefined;
+  const productDescription = String(activeProduct?.description || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+  const pageTitle = page === 'product' && activeProduct
+    ? `${activeProduct.name} | ${storeName}`
+    : page === 'shop'
+      ? `Shop ${storeName}`
+      : page === 'about'
+        ? `About ${storeName}`
+        : page === 'contact'
+          ? `Contact ${storeName}`
+          : `${storeName} | Online Store`;
+  const pageDescription = page === 'product' && activeProduct
+    ? productDescription || `View ${activeProduct.name} from ${storeName}.`
+    : `Shop online at ${storeName}. Browse the store's products and order online.`;
 
   /* The theme to paint with RIGHT NOW, preferring the copy already inlined in the
      resolve payload. That payload arrives in the same response as the logo, so
@@ -301,6 +339,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
      resolveStorefrontTheme, so this only supplies a default when no theme
      resolved at all. */
   const config = useMemo(() => bootTheme || normalizeCustomThemeConfig({}), [bootTheme]);
+  const storeName = config?.branding?.site_title || tenant?.name || 'Online store';
 
   function addToCart(product, variant, qty = 1) {
     const variants = product.variants || [];
@@ -406,6 +445,13 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
 
   return (
     <div ref={container.ref} className="min-h-screen bg-slate-50">
+      <MetaTags
+        title={`${pageTitle} | DiDwa`}
+        description={pageDescription}
+        canonical={canonical}
+        ogImage={activeProduct?.img || tenant?.logoUrl}
+        noindex={!canonical}
+      />
       <StorefrontRouter
         config={config}
         // The storefront lays itself out from its OWN width, not the window: it

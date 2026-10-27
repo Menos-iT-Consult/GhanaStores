@@ -16,6 +16,8 @@ import {
   useTheme,
 } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Animated, { ZoomIn, useReducedMotion } from 'react-native-reanimated';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Crypto from 'expo-crypto';
 import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
@@ -47,6 +49,7 @@ function variantPrice(p: Product, v: ProductVariant): number {
  */
 export default function PosScreen() {
   const { colors } = useTheme();
+  const reduceMotion = useReducedMotion();
   const qc = useQueryClient();
   const sync = usePosSync();
 
@@ -59,7 +62,7 @@ export default function PosScreen() {
   const [lookupPhone, setLookupPhone] = useState('');
   const [redeem, setRedeem] = useState(false);
   const [pickProduct, setPickProduct] = useState<Product | null>(null);
-  const [receipt, setReceipt] = useState<{ title: string; body: string } | null>(null);
+  const [receipt, setReceipt] = useState<{ title: string; body: string; offline: boolean } | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
 
   // Seed the offline catalog from AsyncStorage, then let the server refresh it.
@@ -185,11 +188,13 @@ export default function PosScreen() {
           body: `${formatGhs(r.order.total)} collected via ${paymentMethod}.${
             r.order.pointsEarned ? ` +${r.order.pointsEarned} loyalty points.` : ''
           }`,
+          offline: false,
         });
       } else {
         setReceipt({
           title: 'Sale saved offline',
           body: `${formatGhs(total)} will sync automatically when you are back online.`,
+          offline: true,
         });
       }
       setCart([]);
@@ -405,6 +410,16 @@ export default function PosScreen() {
         <Dialog visible={Boolean(receipt)} onDismiss={() => setReceipt(null)}>
           <Dialog.Title>{receipt?.title}</Dialog.Title>
           <Dialog.Content>
+            <Animated.View
+              entering={reduceMotion ? undefined : ZoomIn.duration(260)}
+              style={[styles.receiptIcon, { backgroundColor: receipt?.offline ? colors.secondaryContainer : colors.tertiaryContainer }]}
+            >
+              <MaterialCommunityIcons
+                name={receipt?.offline ? 'cloud-check-outline' : 'check'}
+                size={32}
+                color={receipt?.offline ? colors.onSecondaryContainer : colors.onTertiaryContainer}
+              />
+            </Animated.View>
             <Text variant="bodyMedium">{receipt?.body}</Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -446,4 +461,13 @@ const styles = StyleSheet.create({
   totalValue: { fontWeight: '800' },
   chargeBtn: { marginTop: 10 },
   variantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  receiptIcon: {
+    alignSelf: 'center',
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
 });

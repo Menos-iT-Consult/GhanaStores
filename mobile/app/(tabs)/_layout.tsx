@@ -6,7 +6,13 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BlurView } from 'expo-blur';
 import { useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useThemeMode } from '@/theme/ThemeContext';
 
 /**
@@ -43,6 +49,7 @@ interface TabButtonProps {
   progress: SharedValue<number>;
   activeColor: string;
   inactiveColor: string;
+  reduceMotion: boolean;
   onPress: () => void;
   onLongPress: () => void;
 }
@@ -57,12 +64,13 @@ function TabButton({
   progress,
   activeColor,
   inactiveColor,
+  reduceMotion,
   onPress,
   onLongPress,
 }: TabButtonProps) {
   const iconStyle = useAnimatedStyle(() => {
     const focus = Math.max(0, 1 - Math.abs(progress.value - index));
-    return { transform: [{ scale: 1 + 0.14 * focus }] };
+    return { transform: [{ scale: reduceMotion ? 1 : 1 + 0.14 * focus }] };
   });
 
   const color = focused ? activeColor : inactiveColor;
@@ -91,13 +99,14 @@ function TabButton({
 function LiquidTabBar({ state, navigation, descriptors }: BottomTabBarProps) {
   const { colors } = useTheme();
   const { isDark } = useThemeMode();
+  const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const [capsuleWidth, setCapsuleWidth] = useState(0);
 
   const progress = useSharedValue(state.index);
   useEffect(() => {
-    progress.value = withSpring(state.index, PILL_SPRING);
-  }, [state.index, progress]);
+    progress.value = reduceMotion ? state.index : withSpring(state.index, PILL_SPRING);
+  }, [state.index, progress, reduceMotion]);
 
   const tabWidth = capsuleWidth / Math.max(1, state.routes.length);
 
@@ -161,6 +170,7 @@ function LiquidTabBar({ state, navigation, descriptors }: BottomTabBarProps) {
                 progress={progress}
                 activeColor={colors.primary}
                 inactiveColor={colors.onSurfaceVariant}
+                reduceMotion={reduceMotion}
                 onPress={() => {
                   const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                   if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
