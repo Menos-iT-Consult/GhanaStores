@@ -16,6 +16,8 @@ import { issueAffiliateToken, requireAuth } from '../middleware/authMiddleware.j
 import { query, withTransaction } from '../config/database.js';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 import { platformDomain } from '../middleware/domainMiddleware.js';
+import { normalizeGhPhone } from '../utils/helpers.js';
+import { resolvePaystackMomoAccountName } from '../services/paystackPlatform.js';
 
 const router = Router();
 
@@ -75,13 +77,10 @@ router.post('/signup', async (req, res, next) => {
     const fullName = String(req.body?.name || '').trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const phone = String(req.body?.phone || '').trim();
-    const momoNetwork = String(req.body?.momoNetwork || '').trim().toUpperCase();
-    const momoNumber = String(req.body?.momoNumber || '').trim();
     const password = String(req.body?.password || '');
     if (!fullName || fullName.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-        || !phone || phone.length > 32 || !momoNumber || momoNumber.length > 32
-        || !['MTN', 'VODAFONE', 'AT'].includes(momoNetwork) || password.length < 8 || password.length > 128) {
-      return res.status(400).json({ error: 'Enter valid account, Mobile Money, and password details. Passwords must be at least 8 characters.' });
+        || !phone || phone.length > 32 || password.length < 8 || password.length > 128) {
+      return res.status(400).json({ error: 'Enter valid account and password details. Passwords must be at least 8 characters.' });
     }
     if (await findByEmailForAuth(email)) {
       return res.status(409).json({ error: 'An affiliate account already uses this email.' });
@@ -91,8 +90,6 @@ router.post('/signup', async (req, res, next) => {
       fullName,
       email,
       phone,
-      momoNetwork,
-      momoNumber,
       passwordHash,
     });
     return res.status(201).json({
@@ -131,6 +128,40 @@ router.post('/login', async (req, res, next) => {
 // 🔹 GET /api/affiliate/me - Current affiliate profile
 router.get('/me', requireAffiliate, async (req, res) => {
   res.json(req.affiliate);
+});
+
+router.post('/payout-account/verify', requireAffiliate, async (req, res, next) => {
+  try {
+    const network = String(req.body?.momoNetwork || '').trim().toUpperCase();
+    const momoNumber = normalizeGhPhone(req.body?.momoNumber);
+    if (!['MTN', 'VODAFONE', 'AT'].includes(network) || !momoNumber) {
+      return res.status(400).json({ error: 'Enter a valid Ghanaian Mobile Money number and network.' });
+    }
+
+    const { accountName, bankName } = await resolvePaystackMomoAccountName({
+      network,
+      phone: momoNumber,
+    });
+    await query(
+      `UPDATE affiliates
+          SET momo_network = $2,
+              momo_number = $3,
+              momo_verified_name = $4,
+              momo_verified_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $1`,
+      [req.affiliate.id, network, momoNumber, accountName],
+    );
+    const affiliate = await findById(req.affiliate.id);
+    return res.json({
+      affiliate,
+      verification: { accountName, bankName },
+      message: `Paystack verified ${accountName} for ${bankName}.`,
+    });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
 });
 
 // 🔹 GET /api/affiliate/stats - Earnings stats
@@ -191,6 +222,9 @@ router.get('/payouts', requireAffiliate, async (req, res) => {
 // 🔹 POST /api/affiliate/payouts - Request a payout
 router.post('/payouts', requireAffiliate, async (req, res, next) => {
   try {
+    if (!req.affiliate.momo_network || !req.affiliate.momo_number || !req.affiliate.momo_verified_at) {
+      return res.status(400).json({ error: 'Verify a Mobile Money payout account in your dashboard before requesting a payout.' });
+    }
     const rawAmount = req.body?.amountGHS;
     const amountGhs = Number(rawAmount);
     if (!Number.isFinite(amountGhs) || amountGhs <= 0 || Math.abs(amountGhs * 100 - Math.round(amountGhs * 100)) > 1e-8) {
@@ -206,7 +240,19 @@ router.post('/payouts', requireAffiliate, async (req, res, next) => {
     }
 
     const payout = await withTransaction(async (t) => {
-      await t.query('SELECT id FROM affiliates WHERE id = $1 FOR UPDATE', [req.affiliate.id]);
+      const { rows: accountRows } = await t.query(
+        `SELECT momo_network, momo_number, momo_verified_at
+           FROM affiliates
+          WHERE id = $1
+          FOR UPDATE`,
+        [req.affiliate.id],
+      );
+      const payoutAccount = accountRows[0];
+      if (!payoutAccount?.momo_network || !payoutAccount.momo_number || !payoutAccount.momo_verified_at) {
+        const err = new Error('Verify a Mobile Money payout account in your dashboard before requesting a payout.');
+        err.status = 400;
+        throw err;
+      }
       const { rows } = await t.query(
         `SELECT
            (SELECT COALESCE(SUM(earned_amount_ghs), 0)
@@ -227,7 +273,7 @@ router.post('/payouts', requireAffiliate, async (req, res, next) => {
         `INSERT INTO affiliate_payouts (affiliate_id, amount_ghs, momo_network, momo_number, status)
          VALUES ($1, $2, $3, $4, 'pending')
          RETURNING id, amount_ghs, status, requested_at`,
-        [req.affiliate.id, amountGhs, req.affiliate.momo_network, req.affiliate.momo_number],
+        [req.affiliate.id, amountGhs, payoutAccount.momo_network, payoutAccount.momo_number],
       );
       return inserted[0];
     });

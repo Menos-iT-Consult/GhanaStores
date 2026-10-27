@@ -3,7 +3,7 @@ import { BadgePercent, RefreshCw, Save, Users, Wallet } from 'lucide-react';
 import { adminApi, ghs } from '../../api.js';
 import {
   Button, DataTable, ErrorBanner, Field, LoadingBlock, PageHeader, Panel, PanelHeader,
-  Stacked, StatCard, dateTimeOrDash, inputClass,
+  StatCard, dateTimeOrDash, inputClass,
 } from '../../components/admin/ui.jsx';
 
 const INITIAL_SETTINGS = {
@@ -75,10 +75,10 @@ export default function AdminAffiliateProgram() {
   if (error && !settings) return <ErrorBanner error={error} onRetry={load} />;
 
   return (
-    <Stacked>
+    <div className="space-y-5">
       <PageHeader title="Affiliate program" subtitle="Configure the public program terms and operational thresholds" />
-      {error && <ErrorBanner>{error}</ErrorBanner>}
-      {saveError && <ErrorBanner>{saveError}</ErrorBanner>}
+      {error && <ErrorBanner error={error} onRetry={load} />}
+      {saveError && <ErrorBanner error={saveError} />}
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -164,6 +164,6 @@ export default function AdminAffiliateProgram() {
           </Button>
         </div>
       </Panel>
-    </Stacked>
+    </div>
   );
 }

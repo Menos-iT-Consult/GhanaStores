@@ -44,6 +44,7 @@ if (!dbUrl) {
 const migrationPaths = [
   path.join(__dirname, '..', 'db', 'migrations', '001_affiliate_program.sql'),
   path.join(__dirname, '..', 'db', 'migrations', '002_short_affiliate_referral_codes.sql'),
+  path.join(__dirname, '..', 'db', 'migrations', '003_affiliate_payout_account_verification.sql'),
 ];
 for (const migrationPath of migrationPaths) {
   if (!fs.existsSync(migrationPath)) {
@@ -86,6 +87,7 @@ try {
   console.log('\n🎉 Database migration complete!');
 } catch (e) {
   console.error('Migration error:', e.message);
+  process.exitCode = 1;
 } finally {
   await pool.end();
 }

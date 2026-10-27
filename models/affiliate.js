@@ -18,7 +18,7 @@ function generateShortReferralCode() {
 export async function findByReferralCode(code) {
   const { rows } = await query(
     `SELECT a.id, a.referral_code, a.full_name, a.email, a.phone,
-            a.momo_network, a.momo_number, a.is_active,
+            a.momo_network, a.momo_number, a.momo_verified_name, a.momo_verified_at, a.is_active,
             a.created_at, a.updated_at
      FROM affiliates a
      WHERE a.is_active = TRUE
@@ -40,7 +40,7 @@ export async function findByReferralCode(code) {
 export async function findByUserId(userId) {
   const { rows } = await query(
     `SELECT a.id, a.referral_code, a.full_name, a.email, a.phone,
-            a.momo_network, a.momo_number, a.is_active,
+            a.momo_network, a.momo_number, a.momo_verified_name, a.momo_verified_at, a.is_active,
             a.created_at, a.updated_at
      FROM affiliates a
      WHERE a.id = $1`,
@@ -63,7 +63,7 @@ export async function findByEmailForAuth(email) {
 export async function findById(id) {
   const { rows } = await query(
     `SELECT id, referral_code, full_name, email, phone,
-            momo_network, momo_number, is_active,
+            momo_network, momo_number, momo_verified_name, momo_verified_at, is_active,
             created_at, updated_at
        FROM affiliates
       WHERE id = $1 AND is_active = TRUE
@@ -74,20 +74,20 @@ export async function findById(id) {
 }
 
 // Create new affiliate profile
-export async function create({ fullName, email, phone, momoNetwork, momoNumber, passwordHash, referralCode }) {
+export async function create({ fullName, email, phone, passwordHash, referralCode }) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const finalCode = referralCode || generateShortReferralCode();
     try {
       const { rows } = await query(
         `INSERT INTO affiliates
-           (referral_code, full_name, email, phone, momo_network, momo_number, password_hash, is_active)
+           (referral_code, full_name, email, phone, password_hash, is_active)
          VALUES
-           ($1, $2, $3, $4, $5, $6, $7, TRUE)
+           ($1, $2, $3, $4, $5, TRUE)
          RETURNING
            id, referral_code, full_name, email, phone,
-           momo_network, momo_number, is_active,
+           momo_network, momo_number, momo_verified_name, momo_verified_at, is_active,
            created_at, updated_at`,
-        [finalCode, fullName, email, phone, momoNetwork, momoNumber, passwordHash]
+        [finalCode, fullName, email, phone, passwordHash]
       );
       return rows[0];
     } catch (err) {

@@ -15,6 +15,8 @@ const welcomePage = read('../src/pages/WelcomePage.jsx');
 const affiliateModel = read('../models/affiliate.js');
 const affiliateLib = read('../lib/affiliate.js');
 const codeMigration = read('../db/migrations/002_short_affiliate_referral_codes.sql');
+const payoutMigration = read('../db/migrations/003_affiliate_payout_account_verification.sql');
+const paystackService = read('../services/paystackPlatform.js');
 
 const checks = [
   ['affiliate subdomain is reserved from tenant lookup', /RESERVED_SUBDOMAINS/.test(middleware) && /new Set\(\[[^\]]*'affiliate'[^\]]*\]\)/.test(slugRules)],
@@ -25,6 +27,9 @@ const checks = [
   ['affiliate login and signup are registered public routes', ['/affiliate/login', '/affiliate/signup'].every((route) => uiRoutes.includes(`'${route}'`))],
   ['affiliate dashboard is registered as a public route', uiRoutes.includes("'/affiliate/dashboard'")],
   ['affiliate signup endpoint creates a separate affiliate account', /router\.post\('\/signup'/.test(routes) && /create\(\{[\s\S]{0,200}passwordHash/.test(routes)],
+  ['affiliate signup does not ask for payout MoMo details', !/momoNumber|momoNetwork/.test(accessPage) && /ALTER COLUMN momo_network DROP NOT NULL/.test(payoutMigration) && /ALTER COLUMN momo_number DROP NOT NULL/.test(payoutMigration)],
+  ['affiliate dashboard verifies and saves payout account details through Paystack', /\/api\/affiliate\/payout-account\/verify/.test(dashboardPage) && /Verify and save payout account/.test(dashboardPage) && /resolvePaystackMomoAccountName/.test(routes) && /bank\/resolve/.test(paystackService)],
+  ['payout requests require a verified account and use the current locked payout details', /momo_verified_at/.test(routes) && /momo_network, momo_number[\s\S]{0,100}FOR UPDATE/.test(routes)],
   ['affiliate signup hashes passwords', /bcrypt\.hash\(password, 12\)/.test(routes)],
   ['affiliate login issues a dedicated affiliate token', /issueAffiliateToken\(affiliate\)/.test(routes)],
   ['affiliate protected APIs require the affiliate role', /req\.auth\?\.role !== 'AFFILIATE'/.test(routes)],
@@ -39,7 +44,8 @@ const checks = [
   ['seller registration validates and associates referral codes in the store transaction', /req\.body\?\.referralCode/.test(billingRoutes) && /INSERT INTO referrals \(affiliate_id, referred_store_id, status\)/.test(billingRoutes)],
   ['new affiliate codes are short, easy to read, and legacy codes remain valid', /length: 8/.test(affiliateModel) && /ABCDEFGHJKLMNPQRSTUVWXYZ23456789/.test(affiliateModel) && /isValidReferralCode/.test(routes) && /affiliate_referral_code_aliases/.test(affiliateModel) && /affiliate_referral_code_aliases/.test(codeMigration)],
   ['affiliate code migration preserves existing referral links', /INSERT INTO affiliate_referral_code_aliases/.test(codeMigration) && /ALTER COLUMN referral_code TYPE TEXT/.test(codeMigration) && /SET referral_code = short_code/.test(codeMigration)],
-  ['payout reservations are serialized and account for existing requests', /affiliates WHERE id = \$1 FOR UPDATE/.test(routes) && /status IN \('pending', 'paid'\)/.test(routes)],
+  ['payout reservations are serialized and account for existing requests', /FROM affiliates[\s\S]{0,80}FOR UPDATE/.test(routes) && /status IN \('pending', 'paid'\)/.test(routes)],
+  ['affiliate migration runner includes the payout verification migration', /003_affiliate_payout_account_verification\.sql/.test(read('../scripts/applyAffiliateMigration.js'))],
   ['affiliate API is mounted while obsolete server-rendered routes are not', /app\.use\('\/api\/affiliate', affiliateApiRoutes\)/.test(server) && !/app\.use\('\/affiliate', affiliateRoutes\)/.test(server)],
 ];
 

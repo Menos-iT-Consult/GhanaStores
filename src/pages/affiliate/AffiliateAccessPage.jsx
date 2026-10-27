@@ -14,8 +14,6 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
     name: '',
     email: '',
     phone: '',
-    momoNetwork: 'MTN',
-    momoNumber: '',
     password: '',
   });
 
@@ -78,20 +76,6 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
                   <input value={form.phone} onChange={update('phone')} className={`${fieldClass} pl-9`} type="tel" autoComplete="tel" required maxLength={32} />
                 </span>
               </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
-                  Mobile Money network
-                  <select value={form.momoNetwork} onChange={update('momoNetwork')} className={fieldClass}>
-                    <option value="MTN">MTN</option>
-                    <option value="VODAFONE">Telecel</option>
-                    <option value="AT">AirtelTigo</option>
-                  </select>
-                </label>
-                <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
-                  Mobile Money number
-                  <input value={form.momoNumber} onChange={update('momoNumber')} className={fieldClass} type="tel" required maxLength={32} />
-                </label>
-              </div>
             </>
           )}
           <label className="block space-y-1.5 text-xs font-semibold text-slate-600">

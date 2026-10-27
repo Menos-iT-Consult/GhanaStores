@@ -128,6 +128,7 @@ const PAGE_ENDPOINTS = [
 const merchantControls = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin', 'MerchantControls.jsx'), 'utf8');
 const newsletterPage = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin', 'AdminNewsletter.jsx'), 'utf8');
 const newsletterRoutes = fs.readFileSync(path.join(ADMIN_DIR, 'newsletterRoutes.js'), 'utf8');
+const affiliatePage = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin', 'AdminAffiliateProgram.jsx'), 'utf8');
 log('merchant controls import every rendered icon', /Calendar,\s*ShieldAlert,\s*Users,\s*Wallet/.test(merchantControls));
 log('newsletter imports Select and submits its chosen store id', /Alert,\s*Select/.test(newsletterPage) && /storeId:\s*selectedStoreId/.test(newsletterPage));
 log('newsletter send routes are mounted at the client paths and scope customers to a store',
@@ -135,6 +136,8 @@ log('newsletter send routes are mounted at the client paths and scope customers 
   && /router\.post\('\/newsletter\/send-sms'/.test(newsletterRoutes)
   && /c\.store_id = \$1/.test(newsletterRoutes)
   && /if \(!uuidParam\(storeId\)\)/.test(newsletterRoutes));
+log('affiliate admin page renders children in a layout container, not the cell component',
+  /<div className="space-y-5">/.test(affiliatePage) && !/<Stacked>/.test(affiliatePage));
 const mounted = new Set(routes.map((route) => `/api/admin${route.path}`));
 for (const endpoint of PAGE_ENDPOINTS) {
   log(`page endpoint ${endpoint}`, mounted.has(endpoint));

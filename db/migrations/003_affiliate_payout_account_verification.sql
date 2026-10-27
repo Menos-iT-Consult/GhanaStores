@@ -1,0 +1,9 @@
+BEGIN;
+
+ALTER TABLE affiliates
+  ALTER COLUMN momo_network DROP NOT NULL,
+  ALTER COLUMN momo_number DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS momo_verified_name TEXT,
+  ADD COLUMN IF NOT EXISTS momo_verified_at TIMESTAMPTZ;
+
+COMMIT;

@@ -139,9 +139,91 @@ export async function initPaystackCheckout({ amountGhs, email, reference, callba
   }
 }
 
+const MOMO_NETWORK_ALIASES = {
+  MTN: ['MTN', 'MTN MOBILE MONEY', 'MTN MOMO'],
+  VODAFONE: ['VODAFONE', 'VODAFONE CASH', 'TELECEL', 'TELECEL CASH'],
+  AT: ['AIRTELTIGO', 'AIRTEL TIGO', 'AIRTELTIGO MONEY', 'AT MONEY'],
+};
+
+function normalizedNetworkName(value) {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/**
+ * Resolve a Ghana MoMo number through Paystack's bank account resolution API.
+ * The bank directory is queried per request so provider codes are not guessed
+ * or hard-coded. No transfer recipient is created by this operation.
+ */
+export async function resolvePaystackMomoAccountName({ network, phone }) {
+  const providerSecret = process.env.PAYSTACK_SECRET_KEY || '';
+  if (!providerSecret) {
+    const error = new Error('Paystack name verification is not configured.');
+    error.status = 503;
+    throw error;
+  }
+  if (!Object.hasOwn(MOMO_NETWORK_ALIASES, network)) {
+    const error = new Error('Select a supported Ghana Mobile Money network.');
+    error.status = 400;
+    throw error;
+  }
+
+  const headers = {
+    Authorization: `Bearer ${providerSecret}`,
+    'Content-Type': 'application/json',
+  };
+  const baseUrl = process.env.PAYSTACK_BASE_URL || PAYSTACK_BASE;
+  const localNumber = `0${String(phone).replace(/\D/g, '').replace(/^233/, '')}`;
+  let banks;
+  try {
+    const response = await axios.get(`${baseUrl}/bank`, {
+      headers,
+      params: { country: 'ghana', currency: 'GHS', type: 'mobile_money' },
+      timeout: 20_000,
+    });
+    banks = response.data?.data;
+  } catch (err) {
+    console.error('[paystack] Ghana MoMo directory lookup failed:', err.response?.status || err.code || 'request_failed');
+    const error = new Error('Paystack could not load its Ghana Mobile Money network directory.');
+    error.status = 502;
+    throw error;
+  }
+
+  const aliases = MOMO_NETWORK_ALIASES[network].map(normalizedNetworkName);
+  const bank = Array.isArray(banks)
+    ? banks.find((entry) => aliases.includes(normalizedNetworkName(entry.name)))
+    : null;
+  if (!bank?.code) {
+    const error = new Error('Paystack does not offer name verification for this Mobile Money network.');
+    error.status = 422;
+    throw error;
+  }
+
+  try {
+    const response = await axios.get(`${baseUrl}/bank/resolve`, {
+      headers,
+      params: { account_number: localNumber, bank_code: bank.code },
+      timeout: 20_000,
+    });
+    const accountName = String(response.data?.data?.account_name || '').trim();
+    if (!response.data?.status || !accountName) {
+      const error = new Error('Paystack did not return a verified account name for this number.');
+      error.status = 422;
+      throw error;
+    }
+    return { accountName, bankName: String(bank.name) };
+  } catch (err) {
+    if (err.status) throw err;
+    console.error('[paystack] Ghana MoMo account resolution failed:', err.response?.status || err.code || 'request_failed');
+    const error = new Error('Paystack could not verify this Mobile Money number. Check the network and number, then try again.');
+    error.status = err.response?.status === 400 ? 422 : 502;
+    throw error;
+  }
+}
+
 export default {
   paystackPlatformReady,
   verifyPlatformSignature,
   platformReferenceKind,
   initPaystackCheckout,
+  resolvePaystackMomoAccountName,
 };
