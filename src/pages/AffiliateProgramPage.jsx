@@ -60,12 +60,16 @@ export default function AffiliateProgramPage({ authed = false, onStart, onDashbo
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <a
               href={AFFILIATE_SIGNUP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
             >
               Join the affiliate program <ArrowRight size={16} aria-hidden="true" />
             </a>
             <a
               href={AFFILIATE_LOGIN_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal"
             >
               Affiliate sign in
