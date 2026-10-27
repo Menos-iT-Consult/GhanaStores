@@ -91,7 +91,7 @@ export default function AffiliateDashboardPage() {
   }, []);
 
   const referralUrl = profile?.referral_code
-    ? `${platformOrigin}/?ref=${encodeURIComponent(profile.referral_code)}`
+    ? `${platformOrigin}/login?ref=${encodeURIComponent(profile.referral_code)}`
     : '';
 
   async function copyReferralLink() {

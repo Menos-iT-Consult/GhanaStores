@@ -32,6 +32,8 @@ const checks = [
   ['merchant registration attributes a valid referral cookie', /const referralCookie = String\(req\.headers\.cookie/.test(billingRoutes) && /findByReferralCode\(referralCode\)/.test(billingRoutes)],
   ['frontend provides separate affiliate access and dashboard screens', /\/api\/affiliate\/signup/.test(accessPage) && /\/api\/affiliate\/stats/.test(dashboardPage)],
   ['affiliate dashboard loads referrals, payout history, and program terms', ['/api/affiliate/referrals', '/api/affiliate/payouts', '/api/affiliate/program'].every((path) => dashboardPage.includes(path))],
+  ['seller referral links open registration with the code prefilled', /platformOrigin\}\/login\?ref=\$\{encodeURIComponent\(profile\.referral_code\)\}/.test(dashboardPage) && /referralCode:\s*new URLSearchParams\(window\.location\.search\)\.get\('ref'\)/.test(read('../src/pages/AuthScreen.jsx'))],
+  ['short referral codes are saved as attribution and accepted for signup', /A-HJ-NP-Z2-9/.test(app) && /isValidReferralCode/.test(routes) && /isValidReferralCode/.test(billingRoutes)],
   ['affiliate dashboard submits payout requests', /affiliateApi\.post\('\/api\/affiliate\/payouts'/.test(dashboardPage) && /Request Mobile Money payout/.test(dashboardPage)],
   ['seller signup exposes an optional referral code', /Referral code \(optional\)/.test(read('../src/pages/AuthScreen.jsx')) && /referralCode:\s*new URLSearchParams/.test(read('../src/pages/AuthScreen.jsx'))],
   ['seller registration validates and associates referral codes in the store transaction', /req\.body\?\.referralCode/.test(billingRoutes) && /INSERT INTO referrals \(affiliate_id, referred_store_id, status\)/.test(billingRoutes)],

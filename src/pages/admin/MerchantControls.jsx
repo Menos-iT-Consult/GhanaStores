@@ -7,7 +7,7 @@
  * obviously read-only.
  */
 import { useState } from 'react';
-import { Calendar, ShieldAlert, Wallet } from 'lucide-react';
+import { Calendar, ShieldAlert, Users, Wallet } from 'lucide-react';
 import { adminApi, ghs } from '../../api.js';
 import {
   Button, Drawer, Field, Panel, PanelHeader, StatusPill, inputClass,

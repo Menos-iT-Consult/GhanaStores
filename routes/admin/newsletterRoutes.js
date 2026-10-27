@@ -17,6 +17,7 @@ import { recordAdminAction } from '../../services/adminAudit.js';
 import { sendEmail } from '../../services/emailService.js';
 import { sendSms, estimateSegments } from '../../services/smsService.js';
 import { consumeSegments } from '../../services/smsQuota.js';
+import { uuidParam } from './helpers.js';
 
 const router = Router();
 
@@ -28,23 +29,26 @@ const router = Router();
  * Resolve customers from the customers table based on recipientType.
  * @returns {Promise<Array<{id, name, email, phone}>>}
  */
-async function resolveCustomers({ recipientType = 'all', customerIds = [] } = {}) {
-  const params = [];
-  let where = '';
+async function resolveCustomers({ recipientType = 'all', customerIds = [], storeId } = {}) {
+  const selectedStoreId = uuidParam(storeId);
+  if (!selectedStoreId) return [];
+  const params = [selectedStoreId];
+  const filters = [`c.store_id = $1`];
 
-  if (recipientType === 'selected' && customerIds.length) {
+  if (recipientType === 'selected') {
+    if (!Array.isArray(customerIds)) return [];
     const validIds = customerIds.filter((id) =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     );
     if (!validIds.length) return [];
-    validIds.forEach((id) => { params.push(id); });
-    where = `WHERE c.id = ANY($${params.length})`;
+    params.push(validIds);
+    filters.push(`c.id = ANY($${params.length}::uuid[])`);
   }
 
   const { rows } = await query(
     `SELECT c.id, c.name, c.email, c.phone
        FROM customers c
-       ${where}
+      WHERE ${filters.join(' AND ')}
        ORDER BY c.name`,
     params,
   );
@@ -59,9 +63,12 @@ async function resolveCustomers({ recipientType = 'all', customerIds = [] } = {}
  * POST /api/admin/newsletter/send-email
  * Body: { subject, message, recipientType: 'all' | 'selected', customerIds?: string[] }
  */
-router.post('/send-email', requireAdmin, async (req, res, next) => {
+router.post('/newsletter/send-email', requireAdmin, async (req, res, next) => {
   try {
-    const { subject, message, recipientType = 'all', customerIds = [], storeId } = req.body;
+    const { subject, message, recipientType = 'all', customerIds = [], storeId } = req.body || {};
+    if (!uuidParam(storeId)) {
+      return res.status(400).json({ error: 'Select a valid merchant before sending a newsletter.' });
+    }
 
     if (!subject || !subject.trim()) {
       return res.status(400).json({ error: 'Subject is required for email newsletters.' });
@@ -128,9 +135,12 @@ router.post('/send-email', requireAdmin, async (req, res, next) => {
  * POST /api/admin/newsletter/send-sms
  * Body: { message, recipientType: 'all' | 'selected', customerIds?: string[] }
  */
-router.post('/send-sms', requireAdmin, async (req, res, next) => {
+router.post('/newsletter/send-sms', requireAdmin, async (req, res, next) => {
   try {
-    const { message, recipientType = 'all', customerIds = [], storeId } = req.body;
+    const { message, recipientType = 'all', customerIds = [], storeId } = req.body || {};
+    if (!uuidParam(storeId)) {
+      return res.status(400).json({ error: 'Select a valid merchant before sending a newsletter.' });
+    }
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required for SMS.' });

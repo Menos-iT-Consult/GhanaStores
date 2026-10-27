@@ -26,7 +26,7 @@ export function buildQuery(params = {}) {
  * @param {string} path   e.g. '/api/admin/merchants'
  * @param {{params?: object, limit?: number}} options
  */
-export function useAdminList(path, { params = {}, limit = 25 } = {}) {
+export function useAdminList(path, { params = {}, limit = 25, enabled = true } = {}) {
   const [term, setTerm] = useState('');
   const [query, setQuery] = useState('');          // debounced
   const [filters, setFilters] = useState({});
@@ -51,6 +51,12 @@ export function useAdminList(path, { params = {}, limit = 25 } = {}) {
   const rowsKey = params.rowsKey || 'rows';
   const paramKey = JSON.stringify({ ...params, rowsKey: null });
   useEffect(() => {
+    if (!enabled) {
+      setData({ rows: [], page: 1, pages: 1, total: 0 });
+      setLoading(false);
+      setError('');
+      return undefined;
+    }
     live.current = true;
     setLoading(true);
     setError('');
@@ -70,7 +76,7 @@ export function useAdminList(path, { params = {}, limit = 25 } = {}) {
     })();
     return () => { live.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, paramKey, query, page, limit, nonce]);
+  }, [path, paramKey, query, page, limit, nonce, enabled]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
   const setFilter = useCallback((key, value) => {

@@ -3,14 +3,18 @@ import { adminApi } from '../../api.js';
 import {
   Button, Panel, PageHeader, Toolbar, DataTable, EmptyState, ErrorBanner,
   LoadingBlock,
-  Input, Textarea, RadioGroup, Label, Alert,
+  Input, Textarea, RadioGroup, Label, Alert, Select,
 } from '../../components/admin/ui.jsx';
 import { useAdminList } from '../../components/admin/useAdminList.js';
 
 export default function AdminNewsletter() {
-  const merchants = useAdminList('/api/admin/merchants', { params: { rowsKey: 'merchants', limit: 1000 } });
-  const [selectedStoreId, setSelectedStoreId] = useState(null);
-  const customers = useAdminList('/api/admin/customers', { params: { rowsKey: 'customers', storeId: selectedStoreId || '', limit: 1000 } });
+  const merchants = useAdminList('/api/admin/merchants', { params: { rowsKey: 'merchants' }, limit: 100 });
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const customers = useAdminList('/api/admin/customers', {
+    params: { rowsKey: 'customers', storeId: selectedStoreId },
+    limit: 100,
+    enabled: Boolean(selectedStoreId),
+  });
 
   /* ---- Email newsletter state ---- */
   const [emailSubject, setEmailSubject] = useState('');
@@ -70,7 +74,7 @@ export default function AdminNewsletter() {
         message: emailMessage.trim(),
         recipientType: emailRecipientType,
         customerIds: emailRecipientType === 'selected' ? Array.from(emailSelectedIds) : [],
-        storeId,
+        storeId: selectedStoreId,
       });
       setEmailSendResult(json);
       setEmailSubject('');
@@ -82,7 +86,7 @@ export default function AdminNewsletter() {
     } finally {
       setEmailSending(false);
     }
-  }, [emailSubject, emailMessage, emailRecipientType, emailSelectedIds, storeId]);
+  }, [emailSubject, emailMessage, emailRecipientType, emailSelectedIds, selectedStoreId]);
 
   /* ---- SMS helpers ---- */
   const toggleSmsSelection = useCallback((id) => {
@@ -116,7 +120,7 @@ export default function AdminNewsletter() {
         message: smsMessage.trim(),
         recipientType: smsRecipientType,
         customerIds: smsRecipientType === 'selected' ? Array.from(smsSelectedIds) : [],
-        storeId,
+        storeId: selectedStoreId,
       });
       setSmsSendResult(json);
       setSmsMessage('');
@@ -127,7 +131,7 @@ export default function AdminNewsletter() {
     } finally {
       setSmsSending(false);
     }
-  }, [smsMessage, smsRecipientType, smsSelectedIds, storeId]);
+  }, [smsMessage, smsRecipientType, smsSelectedIds, selectedStoreId]);
 
   return (
     <>
@@ -146,7 +150,7 @@ export default function AdminNewsletter() {
                 value={selectedStoreId || ''}
                 onChange={setSelectedStoreId}
                 placeholder='Select a merchant...'
-                options={merchantOptions}
+                options={[{ value: '', label: 'Select a merchant...' }, ...merchantOptions]}
                 disabled={merchants.loading}
               />
               {merchants.error && (

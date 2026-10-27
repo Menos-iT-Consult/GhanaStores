@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Save } from 'lucide-react';
-import { adminApi } from '../../api.js';
+import { BadgePercent, RefreshCw, Save, Users, Wallet } from 'lucide-react';
+import { adminApi, ghs } from '../../api.js';
 import {
-  Button, ErrorBanner, Field, LoadingBlock, PageHeader, Panel, PanelHeader, Stacked, inputClass,
+  Button, DataTable, ErrorBanner, Field, LoadingBlock, PageHeader, Panel, PanelHeader,
+  Stacked, StatCard, dateTimeOrDash, inputClass,
 } from '../../components/admin/ui.jsx';
 
 const INITIAL_SETTINGS = {
@@ -15,6 +16,7 @@ const INITIAL_SETTINGS = {
 
 export default function AdminAffiliateProgram() {
   const [settings, setSettings] = useState(null);
+  const [affiliateData, setAffiliateData] = useState(null);
   const [draft, setDraft] = useState(INITIAL_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -26,8 +28,12 @@ export default function AdminAffiliateProgram() {
   const load = useCallback(async () => {
     setError('');
     try {
-      const result = await adminApi.get('/api/admin/affiliate-program');
+      const [result, affiliateOverview] = await Promise.all([
+        adminApi.get('/api/admin/affiliate-program'),
+        adminApi.get('/api/admin/affiliates'),
+      ]);
       setSettings(result.settings);
+      setAffiliateData(affiliateOverview);
       setDraft(Object.fromEntries(
         Object.entries(result.settings).map(([key, value]) => [key, String(value)]),
       ));
@@ -74,6 +80,52 @@ export default function AdminAffiliateProgram() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {saveError && <ErrorBanner>{saveError}</ErrorBanner>}
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</p>}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Affiliate accounts" value={Number(affiliateData?.summary?.total_affiliates || 0).toLocaleString()} icon={Users} detail={`${Number(affiliateData?.summary?.active_affiliates || 0).toLocaleString()} active`} />
+        <StatCard title="Referred stores" value={Number(affiliateData?.summary?.total_referrals || 0).toLocaleString()} icon={BadgePercent} />
+        <StatCard title="Commissions earned" value={ghs(affiliateData?.summary?.total_commissions || 0)} icon={Wallet} tone="emerald" />
+      </div>
+
+      <Panel>
+        <PanelHeader
+          title="Affiliate accounts"
+          subtitle={`Latest ${affiliateData?.affiliates?.length || 0} accounts with referral and commission activity.`}
+          actions={(
+            <Button icon={RefreshCw} onClick={load}>Refresh</Button>
+          )}
+        />
+        <DataTable
+          columns={[
+            {
+              key: 'affiliate',
+              label: 'Affiliate',
+              render: (row) => (
+                <div>
+                  <p className="font-bold text-charcoal">{row.full_name}</p>
+                  <p className="text-xs text-slate-500">{row.email}</p>
+                </div>
+              ),
+            },
+            { key: 'referral_code', label: 'Referral code', className: 'font-mono font-semibold' },
+            { key: 'referral_count', label: 'Referred stores', align: 'right' },
+            { key: 'commissions_earned', label: 'Commissions', align: 'right', render: (row) => ghs(row.commissions_earned) },
+            { key: 'pending_payouts', label: 'Pending payouts', align: 'right', render: (row) => ghs(row.pending_payouts) },
+            {
+              key: 'is_active',
+              label: 'Account',
+              render: (row) => (
+                <span className={row.is_active ? 'font-semibold text-emerald-700' : 'font-semibold text-slate-500'}>
+                  {row.is_active ? 'Active' : 'Inactive'}
+                </span>
+              ),
+            },
+            { key: 'created_at', label: 'Joined', render: (row) => dateTimeOrDash(row.created_at) },
+          ]}
+          rows={affiliateData?.affiliates || []}
+          empty={<p className="text-sm text-slate-500">No affiliate accounts have signed up yet.</p>}
+        />
+      </Panel>
 
       <Panel>
         <PanelHeader

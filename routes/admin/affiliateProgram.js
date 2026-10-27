@@ -1,10 +1,44 @@
 import { Router } from 'express';
-import { withTransaction } from '../../config/database.js';
+import { query, withTransaction } from '../../config/database.js';
 import { recordAdminAction } from '../../services/adminAudit.js';
 import { getAffiliateProgramSettings, affiliateProgramSettingDefinitions } from '../../services/affiliateProgramSettings.js';
 import { requireAdmin } from './helpers.js';
 
 const router = Router();
+
+router.get('/affiliates', requireAdmin, async (_req, res, next) => {
+  try {
+    const [summary, affiliates] = await Promise.all([
+      query(
+        `SELECT
+           (SELECT COUNT(*)::int FROM affiliates) AS total_affiliates,
+           (SELECT COUNT(*)::int FROM affiliates WHERE is_active = TRUE) AS active_affiliates,
+           (SELECT COUNT(*)::int FROM referrals) AS total_referrals,
+           (SELECT COALESCE(SUM(earned_amount_ghs), 0)
+              FROM affiliate_commissions WHERE status IN ('pending', 'paid')) AS total_commissions`,
+      ),
+      query(
+        `SELECT a.id, a.referral_code, a.full_name, a.email, a.is_active, a.created_at,
+                (SELECT COUNT(*)::int FROM referrals r WHERE r.affiliate_id = a.id) AS referral_count,
+                (SELECT COALESCE(SUM(c.earned_amount_ghs), 0)
+                   FROM affiliate_commissions c
+                  WHERE c.affiliate_id = a.id AND c.status IN ('pending', 'paid')) AS commissions_earned,
+                (SELECT COALESCE(SUM(p.amount_ghs), 0)
+                   FROM affiliate_payouts p
+                  WHERE p.affiliate_id = a.id AND p.status = 'pending') AS pending_payouts
+           FROM affiliates a
+          ORDER BY a.created_at DESC
+          LIMIT 100`,
+      ),
+    ]);
+    res.json({
+      summary: summary.rows[0],
+      affiliates: affiliates.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/affiliate-program', requireAdmin, async (_req, res, next) => {
   try {

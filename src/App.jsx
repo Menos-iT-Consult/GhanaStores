@@ -138,7 +138,8 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (!ref) return;
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)) {
+    if (/^[A-HJ-NP-Z2-9]{8}$/i.test(ref)
+        || /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)) {
       api.get(`/api/affiliate/attribution?ref=${encodeURIComponent(ref)}`)
         .catch((error) => console.warn('[affiliate] Referral attribution could not be saved:', error.message));
     }
