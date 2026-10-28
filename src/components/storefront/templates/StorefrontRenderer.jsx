@@ -9,7 +9,7 @@
  *
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
-import { useEffect, useState } from 'react';
+import { Component, useEffect, useState } from 'react';
 import { scopeCss } from '../../../theme/config.js';
 import { useTokens } from '../useTokens.js';
 import { resolveTemplate, resolveComponent } from './storefrontTypes.js';
@@ -115,6 +115,22 @@ const HEADERS = {
   catalog_grid: DenseHeader,
   flash_express: TickerHeader,
 };
+
+class ThemeRenderBoundary extends Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('[storefront] Dedicated theme failed; using compatibility renderer.', error, info?.componentStack);
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
 
 const CURATED_HERO_BY_CATEGORY = {
   fashion: EditorialHero,
@@ -263,7 +279,12 @@ export default function StorefrontRenderer({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const Comp = await resolveComponent(themeId);
+      let Comp;
+      try {
+        Comp = await resolveComponent(themeId);
+      } catch (error) {
+        console.error('[storefront] Could not load dedicated theme; using compatibility renderer.', error);
+      }
       if (!cancelled) setThemeComp(Comp);
       if (!cancelled) setThemeResolved(true);
     })();
@@ -277,6 +298,32 @@ export default function StorefrontRenderer({
   const dark = template !== 'catalog_grid';
   const [shopShortcut, setShopShortcut] = useState(null);
   const design = config.theme_design || {};
+  const renderLegacyStorefront = (useCuratedComposition) => (
+    <>
+      {template === 'catalog_grid'
+        ? <Header t={t} active={page} onNavigate={nav} ctx={ctx} onShopShortcut={setShopShortcut} />
+        : <Header t={t} active={page} onNavigate={nav} ctx={ctx} />}
+      <main style={{ minHeight: '60%' }}>
+        {page === 'home' && useCuratedComposition && design.profile
+          ? <RegisteredCuratedThemeHome t={t} onNavigate={nav} ctx={ctx} config={config} />
+          : null}
+        {page === 'home' && (!useCuratedComposition || !design.profile) && template === 'boutique_editorial'
+          ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} />
+          : null}
+        {page === 'home' && (!useCuratedComposition || !design.profile) && template === 'catalog_grid'
+          ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} />
+          : null}
+        {page === 'home' && (!useCuratedComposition || !design.profile) && template === 'flash_express'
+          ? <FlashHome t={t} onNavigate={nav} ctx={ctx} />
+          : null}
+        {page !== 'home' ? (() => {
+          const Body = PAGE_BODIES[page] || ShopBody;
+          return <Body t={t} onNavigate={nav} ctx={ctx} orderNumber={orderNumber} />;
+        })() : null}
+      </main>
+      <StorefrontFooter t={t} onNavigate={nav} />
+    </>
+  );
 
   return (
     <div
@@ -308,43 +355,28 @@ export default function StorefrontRenderer({
 
       {ThemeComp && themeResolved ? (
         /* Dedicated per-theme component handles header + body + footer. */
-        <ThemeComp
-          config={config}
-          viewportWidth={viewportWidth}
-          page={page}
-          onNavigate={nav}
-          products={products}
-          cart={cart}
-          productId={productId}
-          onAddToCart={onAddToCart}
-          onSetQty={onSetQty}
-          onRemove={onRemove}
-          checkout={checkout}
-          storeSlug={storeSlug}
-          orderNumber={orderNumber}
-          shopShortcut={shopShortcut}
-          setShopShortcut={setShopShortcut}
-        />
+        <ThemeRenderBoundary key={themeId} fallback={renderLegacyStorefront(false)}>
+          <ThemeComp
+            config={config}
+            viewportWidth={viewportWidth}
+            page={page}
+            onNavigate={nav}
+            products={products}
+            cart={cart}
+            productId={productId}
+            onAddToCart={onAddToCart}
+            onSetQty={onSetQty}
+            onRemove={onRemove}
+            checkout={checkout}
+            storeSlug={storeSlug}
+            orderNumber={orderNumber}
+            shopShortcut={shopShortcut}
+            setShopShortcut={setShopShortcut}
+          />
+        </ThemeRenderBoundary>
       ) : (
         /* Legacy archetype-based rendering (fallback). */
-        <>
-          {template === 'catalog_grid'
-            ? <Header t={t} active={page} onNavigate={nav} ctx={ctx} onShopShortcut={setShopShortcut} />
-            : <Header t={t} active={page} onNavigate={nav} ctx={ctx} />}
-          <main style={{ minHeight: '60%' }}>
-            {page === 'home' && design.profile
-              ? <RegisteredCuratedThemeHome t={t} onNavigate={nav} ctx={ctx} config={config} />
-              : null}
-            {page === 'home' && !design.profile && template === 'boutique_editorial' ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} /> : null}
-            {page === 'home' && !design.profile && template === 'catalog_grid' ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} /> : null}
-            {page === 'home' && !design.profile && template === 'flash_express' ? <FlashHome t={t} onNavigate={nav} ctx={ctx} /> : null}
-            {page !== 'home' ? (() => {
-              const Body = PAGE_BODIES[page] || ShopBody;
-              return <Body t={t} onNavigate={nav} ctx={ctx} orderNumber={orderNumber} />;
-            })() : null}
-          </main>
-          <StorefrontFooter t={t} onNavigate={nav} />
-        </>
+        renderLegacyStorefront(true)
       )}
     </div>
   );
