@@ -55,7 +55,11 @@ export default function SellerAnalytics() {
     );
   }
 
-  const { kpis, monthlyTrend, recentOrders, operations } = data;
+  // Defensive: ensure monthlyTrend is a valid array for Recharts
+  // If undefined/null/empty, use an empty array to prevent "Cannot access Y before initialization" error
+  const monthlyTrendSafe = Array.isArray(monthlyTrend) ? monthlyTrend : [];
+
+  const { kpis, monthlyTrend: _, recentOrders, operations } = data;
 
   return (
     <div className="space-y-6">
@@ -103,7 +107,7 @@ export default function SellerAnalytics() {
           <span className="text-xs text-slate-400">Last 6 months</span>
         </div>
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={monthlyTrend} margin={{ top: 5, right: 8, left: 8, bottom: 0 }}>
+          <AreaChart data={monthlyTrendSafe} margin={{ top: 5, right: 8, left: 8, bottom: 0 }}>
             <defs>
               <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#2563EB" stopOpacity={0.35} />
