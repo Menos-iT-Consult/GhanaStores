@@ -21,6 +21,7 @@
     "test:admin-paging": "node scripts/adminPagingTest.js",
     "test:developer-guide": "node scripts/developerGuideTest.js",
     "test:admin": "node scripts/adminApiTest.js",
+    "test:platform-settings": "node scripts/platformSettingsTest.js",
     "test:admin-host": "node scripts/adminHostTest.js",
     "test:affiliate-portal": "node scripts/affiliatePortalTest.js",
     "test:uploads": "node scripts/uploadTest.js",

@@ -208,7 +208,8 @@ router.get('/storefront/:slug/products', async (req, res, next) => {
     // which rendered as an empty shop on a perfectly working domain.
     const key = normalizeDomain(req.params.slug);
     const s = await query(
-      `SELECT id, name, subdomain_slug, whatsapp_number, phone, momo_number, currency, status
+      `SELECT id, name, subdomain_slug, whatsapp_number, phone, momo_number, currency, status,
+              public_email, public_phone, store_description, business_address, logo_url
          FROM stores
         WHERE LOWER(subdomain_slug) = LOWER($1)
            OR LOWER(custom_domain) = ANY ($2::text[])
@@ -238,6 +239,11 @@ router.get('/storefront/:slug/products', async (req, res, next) => {
       store: {
         name: store.name, slug: store.subdomain_slug, currency: store.currency,
         whatsappNumber: store.whatsapp_number, momoNumber: store.momo_number,
+        publicEmail: store.public_email,
+        publicPhone: store.public_phone || store.whatsapp_number || null,
+        description: store.store_description,
+        address: store.business_address,
+        logoUrl: buildDeliveryUrl(store.logo_url, RENDITIONS.logo),
       },
       products: products.rows.map((p) => ({
         ...p,

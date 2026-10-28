@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Modal, Snackbar, Text, ActivityIndicator as PaperActivityIndicator, useTheme } from 'react-native-paper';
+import { Snackbar, Text, ActivityIndicator as PaperActivityIndicator, useTheme } from 'react-native-paper';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,7 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
-import { api, apiErrorMessage } from '@/api/client';
+import { apiErrorMessage } from '@/api/client';
 const logoImage = require('../../assets/icon.png');
 
 const WEB_APP_URL = 'https://didwaghana.com';
@@ -60,13 +60,6 @@ export default function LoginScreen() {
   const [secure, setSecure] = useState(true);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-
-  /* Forgot password modal states */
-  const [resetModalVisible, setResetModalVisible] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetBusy, setResetBusy] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
 
   /* Entrance animations */
   const brandScale = useSharedValue(reduceMotion ? 1 : 0);
@@ -168,24 +161,6 @@ export default function LoginScreen() {
       setError(apiErrorMessage(err, 'That code is not correct.'));
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function sendReset() {
-    if (!resetEmail.trim()) {
-      setResetError('Please enter your email address.');
-      return;
-    }
-    setResetError(null);
-    setResetBusy(true);
-    try {
-      await api.post('/api/site-settings/password/forgot', { email: resetEmail.trim() });
-      setResetSent(true);
-      setResetEmail('');
-    } catch (err) {
-      setResetError(apiErrorMessage(err, 'Could not send reset link. Please try again.'));
-    } finally {
-      setResetBusy(false);
     }
   }
 
@@ -299,10 +274,10 @@ export default function LoginScreen() {
 
                     <Pressable
                       onPress={() => {
-                        setResetEmail(email.trim());
-                        setResetError(null);
-                        setResetSent(false);
-                        setResetModalVisible(true);
+                        router.push({
+                          pathname: '/(auth)/forgot-password',
+                          params: email.trim() ? { email: email.trim() } : {},
+                        });
                       }}
                       hitSlop={12}
                       style={styles.forgotWrap}
@@ -404,83 +379,6 @@ export default function LoginScreen() {
               <Text style={[styles.footerLink, { color: colors.primary }]}>Create one on DiDwa Web</Text>
             </Pressable>
           </Animated.View>
-
-          {/* Forgot password modal */}
-          <Modal visible={resetModalVisible} onDismiss={() => setResetModalVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.outlineVariant }]}>
-                <View style={styles.modalHeader}>
-                  {!resetSent ? (
-                    <>
-                      <Text style={[styles.modalTitle, { color: colors.onSurface }]}>Forgot password?</Text>
-                      <Text style={[styles.modalSubtitle, { color: colors.onSurfaceVariant }]}>
-                        Enter your email and we'll send a reset link.
-                      </Text>
-                      <View style={styles.inputWrap}>
-                        <MaterialCommunityIcons
-                          name="email-outline"
-                          size={20}
-                          color={colors.onSurfaceVariant}
-                          style={styles.inputIcon}
-                        />
-                        <TextInput
-                          placeholder="Email"
-                          value={resetEmail}
-                          onChangeText={setResetEmail}
-                          autoCapitalize="none"
-                          autoComplete="email"
-                          keyboardType="email-address"
-                          returnKeyType="done"
-                          style={[
-                            styles.modalInput,
-                            {
-                              backgroundColor: colors.surfaceVariant,
-                              borderColor: resetError ? colors.error : colors.outline,
-                              color: colors.onSurface,
-                            },
-                          ]}
-                          placeholderTextColor={colors.onSurfaceVariant}
-                          selectionColor={colors.primary}
-                        />
-                      </View>
-                      {resetError && <Text style={styles.resetErrorText}>{resetError}</Text>}
-                      <Pressable
-                        onPress={sendReset}
-                        disabled={resetBusy}
-                        style={[
-                          styles.button,
-                          {
-                            backgroundColor: resetBusy || !resetEmail.trim() ? colors.surfaceDisabled : colors.primary,
-                          },
-                        ]}
-                      >
-                        <Text style={styles.buttonText}>
-                          {resetBusy ? 'Sending...' : 'Send reset link'}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => setResetModalVisible(false)}
-                        hitSlop={12}
-                        style={styles.cancelWrap}
-                      >
-                        <Text style={styles.cancelText}>Cancel</Text>
-                      </Pressable>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[styles.modalTitle, { color: colors.onSurface }]}>Reset link sent</Text>
-                      <Text style={[styles.modalSubtitle, { color: colors.onSurfaceVariant }]}>
-                        Check your inbox for a link to reset your password.
-                      </Text>
-                      <Pressable onPress={() => setResetModalVisible(false)} style={styles.button}>
-                        <Text style={styles.buttonText}>Done</Text>
-                      </Pressable>
-                    </>
-                  )}
-                </View>
-              </View>
-            </View>
-          </Modal>
 
           <Snackbar visible={Boolean(error)} onDismiss={() => setError(null)} duration={4000}>
             {error}
@@ -670,64 +568,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: ACCENT,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCard: {
-    width: '85%',
-    maxWidth: 360,
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  modalHeader: {
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: TEXT_PRIMARY,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: TEXT_MUTED,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  modalInput: {
-    width: '100%',
-    height: 50,
-    backgroundColor: INPUT_BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-    color: TEXT_PRIMARY,
-    fontSize: 15,
-    paddingLeft: 52,
-    paddingRight: 16,
-  },
-  resetErrorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  cancelWrap: {
-    alignSelf: 'center',
-    marginTop: 12,
-  },
-  cancelText: {
-    color: TEXT_MUTED,
-    fontSize: 14,
-    fontWeight: '500',
   },
 });

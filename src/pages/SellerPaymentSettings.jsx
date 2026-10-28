@@ -19,6 +19,7 @@ import {
   AlertTriangle, CheckCircle2, CreditCard, Lock, Wallet,
 } from 'lucide-react';
 import { IconSpinner } from '../components/icons.jsx';
+import PasswordInput from '../components/PasswordInput.jsx';
 
 const GATEWAYS = [
   { id: 'PAYSTACK', label: 'Paystack', hint: 'Cards and Mobile Money via Paystack' },
@@ -266,8 +267,8 @@ export default function SellerPaymentSettings() {
             </div>
             <div>
               <label className={labelCls} htmlFor="psSecret">Secret key</label>
-              <input
-                id="psSecret" type="password" className={inputCls} value={form.paystackSecretKey}
+              <PasswordInput
+                id="psSecret" className={inputCls} value={form.paystackSecretKey}
                 onChange={set('paystackSecretKey')} placeholder="sk_live_..."
                 autoComplete="new-password" spellCheck="false"
               />
@@ -294,8 +295,8 @@ export default function SellerPaymentSettings() {
             </div>
             <div>
               <label className={labelCls} htmlFor="htSecret">Client secret</label>
-              <input
-                id="htSecret" type="password" className={inputCls} value={form.hubtelClientSecret}
+              <PasswordInput
+                id="htSecret" className={inputCls} value={form.hubtelClientSecret}
                 onChange={set('hubtelClientSecret')} autoComplete="new-password" spellCheck="false"
               />
               <div className="mt-1.5"><MaskHint masked={state?.hubtel?.clientSecretMasked} /></div>
@@ -368,4 +369,3 @@ export default function SellerPaymentSettings() {
     </div>
   );
 }
-

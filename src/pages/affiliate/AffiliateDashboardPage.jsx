@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight, BadgePercent, CalendarDays, CheckCircle2, Copy, ExternalLink, LogOut,
-  RefreshCw, ShieldCheck, Users, Wallet,
+  MessageCircle, RefreshCw, ShieldCheck, Users, Wallet,
 } from 'lucide-react';
 import {
   affiliateApi, clearAffiliateSession, getAffiliateToken,
 } from '../../api.js';
 import { navigate } from '../../router.js';
+import { usePlatformPublicSettings } from '../../lib/platformPublicSettings.js';
 
 const platformOrigin = 'https://didwaghana.com';
 const money = (value) => `GHS ${Number(value || 0).toFixed(2)}`;
@@ -30,6 +31,7 @@ function StatusBadge({ status }) {
 }
 
 export default function AffiliateDashboardPage() {
+  const { settings: platformSettings, error: settingsError, reload: reloadSettings } = usePlatformPublicSettings();
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [program, setProgram] = useState(null);
@@ -197,6 +199,22 @@ export default function AffiliateDashboardPage() {
 
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
         {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</p>}
+        {platformSettings?.whatsapp?.affiliateGroupUrl ? (
+          <a
+            href={platformSettings.whatsapp.affiliateGroupUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900 transition hover:bg-emerald-100"
+          >
+            <MessageCircle size={19} aria-hidden="true" />
+            <span>Join the affiliate WhatsApp group</span>
+            <span className="ml-auto text-xs underline">Open group</span>
+          </a>
+        ) : settingsError ? (
+          <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+            Affiliate community link could not be loaded. <button type="button" onClick={() => { void reloadSettings(); }} className="font-bold underline">Try again</button>
+          </p>
+        ) : null}
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

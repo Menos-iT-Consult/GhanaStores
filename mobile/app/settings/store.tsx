@@ -16,38 +16,23 @@ import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
 import { ErrorState } from '@/components/ScreenState';
+import { PasswordTextInput } from '@/components/PasswordTextInput';
 
 /**
  * Store site settings — the mobile twin of the PWA's /settings/site page
- * (src/pages/SellerSiteSettings.jsx). Five independent cards so a mistake in
- * one can never affect another:
- *   1. Store name   - display name only; the slug (address) never changes
- *   2. Password     - change requires the CURRENT password
- *   3. Two-factor   - TOTP setup (QR), enable/disable with a live code
- *   4. Subscription - plan + status from the session meta
- *   5. Delete account - typed slug + password, irreversible (server cascades)
+ * (src/pages/SellerSiteSettings.jsx). Account security and subscription actions
+ * live here; customer-facing business details are edited in the Store profile.
  */
 export default function StoreSettingsScreen() {
   const goBack = useSafeBack('/settings');
   const qc = useQueryClient();
   const { colors } = useTheme();
-  const { store, signOut, updateStoreName } = useAuth();
+  const { store, signOut } = useAuth();
   const [snack, setSnack] = useState<string | null>(null);
 
   const fail = (err: unknown, fallback: string) => setSnack(apiErrorMessage(err, fallback));
 
-  /* ------------------------------ 1 · Store name ------------------------- */
-  const [name, setName] = useState(store?.name ?? '');
-  const rename = useMutation({
-    mutationFn: () => endpoints.renameStore(name.trim()),
-    onSuccess: async (res) => {
-      await updateStoreName(res.name);
-      setSnack('Store name updated.');
-    },
-    onError: (err) => fail(err, 'Could not rename the store.'),
-  });
-
-  /* ------------------------------- 2 · Password -------------------------- */
+  /* ------------------------------- Password ------------------------------ */
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const password = useMutation({
@@ -60,7 +45,7 @@ export default function StoreSettingsScreen() {
     onError: (err) => fail(err, 'Could not update the password.'),
   });
 
-  /* ------------------------------ 3 · Two-factor ------------------------- */
+  /* ------------------------------ Two-factor ----------------------------- */
   const twofa = useQuery({ queryKey: ['2fa-status'], queryFn: endpoints.getTwoFactorStatus });
   const [setup, setSetup] = useState<{ secret: string; qrDataUrl: string } | null>(null);
   const [code, setCode] = useState('');
@@ -90,7 +75,7 @@ export default function StoreSettingsScreen() {
     onError: (err) => fail(err, 'That code is not correct. Check your app and try again.'),
   });
 
-  /* ---------------------------- 5 · Delete account ----------------------- */
+  /* ---------------------------- Delete account --------------------------- */
   const [armed, setArmed] = useState(false);
   const [confirmSlug, setConfirmSlug] = useState('');
   const [deletePw, setDeletePw] = useState('');
@@ -115,43 +100,22 @@ export default function StoreSettingsScreen() {
       </Appbar.Header>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* 1 · Store name — display only, slug never changes. */}
-        <Card mode="elevated" style={styles.card}>
-          <View style={styles.cardBody}>
-            <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Store name</Text>
-            <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-              Display name only — your address {slug} never changes.
-            </Text>
-            <TextInput label="Store name" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
-            <Button
-              mode="contained"
-              onPress={() => rename.mutate()}
-              loading={rename.isPending}
-              disabled={!name.trim() || name.trim() === store?.name}
-            >
-              Save name
-            </Button>
-          </View>
-        </Card>
-
-        {/* 2 · Password — current password required, like the web page. */}
+        {/* Password — current password required, like the web page. */}
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Change password</Text>
-            <TextInput
+            <PasswordTextInput
               label="Current password"
               value={currentPw}
               onChangeText={setCurrentPw}
               mode="outlined"
-              secureTextEntry
               style={styles.input}
             />
-            <TextInput
+            <PasswordTextInput
               label="New password (at least 8 characters)"
               value={newPw}
               onChangeText={setNewPw}
               mode="outlined"
-              secureTextEntry
               style={styles.input}
             />
             <Button
@@ -165,7 +129,7 @@ export default function StoreSettingsScreen() {
           </View>
         </Card>
 
-        {/* 3 · Two-factor — QR setup, then a live code to enable/disable. */}
+        {/* Two-factor — QR setup, then a live code to enable/disable. */}
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>
@@ -239,7 +203,7 @@ export default function StoreSettingsScreen() {
           </View>
         </Card>
 
-        {/* 4 · Subscription — read-only from the session meta. */}
+        {/* Subscription — read-only from the session meta. */}
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Subscription</Text>
@@ -249,7 +213,7 @@ export default function StoreSettingsScreen() {
           </View>
         </Card>
 
-        {/* 5 · Delete account — armed confirm with typed slug + password. */}
+        {/* Delete account — armed confirm with typed slug + password. */}
         <Card mode="elevated" style={styles.card}>
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={[styles.danger, { color: colors.error }]}>Delete account</Text>
@@ -271,12 +235,11 @@ export default function StoreSettingsScreen() {
                   autoCapitalize="none"
                   style={styles.input}
                 />
-                <TextInput
+                <PasswordTextInput
                   label="Current password"
                   value={deletePw}
                   onChangeText={setDeletePw}
                   mode="outlined"
-                  secureTextEntry
                   style={styles.input}
                 />
                 <Button

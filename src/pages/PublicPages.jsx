@@ -11,29 +11,24 @@
  */
 import { Fragment, useEffect, useState } from 'react';
 import {
-  ArrowRight, BarChart3, BellRing, Check, CreditCard, Globe, Mail, MapPin,
-  ChevronRight, Menu, MessageCircle, Package, Phone, QrCode, Scale, Send,
+  ArrowRight, BarChart3, BellRing, Check, CreditCard, Facebook, Globe, Instagram,
+  Linkedin, Mail, MapPin, ChevronRight, Menu, MessageCircle, Music2, Package, Phone, QrCode, Scale, Send,
   ShieldCheck, Smartphone, X,
-  Wallet, Zap,
+  Twitter, Wallet, Youtube, Zap,
 } from 'lucide-react';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
-import { api, getCachedStore } from '../api.js';
+import { api } from '../api.js';
 import PlanGrid, { CycleToggle } from '../components/PlanGrid.jsx';
 import { usePlans } from '../lib/plans.js';
 import { getPlatformDomain } from '../config.js';
-import { navigate } from '../router.js';
+import { navigate, usePathname } from '../router.js';
 import { buildLabel } from '../buildInfo.js';
 import MetaTags from '../components/seo/MetaTags.jsx';
 import { META_CONTENT, siteUrl } from '../lib/seo.js';
+import { usePlatformPublicSettings, whatsappChatUrl } from '../lib/platformPublicSettings.js';
 
 const UPDATED = 'August 2026';
-/** Contact address, built at render time so the API's apex always wins.
- *  Accepts an override (e.g. the signed-in seller's own signup email) so the
- *  contact page can show the merchant's email instead of the platform address.
- */
-const contactEmail = (override) => String(override || `hello@${getPlatformDomain()}`);
-const CONTACT_PHONE_RAW = String(import.meta.env.VITE_PLATFORM_PHONE || '+233 20 123 4567').trim();
-const CONTACT_PHONE_E164 = CONTACT_PHONE_RAW.replace(/\s+/g, '');
+const contactEmail = () => `hello@${getPlatformDomain()}`;
 
 /* ------------------------------ Shared shell ------------------------------- */
 /** Primary marketing nav: every destination is a real page, not a scroll anchor. */
@@ -220,7 +215,33 @@ function SiteHeader({ authed = false, wide = false, onStart, onDashboard }) {
 }
 
 /** The one public footer: brand blurb, product / company / legal columns. */
-function SiteFooter() {
+function SiteFooter({ settings, error, onRetry }) {
+  const socialItems = [
+    ['facebook', Facebook, 'Facebook'],
+    ['instagram', Instagram, 'Instagram'],
+    ['tiktok', Music2, 'TikTok'],
+    ['youtube', Youtube, 'YouTube'],
+    ['x', Twitter, 'X'],
+    ['linkedin', Linkedin, 'LinkedIn'],
+  ].filter(([key]) => settings?.socialLinks?.[key]);
+  const contactItems = [
+    settings?.contact?.supportEmail && {
+      label: settings.contact.supportEmail,
+      href: `mailto:${settings.contact.supportEmail}`,
+    },
+    settings?.contact?.supportPhone && {
+      label: settings.contact.supportPhone,
+      href: `tel:${settings.contact.supportPhone.replace(/[^\d+]/g, '')}`,
+    },
+    settings?.contact?.whatsappNumber && {
+      label: 'WhatsApp support',
+      href: whatsappChatUrl(settings.contact.whatsappNumber),
+    },
+    settings?.contact?.businessAddress && {
+      label: settings.contact.businessAddress,
+    },
+  ].filter(Boolean);
+
   return (
     <footer className="border-t border-slate-900/5 py-10">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-[2fr_1fr_1fr_1fr]">
@@ -229,6 +250,34 @@ function SiteFooter() {
           <p className="max-w-xs text-xs leading-relaxed text-slate-400">
             The multi-tenant commerce platform and seller PWA built for Ghanaian merchants - POS, payouts, inventory, storefronts and a native seller app in one place.
           </p>
+          {socialItems.length > 0 && (
+            <nav className="flex flex-wrap gap-2 pt-1" aria-label="DiDwa social media">
+              {socialItems.map(([key, Icon, label]) => (
+                <a
+                  key={key}
+                  href={settings.socialLinks[key]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  title={label}
+                  className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
+                >
+                  <Icon size={16} aria-hidden="true" />
+                </a>
+              ))}
+            </nav>
+          )}
+          {contactItems.length > 0 ? (
+            <address className="space-y-1 pt-2 text-xs not-italic text-slate-500">
+              {contactItems.map(({ label, href }) => href
+                ? <a key={label} href={href} className="block transition hover:text-charcoal">{label}</a>
+                : <span key={label} className="block">{label}</span>)}
+            </address>
+          ) : error ? (
+            <p role="status" className="pt-2 text-xs text-rose-600">
+              Platform contact details are unavailable. <button type="button" onClick={onRetry} className="font-bold underline">Try again</button>
+            </p>
+          ) : null}
           <a className="text-xs font-bold text-blue-600" href="https://demo.didwaghana.com">
             Checkout A Demo
           </a>
@@ -287,11 +336,31 @@ function SiteFooter() {
 }
 
 export function PublicShell({ authed = false, children, wide = false, onStart, onDashboard }) {
+  const { settings, error, reload } = usePlatformPublicSettings();
+  const pathname = usePathname();
+  const marketingRoutes = new Set([
+    '/', '/features', '/how-it-works', '/pricing', '/about', '/contact', '/affiliate-program',
+  ]);
+  const floatingWhatsapp = settings?.whatsapp?.floatingEnabled
+    ? whatsappChatUrl(settings.contact?.whatsappNumber, 'Hello DiDwa, I need help.')
+    : '';
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-charcoal">
       <SiteHeader authed={authed} wide={wide} onStart={onStart} onDashboard={onDashboard} />
       <main className="flex-1">{children}</main>
-      <SiteFooter />
+      <SiteFooter settings={settings} error={error} onRetry={() => { void reload(); }} />
+      {marketingRoutes.has(pathname) && floatingWhatsapp ? (
+        <a
+          href={floatingWhatsapp}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Chat with DiDwa on WhatsApp"
+          className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-[#1fb957] focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2"
+        >
+          <MessageCircle size={19} aria-hidden="true" /> WhatsApp us
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -370,6 +439,7 @@ export function AboutPage({ authed = false }) {
 
 /* ------------------------------- Contact Us ------------------------------- */
 export function ContactPage({ authed = false }) {
+  const { settings, error: settingsError, reload: reloadSettings } = usePlatformPublicSettings();
   const [sent, setSent] = useState(false);
   /* The form used to call preventDefault() and flip straight to "Message
      received", which DISCARDED every submission while telling the visitor it
@@ -379,11 +449,6 @@ export function ContactPage({ authed = false }) {
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({ name: '', email: '', topic: 'Sales question', message: '' });
   const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  /* When a seller is signed in, show their own signup email on the contact
-     page instead of the generic platform address. Falls back to hello@apex. */
-  const cachedStore = getCachedStore();
-  const effectiveContactEmail = contactEmail(cachedStore?.email || undefined);
 
   async function submitContact(e) {
     e.preventDefault();
@@ -403,10 +468,30 @@ export function ContactPage({ authed = false }) {
     }
   }
   const cards = [
-    { Icon: Mail, label: 'Email us', value: effectiveContactEmail, href: `mailto:${effectiveContactEmail}` },
-        { Icon: Phone, label: 'Call support', value: CONTACT_PHONE_RAW, href: `tel:${CONTACT_PHONE_E164}` },
-    { Icon: MessageCircle, label: 'WhatsApp', value: 'Chat with the team', href: `https://wa.me/${CONTACT_PHONE_E164}` },
-  ];
+    settings?.contact?.supportEmail && {
+      Icon: Mail,
+      label: 'Email us',
+      value: settings.contact.supportEmail,
+      href: `mailto:${settings.contact.supportEmail}`,
+    },
+    settings?.contact?.supportPhone && {
+      Icon: Phone,
+      label: 'Call support',
+      value: settings.contact.supportPhone,
+      href: `tel:${settings.contact.supportPhone.replace(/[^\d+]/g, '')}`,
+    },
+    settings?.contact?.whatsappNumber && {
+      Icon: MessageCircle,
+      label: 'WhatsApp',
+      value: 'Chat with the team',
+      href: whatsappChatUrl(settings.contact.whatsappNumber),
+    },
+    settings?.contact?.businessAddress && {
+      Icon: MapPin,
+      label: 'Business address',
+      value: settings.contact.businessAddress,
+    },
+  ].filter(Boolean);
   const inputCls = 'w-full rounded-xl border border-slate-200 bg-mist/60 px-3.5 py-2.5 text-sm transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100';
 
   return (
@@ -425,7 +510,14 @@ export function ContactPage({ authed = false }) {
       />
       <section className="mx-auto grid max-w-5xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_1.1fr]">
         <div className="space-y-4">
+          {settingsError ? (
+            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              <p>{settingsError}</p>
+              <button type="button" onClick={() => { void reloadSettings(); }} className="mt-2 font-bold underline">Try again</button>
+            </div>
+          ) : null}
           {cards.map(({ Icon, label, value, href }) => (
+            href ? (
             <a key={label} href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600"><Icon size={18} aria-hidden="true" /></span>
               <span className="min-w-0">
@@ -433,6 +525,15 @@ export function ContactPage({ authed = false }) {
                 <span className="block truncate text-sm font-bold">{value}</span>
               </span>
             </a>
+            ) : (
+              <div key={label} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600"><Icon size={18} aria-hidden="true" /></span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-extrabold uppercase tracking-wide text-slate-400">{label}</span>
+                  <span className="block truncate text-sm font-bold">{value}</span>
+                </span>
+              </div>
+            )
           ))}
           <div className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-mist/60 p-5">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600"><MapPin size={18} aria-hidden="true" /></span>
@@ -491,12 +592,14 @@ export function ContactPage({ authed = false }) {
 
 /* Legal copy is authored with {platform} / {contact} placeholders and filled in
    at render time, because the apex is only known once the API has answered. */
-const withPlatform = (text) => String(text)
+const withPlatform = (text, email = contactEmail()) => String(text)
   .replace(/\{platform\}/g, getPlatformDomain())
-  .replace(/\{contact\}/g, contactEmail());
+  .replace(/\{contact\}/g, email);
 
 /* ------------------------------ Legal renderer ----------------------------- */
 function LegalDoc({ authed, title, intro, sections }) {
+  const { settings } = usePlatformPublicSettings();
+  const platformEmail = settings?.contact?.supportEmail || contactEmail();
   return (
     <PublicShell authed={authed}>
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
@@ -504,24 +607,24 @@ function LegalDoc({ authed, title, intro, sections }) {
         <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
         <p className="mt-2 text-xs font-bold uppercase tracking-wide text-slate-400">Last updated: {UPDATED}</p>
 
-        <p className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">{withPlatform(intro)}</p>
+        <p className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">{withPlatform(intro, platformEmail)}</p>
 
         <div className="mt-10 space-y-9">
           {sections.map((s, i) => (
             <section key={s.h}>
               <h2 className="flex items-baseline gap-2.5 text-base font-extrabold">
                 <span className="text-blue-600">{String(i + 1).padStart(2, '0')}</span>
-                {withPlatform(s.h)}
+                {withPlatform(s.h, platformEmail)}
               </h2>
               {(s.ps || []).map((p, j) => (
-                <p key={j} className="mt-2.5 text-sm leading-relaxed text-slate-600">{withPlatform(p)}</p>
+                <p key={j} className="mt-2.5 text-sm leading-relaxed text-slate-600">{withPlatform(p, platformEmail)}</p>
               ))}
               {s.list ? (
                 <ul className="mt-3 space-y-2">
                   {s.list.map((x) => (
                     <li key={x} className="flex gap-2.5 text-sm leading-relaxed text-slate-600">
                       <Check size={14} className="mt-1 shrink-0 text-emerald-brand" aria-hidden="true" />
-                      <span>{withPlatform(x)}</span>
+                      <span>{withPlatform(x, platformEmail)}</span>
                     </li>
                   ))}
                 </ul>
@@ -533,7 +636,9 @@ function LegalDoc({ authed, title, intro, sections }) {
         <div className="mt-12 rounded-2xl border border-slate-100 bg-mist/60 p-6">
           <h2 className="text-sm font-extrabold">Questions about this document?</h2>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-            <a href={`mailto:${contactEmail()}`} className="inline-flex items-center gap-1.5 font-semibold text-blue-600 hover:text-blue-700"><Mail size={13} aria-hidden="true" />{contactEmail()}</a>
+            {platformEmail ? (
+              <a href={`mailto:${platformEmail}`} className="inline-flex items-center gap-1.5 font-semibold text-blue-600 hover:text-blue-700"><Mail size={13} aria-hidden="true" />{platformEmail}</a>
+            ) : null}
             <a href="/contact" className="inline-flex items-center gap-1.5 font-semibold text-blue-600 hover:text-blue-700"><Send size={13} aria-hidden="true" />Contact page</a>
           </p>
         </div>

@@ -13,10 +13,16 @@ import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 
 import { orderFilterToStatuses } from '../routes/mobileRoutes.js';
-import { isExpoPushToken } from '../routes/mobileDeviceRoutes.js';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  isExpoPushToken,
+  isNotificationPreferences,
+} from '../routes/mobileDeviceRoutes.js';
 import {
   chunkExpoMessages,
   EXPO_PUSH_URL,
+  notificationCategory,
+  shouldSendPushNotification,
   sendMerchantPushNotification,
   summarizeExpoTickets,
 } from '../services/pushService.js';
@@ -58,6 +64,27 @@ test('expo push token validation accepts only Expo tokens', () => {
   assert.equal(isExpoPushToken('nope'), false);
   assert.equal(isExpoPushToken(''), false);
   assert.equal(isExpoPushToken(null), false);
+});
+
+test('notification preferences validate and map delivery types to categories', () => {
+  assert.deepEqual(DEFAULT_NOTIFICATION_PREFERENCES, {
+    orders: true,
+    payments: true,
+    stock: true,
+    account: true,
+  });
+  assert.equal(isNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES), true);
+  assert.equal(isNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES, orders: 'yes' }), false);
+  assert.equal(isNotificationPreferences([]), false);
+  assert.equal(notificationCategory('order_created'), 'orders');
+  assert.equal(notificationCategory('order_status'), 'orders');
+  assert.equal(notificationCategory('payment_received'), 'payments');
+  assert.equal(notificationCategory('low_stock'), 'stock');
+  assert.equal(notificationCategory('security'), 'account');
+  const ordersMuted = { ...DEFAULT_NOTIFICATION_PREFERENCES, orders: false };
+  assert.equal(shouldSendPushNotification(ordersMuted, 'order_created'), false);
+  assert.equal(shouldSendPushNotification(ordersMuted, 'payment_received'), true);
+  assert.equal(shouldSendPushNotification(DEFAULT_NOTIFICATION_PREFERENCES, 'low_stock'), true);
 });
 
 test('Expo push sends are batched and per-device tickets are accounted for', () => {
@@ -147,6 +174,14 @@ test('device routes register + unregister the expo token', () => {
   assert.ok(src.includes("router.post('/register'"));
   assert.ok(src.includes("router.delete('/unregister'"));
   assert.ok(src.includes('ON CONFLICT (expo_push_token)'));
+  assert.ok(src.includes("router.get('/preferences', authenticateMobileToken"));
+  assert.ok(src.includes("router.put('/preferences', authenticateMobileToken"));
+  assert.ok(src.includes('notification_preferences = $4::jsonb'));
+  const schema = read('db/schema.sql');
+  assert.ok(schema.includes('notification_preferences JSONB NOT NULL'));
+  const settings = read('mobile/app/settings.tsx');
+  assert.ok(settings.includes('Alerts on this device'));
+  assert.ok(settings.includes('saveDeviceNotificationPreferences'));
 });
 
 test('push notifications wired into order creation + payment webhooks', () => {
@@ -159,6 +194,23 @@ test('push notifications wired into order creation + payment webhooks', () => {
   assert.ok(webhooks.includes("from './pushService.js'"));
   assert.ok(webhooks.includes('sendMerchantPushNotification('));
   assert.ok(webhooks.includes("title: 'Payment received'"));
+});
+
+test('store profile editing and verified account-contact routes are wired', () => {
+  const routes = read('routes/siteSettingsRoutes.js');
+  const profile = read('mobile/app/settings/profile.tsx');
+  const settings = read('mobile/app/settings.tsx');
+  assert.ok(routes.includes("router.get('/profile', requireSeller"));
+  assert.ok(routes.includes("router.patch('/profile', requireSeller"));
+  assert.ok(routes.includes("router.post('/profile/contact/request', requireSeller"));
+  assert.ok(routes.includes("router.post('/profile/contact/verify', requireSeller"));
+  assert.ok(routes.includes("phone_verified = CASE WHEN $2 = 'phone' THEN TRUE"));
+  assert.ok(routes.includes('pending_contact_attempts'));
+  assert.ok(profile.includes('requestAccountContactChange'));
+  assert.ok(profile.includes('verifyAccountContactChange'));
+  assert.ok(profile.includes("confirmUpload({ kind: 'logo'"));
+  assert.ok(settings.includes("router.push('/settings/profile')"));
+  assert.ok(read('db/schema.sql').includes('ADD COLUMN IF NOT EXISTS store_description'));
 });
 
 /* ----------------------------- v1.1 expansion ------------------------------- */

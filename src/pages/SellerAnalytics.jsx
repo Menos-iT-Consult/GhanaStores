@@ -13,6 +13,8 @@ import {
   IconTrendUp, IconReceipt, IconWallet, IconTruck,
   IconBox, IconUsers, IconSpinner, IconAlert,
 } from '../components/icons.jsx';
+import { MessageCircle } from 'lucide-react';
+import { usePlatformPublicSettings } from '../lib/platformPublicSettings.js';
 
 function KpiCard({ icon: Icon, tone, label, value, sub }) {
   return (
@@ -28,6 +30,7 @@ function KpiCard({ icon: Icon, tone, label, value, sub }) {
 }
 
 export default function SellerAnalytics() {
+  const { settings: platformSettings, error: settingsError, reload: reloadSettings } = usePlatformPublicSettings();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -56,6 +59,22 @@ export default function SellerAnalytics() {
 
   return (
     <div className="space-y-6">
+      {platformSettings?.whatsapp?.sellerGroupUrl ? (
+        <a
+          href={platformSettings.whatsapp.sellerGroupUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900 transition hover:bg-emerald-100"
+        >
+          <MessageCircle size={19} aria-hidden="true" />
+          <span>Join the seller WhatsApp group</span>
+          <span className="ml-auto text-xs underline">Open group</span>
+        </a>
+      ) : settingsError ? (
+        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          Seller community link could not be loaded. <button type="button" onClick={() => { void reloadSettings(); }} className="font-bold underline">Try again</button>
+        </p>
+      ) : null}
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={IconTrendUp} tone="bg-blue-600" label="Total Revenue"
@@ -146,5 +165,4 @@ export default function SellerAnalytics() {
     </div>
   );
 }
-
 

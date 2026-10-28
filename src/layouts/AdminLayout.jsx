@@ -45,6 +45,7 @@ export const ADMIN_NAV = [
       { path: '/admin/plans', label: 'Subscription plans', icon: CreditCard },
       { path: '/admin/sms-pricing', label: 'SMS pricing', icon: MessageSquare },
       { path: '/admin/affiliate-program', label: 'Affiliate program', icon: Handshake },
+      { path: '/admin/platform-settings', label: 'Platform contact & links', icon: MessageSquare },
       { path: '/admin/themes', label: 'Themes', icon: Palette },
       { path: '/admin/team', label: 'Team', icon: Users },
       { path: '/admin/system', label: 'System', icon: Server },

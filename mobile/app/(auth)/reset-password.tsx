@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Button, IconButton, Text, TextInput, useTheme } from 'react-native-paper';
+import { Button, IconButton, Text, useTheme } from 'react-native-paper';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { api, apiErrorMessage } from '@/api/client';
+import { PasswordTextInput } from '@/components/PasswordTextInput';
 
 export default function ResetPasswordScreen() {
   const { token: routeToken } = useLocalSearchParams<{ token?: string | string[] }>();
@@ -21,7 +22,6 @@ export default function ResetPasswordScreen() {
   const offset = useSharedValue(reduceMotion ? 0 : 12);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [secure, setSecure] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -115,31 +115,22 @@ export default function ResetPasswordScreen() {
               </Button>
             ) : token ? (
               <>
-                <TextInput
+                <PasswordTextInput
                   label="New password"
                   value={password}
                   onChangeText={setPassword}
                   mode="outlined"
                   autoCapitalize="none"
                   autoComplete="new-password"
-                  secureTextEntry={secure}
-                  right={
-                    <TextInput.Icon
-                      icon={secure ? 'eye-off-outline' : 'eye-outline'}
-                      onPress={() => setSecure((value) => !value)}
-                      accessibilityLabel={secure ? 'Show password' : 'Hide password'}
-                    />
-                  }
                   style={styles.input}
                 />
-                <TextInput
+                <PasswordTextInput
                   label="Confirm new password"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   mode="outlined"
                   autoCapitalize="none"
                   autoComplete="new-password"
-                  secureTextEntry={secure}
                   returnKeyType="done"
                   onSubmitEditing={() => void submit()}
                   style={styles.input}

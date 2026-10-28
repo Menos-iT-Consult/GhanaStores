@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PasswordInput from '../components/PasswordInput.jsx';
 import { AlertTriangle, CheckCircle2, Info, MessageSquare, Lock, PhoneCall } from 'lucide-react';
 import { IconSpinner } from '../components/icons.jsx';
 
@@ -63,28 +64,40 @@ function Callout({ tone = 'info', icon: Icon = Info, title, children }) {
   );
 }
 
-function Field({ label, hint, secret, masked, value, onChange, placeholder }) {
+function Field({ id, label, hint, secret, masked, value, onChange, placeholder }) {
   return (
-    <label className="block space-y-1">
-      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+    <div className="block space-y-1">
+      <label htmlFor={id} className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
         {secret && <Lock size={12} className="text-slate-400" aria-hidden="true" />}
         {label}
-      </span>
-      <input
-        type={secret ? 'password' : 'text'}
+      </label>
+      {secret ? (
+      <PasswordInput
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete="off"
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
+      ) : (
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+      )}
       {/* A blank field means "keep what is saved", so say which key is in use -
           otherwise the merchant cannot tell whether one is stored at all. */}
       {secret && masked && !value && (
         <span className="block font-mono text-[11px] text-emerald-700">Saved: {masked} &mdash; leave blank to keep it</span>
       )}
       {hint && <span className="block text-[11px] text-slate-400">{hint}</span>}
-    </label>
+    </div>
   );
 }
 
@@ -509,6 +522,7 @@ export default function SellerSmsSettings() {
             {(descriptor?.fields || []).map((f) => (
               <Field
                 key={f.key}
+                id={`sms-${f.key}`}
                 label={f.label}
                 hint={f.hint}
                 secret={f.type === 'password'}

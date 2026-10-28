@@ -25,7 +25,9 @@ app/
     products/[id].tsx         create/edit product, image upload, per-option stock adjust
     customers/index.tsx       loyalty book: search, points, call/WhatsApp
   settings/                   (stack, gear icon on Dashboard)
-    index.tsx                 store info, push opt-in, sign out
+    index.tsx                 store info, per-device push controls, sign out
+    profile.tsx               storefront details, logo, verified account contacts
+    store.tsx                 password, two-factor, subscription, account deletion
     payments.tsx              Paystack/Hubtel keys + Cash on Delivery
 src/
   api/client.ts               axios + Bearer header + single-flight token refresh
@@ -46,6 +48,7 @@ All routes live under `/api/mobile` on the DiDwa API (see `routes/mobile*`,
 
 - `POST /api/mobile/auth/login`, `/login/2fa`, `/refresh`, `/logout`
 - `POST /api/mobile/devices/register`, `DELETE /api/mobile/devices/unregister`
+- `GET/PUT /api/mobile/devices/preferences` (per-device alert categories)
 - `GET  /api/mobile/v1/dashboard/stats`
 - `GET  /api/mobile/v1/orders`, `GET /api/mobile/v1/orders/:id`, `PATCH .../status`, `GET .../:id/receipt`
 - `GET  /api/mobile/v1/products`, `PATCH .../:id/stock`, `PATCH .../:id/price`
@@ -79,6 +82,11 @@ eas init                  # writes your Expo username + projectId into app.json
 `app.json` ships with `owner: REPLACE_WITH_EXPO_USERNAME` and
 `extra.eas.projectId: REPLACE_WITH_EAS_PROJECT_ID` placeholders — `eas init`
 fills both. **Expo push tokens only mint after a real projectId exists.**
+
+Push category preferences apply to the currently registered device. Changing
+the account sign-in email or verified phone from **Settings → Business profile**
+requires the current password and a verification code sent to the new contact.
+Public storefront contacts are separate from those account-recovery details.
 
 ## Build & submit
 

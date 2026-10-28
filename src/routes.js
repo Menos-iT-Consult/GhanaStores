@@ -34,6 +34,7 @@ export const PWA_ROUTES = [
   '/admin/pricing',
   '/admin/plans',
   '/admin/affiliate-program',
+  '/admin/platform-settings',
   '/admin/themes',
   '/admin/team',
   '/admin/system',

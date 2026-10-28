@@ -16,7 +16,7 @@ const DEV_SECRET = 'didwa-dev-secret';
  * seller/admin tokens, so boot fails loudly instead of degrading silently.
  * Local development keeps the documented dev secret with a warning.
  */
-const JWT_SECRET = (() => {
+export const JWT_SECRET = (() => {
   const fromEnv = (process.env.JWT_SECRET || '').trim();
   if (fromEnv) return fromEnv;
   if (process.env.NODE_ENV === 'production') {

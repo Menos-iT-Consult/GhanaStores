@@ -54,6 +54,7 @@ async function issueMobileSession(res, store) {
       id: store.id,
       name: store.name,
       email: store.email,
+      phone: store.phone,
       subdomainSlug: store.subdomain_slug,
       status: store.status,
       plan: store.plan,
@@ -191,4 +192,3 @@ router.post('/logout', async (req, res, next) => {
 });
 
 export default router;
-

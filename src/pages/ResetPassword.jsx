@@ -16,6 +16,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, KeyRound, Lock } from 'lucide-r
 import { api } from '../api.js';
 import { navigate } from '../router.js';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
+import PasswordInput from '../components/PasswordInput.jsx';
 
 const inputCls =
   'w-full rounded-xl border border-slate-200 bg-mist/60 py-2.5 pl-10 pr-3 text-sm text-charcoal placeholder:text-slate-400 transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100';
@@ -81,8 +82,8 @@ export default function ResetPassword() {
                   <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                     <Lock size={16} aria-hidden="true" />
                   </span>
-                  <input
-                    id="pw" type="password" className={inputCls} value={password}
+                  <PasswordInput
+                    id="pw" className={inputCls} value={password}
                     onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters"
                     required minLength={8} autoComplete="new-password"
                   />

@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, LockKeyhole, Mail, Phone, UserRound } from 'luci
 import { affiliateApi, setAffiliateSession } from '../../api.js';
 import { navigate } from '../../router.js';
 import { LogoLockup } from '../../components/icons.jsx';
+import PasswordInput from '../../components/PasswordInput.jsx';
 
 const fieldClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-charcoal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
@@ -85,13 +86,13 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
               <input value={form.email} onChange={update('email')} className={`${fieldClass} pl-9`} type="email" autoComplete="email" required />
             </span>
           </label>
-          <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
-            Password
+          <div className="block space-y-1.5 text-xs font-semibold text-slate-600">
+            <label htmlFor="affiliate-password">Password</label>
             <span className="relative block">
               <LockKeyhole size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <input value={form.password} onChange={update('password')} className={`${fieldClass} pl-9`} type="password" autoComplete={signingUp ? 'new-password' : 'current-password'} required minLength={8} maxLength={128} />
+              <PasswordInput id="affiliate-password" value={form.password} onChange={update('password')} className={`${fieldClass} pl-9`} autoComplete={signingUp ? 'new-password' : 'current-password'} required minLength={8} maxLength={128} />
             </span>
-          </label>
+          </div>
           <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60">
             {busy ? 'Please wait...' : signingUp ? 'Create affiliate account' : 'Sign in'}
             {!busy && <ArrowRight size={16} aria-hidden="true" />}

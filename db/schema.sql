@@ -7,8 +7,8 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ------------------------------------------------------------ system settings
--- Platform-wide configurable values shared by public program pages and
--- operational routes. Affiliate terms are administered in the super-admin UI.
+-- Platform-wide configurable values shared by public pages and operational
+-- routes. Affiliate terms and public contact links are admin-managed.
 CREATE TABLE IF NOT EXISTS system_settings (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   setting_key   TEXT UNIQUE NOT NULL,
@@ -23,7 +23,20 @@ INSERT INTO system_settings (setting_key, setting_value, description) VALUES
   ('affiliate_min_cashout_ghs', '50.00', 'Minimum available balance in GHS required for payout requests'),
   ('affiliate_attribution_days', '30', 'Days a referral attribution remains valid'),
   ('affiliate_payout_min_days', '3', 'Minimum business days to process an affiliate payout'),
-  ('affiliate_payout_max_days', '5', 'Maximum business days to process an affiliate payout')
+  ('affiliate_payout_max_days', '5', 'Maximum business days to process an affiliate payout'),
+  ('platform_contact_support_email', 'hello@didwaghana.com', 'Platform support email'),
+  ('platform_contact_support_phone', '+233 20 123 4567', 'Platform support phone'),
+  ('platform_contact_whatsapp_number', '+233 20 123 4567', 'Platform WhatsApp number'),
+  ('platform_contact_business_address', 'Accra, Ghana', 'Platform business address'),
+  ('platform_social_facebook_url', '', 'Facebook profile URL'),
+  ('platform_social_instagram_url', '', 'Instagram profile URL'),
+  ('platform_social_tiktok_url', '', 'TikTok profile URL'),
+  ('platform_social_youtube_url', '', 'YouTube profile URL'),
+  ('platform_social_x_url', '', 'X profile URL'),
+  ('platform_social_linkedin_url', '', 'LinkedIn profile URL'),
+  ('platform_whatsapp_floating_enabled', 'true', 'Show floating WhatsApp button on public marketing pages'),
+  ('platform_seller_whatsapp_group_url', '', 'Seller WhatsApp group invite URL'),
+  ('platform_affiliate_whatsapp_group_url', '', 'Affiliate WhatsApp group invite URL')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- ------------------------------------------------------------ plans (catalog)
@@ -183,7 +196,17 @@ ALTER TABLE stores
 -- KEY (not a URL) and is mirrored into custom_theme_config.branding.logo_url as
 -- an absolute URL, because the storefront renderer consumes that as an <img>.
 ALTER TABLE stores
-  ADD COLUMN IF NOT EXISTS logo_url TEXT;
+  ADD COLUMN IF NOT EXISTS logo_url TEXT,
+  ADD COLUMN IF NOT EXISTS public_email TEXT,
+  ADD COLUMN IF NOT EXISTS public_phone TEXT,
+  ADD COLUMN IF NOT EXISTS store_description TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS business_address TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS pending_contact_type TEXT
+    CHECK (pending_contact_type IN ('email', 'phone')),
+  ADD COLUMN IF NOT EXISTS pending_contact_value TEXT,
+  ADD COLUMN IF NOT EXISTS pending_contact_code_hash TEXT,
+  ADD COLUMN IF NOT EXISTS pending_contact_expires_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS pending_contact_attempts INTEGER NOT NULL DEFAULT 0;
 -- image_key is the R2 object key; image_url stays the absolute public URL so
 -- rows that predate uploads (or hold an externally hosted image) keep working.
 -- The key is what lets a delivery URL be resized on read without storing one
@@ -896,7 +919,8 @@ CREATE INDEX IF NOT EXISTS store_password_resets_store_idx
 -- uses. Two tables support that, both cascading with the store so Delete Account
 -- removes them and frees the push tokens:
 --   device_tokens           - one row per Expo push token (globally unique), so a
---                             device is reachable by store across reinstalls.
+--                             device is reachable by store across reinstalls;
+--                             alert preferences are stored per registered device.
 --   mobile_refresh_tokens   - SHA-256 hashed refresh tokens; the raw value only
 --                             ever lives in the app and in memory, never the DB.
 ALTER TABLE stores
@@ -914,9 +938,14 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   user_id          UUID,                        -- store owner identity (== store_id in DiDwa today)
   expo_push_token  TEXT NOT NULL UNIQUE,        -- Expo push token; unique per device
   platform         TEXT NOT NULL CHECK (platform IN ('ios','android')),
+  notification_preferences JSONB NOT NULL DEFAULT
+    '{"orders":true,"payments":true,"stock":true,"account":true}'::jsonb,
   last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE device_tokens
+  ADD COLUMN IF NOT EXISTS notification_preferences JSONB NOT NULL DEFAULT
+    '{"orders":true,"payments":true,"stock":true,"account":true}'::jsonb;
 CREATE INDEX IF NOT EXISTS device_tokens_store_idx ON device_tokens (store_id);
 
 CREATE TABLE IF NOT EXISTS mobile_refresh_tokens (

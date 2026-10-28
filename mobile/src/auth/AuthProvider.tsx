@@ -35,6 +35,8 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>;
   /** Keep the session meta (context + SecureStore) in sync after a store rename. */
   updateStoreName: (name: string) => Promise<void>;
+  /** Keep updated account contacts synchronized after verified changes. */
+  updateStoreContacts: (email: string, phone: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -162,9 +164,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const updateStoreContacts = useCallback(async (email: string, phone: string) => {
+    setState((prev) => {
+      if (!prev.store || !prev.session) return prev;
+      const store = { ...prev.store, email, phone };
+      const session = { ...prev.session, store };
+      void saveSessionMeta(session);
+      return { ...prev, store, session };
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, restoreError, clearRestoreError, signIn, completeTwoFactor, signOut, updateStoreName }),
-    [state, restoreError, clearRestoreError, signIn, completeTwoFactor, signOut, updateStoreName],
+    () => ({
+      ...state,
+      restoreError,
+      clearRestoreError,
+      signIn,
+      completeTwoFactor,
+      signOut,
+      updateStoreName,
+      updateStoreContacts,
+    }),
+    [state, restoreError, clearRestoreError, signIn, completeTwoFactor, signOut, updateStoreName, updateStoreContacts],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

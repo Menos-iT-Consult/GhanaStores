@@ -121,6 +121,7 @@ const PAGE_ENDPOINTS = [
   '/api/admin/audit/actions',
   '/api/admin/affiliate-program',
   '/api/admin/affiliates',
+  '/api/admin/platform-settings',
   '/api/admin/newsletter/send-email',
   '/api/admin/newsletter/send-sms',
 ];
@@ -129,6 +130,7 @@ const merchantControls = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin'
 const newsletterPage = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin', 'AdminNewsletter.jsx'), 'utf8');
 const newsletterRoutes = fs.readFileSync(path.join(ADMIN_DIR, 'newsletterRoutes.js'), 'utf8');
 const affiliatePage = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin', 'AdminAffiliateProgram.jsx'), 'utf8');
+const platformSettingsPage = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'admin', 'AdminPlatformSettings.jsx'), 'utf8');
 log('merchant controls import every rendered icon', /Calendar,\s*ShieldAlert,\s*Users,\s*Wallet/.test(merchantControls));
 log('newsletter imports Select and submits its chosen store id', /Alert,\s*Select/.test(newsletterPage) && /storeId:\s*selectedStoreId/.test(newsletterPage));
 log('newsletter send routes are mounted at the client paths and scope customers to a store',
@@ -138,6 +140,9 @@ log('newsletter send routes are mounted at the client paths and scope customers 
   && /if \(!uuidParam\(storeId\)\)/.test(newsletterRoutes));
 log('affiliate admin page renders children in a layout container, not the cell component',
   /<div className="space-y-5">/.test(affiliatePage) && !/<Stacked>/.test(affiliatePage));
+log('platform settings page loads and saves through the guarded admin API',
+  /\/api\/admin\/platform-settings/.test(platformSettingsPage)
+  && /Save platform settings/.test(platformSettingsPage));
 const mounted = new Set(routes.map((route) => `/api/admin${route.path}`));
 for (const endpoint of PAGE_ENDPOINTS) {
   log(`page endpoint ${endpoint}`, mounted.has(endpoint));
@@ -147,7 +152,7 @@ for (const endpoint of PAGE_ENDPOINTS) {
 /* Scan for the action NAMES themselves rather than the `action:` key, because
    some are chosen dynamically (`detail.passwordReset ? a : b`, `wasPaid ? refund
    : void`) and a key-shaped scan would silently miss them. */
-const NAMESPACE = '(admin|merchant|order|catalog|payout|domain|theme|billing|affiliate_program)';
+const NAMESPACE = '(admin|merchant|order|catalog|payout|domain|theme|billing|affiliate_program|platform)';
 const written = new Set();
 for (const file of AUDITED_SOURCES) {
   const source = fs.readFileSync(path.join(ROOT, file), 'utf8');

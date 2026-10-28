@@ -35,6 +35,7 @@ export const ACTION_LABELS = {
   'domain.settings': 'Changed domain search settings',
   'domain.provider_price_refresh': 'Refreshed OpenProvider domain prices',
   'affiliate_program.settings': 'Changed affiliate program settings',
+  'platform.public_settings': 'Changed platform public contact and social settings',
 };
 
 router.get('/audit', requireAdmin, async (req, res, next) => {

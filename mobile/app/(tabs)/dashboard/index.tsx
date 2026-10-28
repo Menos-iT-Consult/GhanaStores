@@ -17,20 +17,18 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { RevenueCarousel } from '@/components/glass/RevenueCarousel';
 import { useGlass } from '@/components/glass/glass';
 import { QuickActions } from '@/components/glass/QuickActions';
-import { MetricGrid } from '@/components/glass/MetricGrid';
 import { AlertBanner } from '@/components/glass/AlertBanner';
 import { SectionHeader } from '@/components/SectionHeader';
 import { SectionSkeleton, SkeletonBlock } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ErrorState } from '@/components/ScreenState';
 import { usePosSync } from '@/offline/usePosSync';
-import { formatGhs, ACCENT } from '@/theme';
+import { formatGhs } from '@/theme';
 import type { DashboardFull } from '@/types';
 
 /**
- * Command center (Material 3): flat tonal hero revenue card, outlined
- * Today's sales, seller quick actions, 2x2 metric grid, amber low-stock banner, top products and
- * recent orders in plain surface cards. Data layer unchanged — one round
+ * Command center (Material 3): rotating revenue and sales cards, seller quick
+ * actions, amber low-stock banner, top products and recent orders. One round
  * trip to /dashboard/full powers most of the screen.
  */
 export default function DashboardScreen() {
@@ -112,6 +110,8 @@ export default function DashboardScreen() {
     totalRevenue: Number(kpis?.totalRevenue) || 0,
     averageOrderValue: Number(kpis?.averageOrderValue) || 0,
     weekRevenue: Number(kpis?.weekRevenue) || 0,
+    revenue7Days: Number(kpis?.revenue7Days) || 0,
+    revenue30Days: Number(kpis?.revenue30Days) || 0,
   };
   const safeOps = {
     pendingOrderCount: Number(operations?.pendingOrderCount) || 0,
@@ -146,8 +146,14 @@ export default function DashboardScreen() {
         <Animated.View entering={reduceMotion ? undefined : FadeInDown.duration(300)}>
           <RevenueCarousel
             storeName={store?.name ?? 'My store'}
-            heroRevenue={safeKpis.todayRevenue}
-            heroLabel="Today"
+            revenue7Days={safeKpis.revenue7Days}
+            revenue30Days={safeKpis.revenue30Days}
+            snapshot={{
+              revenueThisWeek: safeKpis.weekRevenue,
+              paidOrders: safeKpis.paidOrders,
+              averageOrderValue: safeKpis.averageOrderValue,
+              lifetimeRevenue: safeKpis.totalRevenue,
+            }}
             trendPoints={safeTrend.map((m) => ({
               month: String(m?.month ?? ''),
               revenue: Number(m?.revenue) || 0,
@@ -245,40 +251,6 @@ export default function DashboardScreen() {
             ))}
           </GlassCard>
         )}
-
-        <SectionHeader title="Sales snapshot" />
-        <MetricGrid
-          metrics={[
-            {
-              label: 'Revenue this week',
-              value: safeKpis.weekRevenue,
-              format: (n) => formatGhs(n),
-              icon: 'chart-line',
-              accent: ACCENT.revenue,
-            },
-            {
-              label: 'Paid orders',
-              value: safeKpis.paidOrders,
-              format: (n) => String(Math.round(n)),
-              icon: 'receipt-text-check-outline',
-              accent: ACCENT.orders,
-            },
-            {
-              label: 'Average order',
-              value: safeKpis.averageOrderValue,
-              format: (n) => formatGhs(n),
-              icon: 'cash-multiple',
-              accent: ACCENT.pos,
-            },
-            {
-              label: 'Lifetime revenue',
-              value: safeKpis.totalRevenue,
-              format: (n) => formatGhs(n),
-              icon: 'cash-check',
-              accent: ACCENT.primary,
-            },
-          ]}
-        />
 
         <SectionHeader
           title="Top products"

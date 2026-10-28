@@ -15,10 +15,33 @@ export interface StoreMeta {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   subdomainSlug: string;
   status: string;
   plan: string;
   currency: string;
+}
+
+export interface DeviceNotificationPreferences {
+  orders: boolean;
+  payments: boolean;
+  stock: boolean;
+  account: boolean;
+}
+
+export interface StoreProfile {
+  name: string;
+  email: string;
+  phone: string;
+  phoneVerified: boolean;
+  publicEmail: string;
+  publicPhone: string;
+  whatsappNumber: string;
+  description: string;
+  address: string;
+  logoUrl: string | null;
+  logoKey: string | null;
+  subdomainSlug: string;
 }
 
 export interface Session {
@@ -168,6 +191,8 @@ export interface DashboardFull {
     averageOrderValue: number;
     todayRevenue: number;
     weekRevenue: number;
+    revenue7Days: number;
+    revenue30Days: number;
     pointsIssued: number;
   };
   monthlyTrend: MonthlyTrendPoint[];

@@ -18,6 +18,7 @@
  *   pricing    the domain catalogue's wholesale/retail pricing
  *   plans      the subscription plan catalogue and its monthly/yearly prices
  *   smsPricing the platform SMS segment price and the purchase switches
+ *   platformSettings public platform contact, social, and WhatsApp links
  *   system     database health, integration presence, runtime
  *   audit      the append-only ledger of every admin write
  *
@@ -43,6 +44,7 @@ import contactRoutes from './contact.js';
 import smsPricingRoutes from './smsPricing.js';
 import newsletterRoutes from './newsletterRoutes.js';
 import affiliateProgramRoutes from './affiliateProgram.js';
+import platformSettingsRoutes from './platformSettings.js';
 
 const router = Router();
 
@@ -64,6 +66,7 @@ router.use(contactRoutes);
 router.use(smsPricingRoutes);
 router.use(newsletterRoutes);
 router.use(affiliateProgramRoutes);
+router.use(platformSettingsRoutes);
 
 /**
  * Legacy alias kept for the pre-split client: PATCH /tenants/:id/status became

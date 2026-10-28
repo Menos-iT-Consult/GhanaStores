@@ -1,18 +1,39 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AppState, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ActivityIndicator, Appbar, Button, Card, Divider, List, Snackbar, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Appbar, Button, Card, Divider, List, Snackbar, Switch, Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/lib/useSafeBack';
 import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/glass/ThemeToggle';
 import {
   getPushPermissionStatus,
+  getExpoPushToken,
   registerDeviceForPush,
   type PushRegistrationResult,
 } from '@/services/pushNotifications';
+import * as endpoints from '@/api/endpoints';
+import type { DeviceNotificationPreferences } from '@/types';
 
 type PushPermissionStatus = Awaited<ReturnType<typeof getPushPermissionStatus>>;
+
+const DEFAULT_NOTIFICATION_PREFERENCES: DeviceNotificationPreferences = {
+  orders: true,
+  payments: true,
+  stock: true,
+  account: true,
+};
+
+const NOTIFICATION_CATEGORIES: {
+  key: keyof DeviceNotificationPreferences;
+  title: string;
+  description: string;
+}[] = [
+  { key: 'orders', title: 'Orders', description: 'New orders and order status changes' },
+  { key: 'payments', title: 'Payments', description: 'Payment confirmations and receipts' },
+  { key: 'stock', title: 'Low stock', description: 'Inventory running low' },
+  { key: 'account', title: 'Account updates', description: 'Security, subscription, and store alerts' },
+];
 
 function registrationMessage(result: PushRegistrationResult): string {
   switch (result) {
@@ -44,14 +65,34 @@ export default function SettingsScreen() {
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
   const [pushStatusError, setPushStatusError] = useState<string | null>(null);
+  const [notificationPreferences, setNotificationPreferences] =
+    useState<DeviceNotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [preferencesLoading, setPreferencesLoading] = useState(false);
+  const [preferencesBusy, setPreferencesBusy] = useState(false);
 
   const refreshPushPermission = useCallback(async () => {
+    setPreferencesLoading(true);
     try {
       setPushStatusError(null);
-      setPushPermission(await getPushPermissionStatus());
+      const status = await getPushPermissionStatus();
+      setPushPermission(status);
+      if (status !== 'granted') {
+        setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
+        return;
+      }
+
+      const registration = await registerDeviceForPush();
+      if (registration !== 'registered') {
+        throw new Error(registration);
+      }
+      const token = await getExpoPushToken();
+      if (!token) throw new Error('Push token is unavailable.');
+      setNotificationPreferences(await endpoints.getDeviceNotificationPreferences(token));
     } catch (error) {
-      console.error('[push] Could not read notification permission:', error);
-      setPushStatusError('Could not check notification permission.');
+      console.error('[push] Could not load notification settings:', error);
+      setPushStatusError('Could not load notification settings. Check your connection and try again.');
+    } finally {
+      setPreferencesLoading(false);
     }
   }, []);
 
@@ -75,6 +116,24 @@ export default function SettingsScreen() {
       setPushMessage('Could not enable notifications. Please try again.');
     } finally {
       setPushBusy(false);
+    }
+  };
+
+  const updateNotificationPreference = async (
+    category: keyof DeviceNotificationPreferences,
+    enabled: boolean,
+  ) => {
+    setPreferencesBusy(true);
+    try {
+      const token = await getExpoPushToken();
+      if (!token) throw new Error('Push token is unavailable.');
+      const next = { ...notificationPreferences, [category]: enabled };
+      setNotificationPreferences(await endpoints.saveDeviceNotificationPreferences(token, next));
+    } catch (error) {
+      console.error('[push] Could not save notification preference:', error);
+      setPushMessage('Could not save this notification preference. Please try again.');
+    } finally {
+      setPreferencesBusy(false);
     }
   };
 
@@ -119,6 +178,14 @@ export default function SettingsScreen() {
               title={store?.name || 'Your store'}
               description={`${store?.plan || 'TRIAL'} · ${store?.subdomainSlug || ''}`}
               left={(props) => <List.Icon {...props} icon="storefront-outline" color={colors.primary} />}
+            />
+            <Divider />
+            <List.Item
+              title="Business profile"
+              description="Storefront details, contact information, and logo"
+              left={(props) => <List.Icon {...props} icon="store-edit-outline" color={colors.primary} />}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/settings/profile')}
             />
             <Divider />
             <List.Item
@@ -174,6 +241,35 @@ export default function SettingsScreen() {
                   Check again
                 </Button>
               ) : null}
+              {pushPermission === 'granted' && !pushStatusError ? (
+                preferencesLoading ? (
+                  <ActivityIndicator style={styles.pushAction} color={colors.primary} />
+                ) : (
+                  <View style={styles.preferenceList}>
+                    <Divider style={styles.preferenceDivider} />
+                    <Text variant="labelLarge" style={{ color: colors.onSurfaceVariant }}>
+                      Alerts on this device
+                    </Text>
+                    {NOTIFICATION_CATEGORIES.map((category) => (
+                      <List.Item
+                        key={category.key}
+                        title={category.title}
+                        description={category.description}
+                        titleStyle={{ color: colors.onSurface }}
+                        descriptionStyle={{ color: colors.onSurfaceVariant }}
+                        right={() => (
+                          <Switch
+                            value={notificationPreferences[category.key]}
+                            onValueChange={(enabled) => void updateNotificationPreference(category.key, enabled)}
+                            disabled={preferencesBusy}
+                            color={colors.primary}
+                          />
+                        )}
+                      />
+                    ))}
+                  </View>
+                )
+              ) : null}
             </View>
           </Card>
 
@@ -212,4 +308,6 @@ const styles = StyleSheet.create({
   cardBody: { padding: 16 },
   sectionTitle: { fontWeight: '700', marginBottom: 4 },
   pushAction: { marginTop: 12, alignSelf: 'flex-start' },
+  preferenceList: { marginTop: 16 },
+  preferenceDivider: { marginBottom: 14 },
 });

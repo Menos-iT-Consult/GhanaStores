@@ -3,11 +3,12 @@
  *
  * Powers the merchant dashboard "Site Settings" tab. Five concerns, all scoped to
  * the signed-in seller's own store (never a client-supplied store_id):
- *   1. Rename the store        PATCH  /name
- *   2. Change password         PATCH  /password          (current password required)
- *   3. Forgot / reset password POST   /password/forgot   (public) + /password/reset (public)
- *   4. Delete account          DELETE /account           (hard delete, slug + password)
- *   5. Two-factor (TOTP)       POST   /2fa/setup | /2fa/enable | /2fa/disable
+ *   - Business profile        GET/PATCH /profile (public contacts, description, address)
+ *   - Account contacts        POST /profile/contact/request + /verify (new-channel OTP)
+ *   - Change password         PATCH /password (current password required)
+ *   - Forgot / reset password POST /password/forgot + /password/reset (public)
+ *   - Delete account          DELETE /account (hard delete, slug + password)
+ *   - Two-factor (TOTP)       POST /2fa/setup | /2fa/enable | /2fa/disable
  *
  * Design notes:
  *  - Secrets: the TOTP secret is stored encrypted at rest via secretBox.js.
@@ -19,13 +20,16 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { query, pool } from '../config/database.js';
-import { requireSeller } from '../middleware/authMiddleware.js';
+import { query, pool, withTransaction } from '../config/database.js';
+import { JWT_SECRET, requireSeller } from '../middleware/authMiddleware.js';
 import { encryptSecret, decryptSecret, encryptionConfigured } from '../services/secretBox.js';
 import { sendEmail } from '../services/emailService.js';
 import { sendMerchantPushNotification } from '../services/pushService.js';
 import { passwordResetTemplate } from '../services/emailTemplates.js';
 import { generateSecret, verifyTotp, otpauthUri, qrDataUrl } from '../services/totpService.js';
+import { normalizeGhPhone } from '../utils/helpers.js';
+import { sendOtpSms } from '../services/smsService.js';
+import { RENDITIONS, buildDeliveryUrl } from '../services/storage.js';
 
 const router = Router();
 
@@ -35,6 +39,20 @@ const BCRYPT_ROUNDS = 12;            // matches registration hashing cost
 const RESET_TTL_MINUTES = 60;        // how long a forgot-password link stays valid
 const NAME_MIN = 2;
 const NAME_MAX = 60;
+const PROFILE_DESCRIPTION_MAX = 500;
+const PROFILE_ADDRESS_MAX = 240;
+const CONTACT_OTP_TTL_MINUTES = 10;
+const CONTACT_OTP_MAX_ATTEMPTS = 5;
+
+const hashCode = (code) =>
+  crypto.createHmac('sha256', JWT_SECRET).update(String(code)).digest('hex');
+const isEmailAddress = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+function contactOtpMatches(code, expectedHash) {
+  const actual = Buffer.from(hashCode(code), 'hex');
+  const expected = Buffer.from(String(expectedHash || ''), 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
 
 /** Build the platform's origin for links in emails (never trust the Host header). */
 function platformUrl() {
@@ -61,6 +79,300 @@ router.patch('/name', requireSeller, async (req, res, next) => {
     if (!rows[0]) return res.status(404).json({ error: 'Store not found.' });
     res.json({ success: true, name: rows[0].name });
   } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------------- Store profile ----------------------------- */
+router.get('/profile', requireSeller, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT name, email, phone, phone_verified,
+              COALESCE(NULLIF(public_email, ''), custom_theme_config #>> '{pages_content,contact_email}', '') AS public_email,
+              COALESCE(NULLIF(public_phone, ''), custom_theme_config #>> '{pages_content,contact_phone}', '') AS public_phone,
+              COALESCE(NULLIF(whatsapp_number, ''), custom_theme_config #>> '{features,whatsapp_number}', '') AS whatsapp_number,
+              COALESCE(NULLIF(store_description, ''), custom_theme_config #>> '{pages_content,about_body}', '') AS store_description,
+              COALESCE(NULLIF(business_address, ''), custom_theme_config #>> '{pages_content,contact_address}', '') AS business_address,
+              logo_url, subdomain_slug
+         FROM stores
+        WHERE id = $1
+        LIMIT 1`,
+      [req.auth.sub],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Store not found.' });
+    const store = rows[0];
+    res.json({
+      name: store.name,
+      email: store.email,
+      phone: store.phone,
+      phoneVerified: store.phone_verified,
+      publicEmail: store.public_email || '',
+      publicPhone: store.public_phone || '',
+      whatsappNumber: store.whatsapp_number || '',
+      description: store.store_description || '',
+      address: store.business_address || '',
+      logoUrl: buildDeliveryUrl(store.logo_url, RENDITIONS.logo),
+      logoKey: store.logo_url,
+      subdomainSlug: store.subdomain_slug,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/profile', requireSeller, async (req, res, next) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const publicEmail = String(req.body?.publicEmail || '').trim().toLowerCase();
+    const publicPhoneInput = String(req.body?.publicPhone || '').trim();
+    const whatsappInput = String(req.body?.whatsappNumber || '').trim();
+    const description = String(req.body?.description || '').trim();
+    const address = String(req.body?.address || '').trim();
+
+    if (name.length < NAME_MIN || name.length > NAME_MAX) {
+      return res.status(400).json({ error: `Store name must be ${NAME_MIN}-${NAME_MAX} characters.` });
+    }
+    if (publicEmail && (publicEmail.length > 254 || !isEmailAddress(publicEmail))) {
+      return res.status(400).json({ error: 'Enter a valid public email address.' });
+    }
+    if (description.length > PROFILE_DESCRIPTION_MAX) {
+      return res.status(400).json({ error: `Store description must be ${PROFILE_DESCRIPTION_MAX} characters or fewer.` });
+    }
+    if (address.length > PROFILE_ADDRESS_MAX) {
+      return res.status(400).json({ error: `Business address must be ${PROFILE_ADDRESS_MAX} characters or fewer.` });
+    }
+    const publicPhone = publicPhoneInput ? normalizeGhPhone(publicPhoneInput) : null;
+    const whatsappNumber = whatsappInput ? normalizeGhPhone(whatsappInput) : null;
+    if ((publicPhoneInput && !publicPhone) || (whatsappInput && !whatsappNumber)) {
+      return res.status(400).json({ error: 'Enter valid Ghanaian public phone and WhatsApp numbers.' });
+    }
+
+    const { rows } = await query(
+      `UPDATE stores
+          SET name = $2,
+              public_email = $3,
+              public_phone = $4,
+              whatsapp_number = $5,
+              store_description = $6,
+              business_address = $7,
+              custom_theme_config = COALESCE(custom_theme_config, '{}'::jsonb) || jsonb_build_object(
+                'branding',
+                  COALESCE(custom_theme_config->'branding', '{}'::jsonb)
+                  || jsonb_build_object('site_title', $2::text),
+                'features',
+                  COALESCE(custom_theme_config->'features', '{}'::jsonb)
+                  || jsonb_build_object('whatsapp_number', COALESCE($5::text, '')),
+                'pages_content',
+                  COALESCE(custom_theme_config->'pages_content', '{}'::jsonb)
+                  || jsonb_build_object(
+                    'about_body', $6::text,
+                    'contact_email', COALESCE($3::text, ''),
+                    'contact_phone', COALESCE($4::text, ''),
+                    'contact_address', $7::text
+                  )
+              )
+        WHERE id = $1
+        RETURNING name, email, phone, phone_verified, public_email, public_phone,
+                  whatsapp_number, store_description, business_address, logo_url,
+                  subdomain_slug`,
+      [req.auth.sub, name, publicEmail || null, publicPhone, whatsappNumber, description, address],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Store not found.' });
+    const store = rows[0];
+    res.json({
+      name: store.name,
+      email: store.email,
+      phone: store.phone,
+      phoneVerified: store.phone_verified,
+      publicEmail: store.public_email || '',
+      publicPhone: store.public_phone || '',
+      whatsappNumber: store.whatsapp_number || '',
+      description: store.store_description || '',
+      address: store.business_address || '',
+      logoUrl: buildDeliveryUrl(store.logo_url, RENDITIONS.logo),
+      logoKey: store.logo_url,
+      subdomainSlug: store.subdomain_slug,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ----------------------- Verify account contact changes -------------------- */
+router.post('/profile/contact/request', requireSeller, async (req, res, next) => {
+  try {
+    const type = String(req.body?.type || '');
+    const currentPassword = String(req.body?.currentPassword || '');
+    const rawValue = String(req.body?.value || '').trim();
+    if (!['email', 'phone'].includes(type) || !currentPassword || !rawValue) {
+      return res.status(400).json({ error: 'Contact type, new value, and current password are required.' });
+    }
+
+    const { rows } = await query(
+      'SELECT email, phone, password_hash FROM stores WHERE id = $1 LIMIT 1',
+      [req.auth.sub],
+    );
+    const store = rows[0];
+    if (!store) return res.status(404).json({ error: 'Store not found.' });
+    if (!(await bcrypt.compare(currentPassword, store.password_hash))) {
+      return res.status(403).json({ error: 'Your current password is incorrect.' });
+    }
+
+    let value;
+    if (type === 'email') {
+      value = rawValue.toLowerCase();
+      if (value.length > 254 || !isEmailAddress(value)) {
+        return res.status(400).json({ error: 'Enter a valid email address.' });
+      }
+      if (value === String(store.email).toLowerCase()) {
+        return res.status(400).json({ error: 'That is already the account email.' });
+      }
+      const duplicate = await query(
+        'SELECT 1 FROM stores WHERE LOWER(email) = $1 AND id <> $2 LIMIT 1',
+        [value, req.auth.sub],
+      );
+      if (duplicate.rows.length) return res.status(409).json({ error: 'That email is already in use.' });
+    } else {
+      value = normalizeGhPhone(rawValue);
+      if (!value) return res.status(400).json({ error: 'Enter a valid Ghanaian phone number.' });
+      if (value === store.phone) return res.status(400).json({ error: 'That is already the account phone.' });
+      const duplicate = await query(
+        'SELECT 1 FROM stores WHERE phone = $1 AND id <> $2 LIMIT 1',
+        [value, req.auth.sub],
+      );
+      if (duplicate.rows.length) return res.status(409).json({ error: 'That phone number is already in use.' });
+    }
+
+    const code = String(crypto.randomInt(100000, 1000000));
+    const codeHash = hashCode(code);
+    await query(
+      `UPDATE stores
+          SET pending_contact_type = $2,
+              pending_contact_value = $3,
+              pending_contact_code_hash = $4,
+              pending_contact_expires_at = NOW() + ($5 || ' minutes')::interval,
+              pending_contact_attempts = 0
+        WHERE id = $1`,
+      [req.auth.sub, type, value, codeHash, String(CONTACT_OTP_TTL_MINUTES)],
+    );
+
+    const delivery = type === 'email'
+      ? await sendEmail({
+        to: value,
+        subject: 'Confirm your DiDwa account email',
+        text: `Your DiDwa confirmation code is ${code}. It expires in ${CONTACT_OTP_TTL_MINUTES} minutes. Do not share it with anyone.`,
+      })
+      : await sendOtpSms(value, code);
+    const delivered = type === 'email' ? delivery.sent : delivery.ok && !delivery.dryRun;
+    if (!delivered) {
+      await query(
+        `UPDATE stores
+            SET pending_contact_type = NULL, pending_contact_value = NULL,
+                pending_contact_code_hash = NULL, pending_contact_expires_at = NULL,
+                pending_contact_attempts = 0
+          WHERE id = $1 AND pending_contact_code_hash = $2`,
+        [req.auth.sub, codeHash],
+      );
+      return res.status(503).json({ error: `Could not send the verification code to the new ${type}. Please try again.` });
+    }
+    res.json({ success: true, type, message: `A verification code was sent to the new ${type}.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/profile/contact/verify', requireSeller, async (req, res, next) => {
+  try {
+    const type = String(req.body?.type || '');
+    const code = String(req.body?.code || '').trim();
+    if (!['email', 'phone'].includes(type) || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: 'Enter the six-digit verification code.' });
+    }
+
+    const result = await withTransaction(async (tx) => {
+      const pending = await tx.query(
+        `SELECT pending_contact_type, pending_contact_value, pending_contact_code_hash,
+                pending_contact_expires_at, pending_contact_attempts
+           FROM stores
+          WHERE id = $1
+          FOR UPDATE`,
+        [req.auth.sub],
+      );
+      const store = pending.rows[0];
+      if (!store || store.pending_contact_type !== type || !store.pending_contact_code_hash
+          || !store.pending_contact_expires_at
+          || new Date(store.pending_contact_expires_at).getTime() <= Date.now()) {
+        return { status: 400, error: 'That verification code is invalid or expired. Request a new code.' };
+      }
+      if (Number(store.pending_contact_attempts) >= CONTACT_OTP_MAX_ATTEMPTS) {
+        return { status: 429, error: 'Too many incorrect codes. Request a new verification code.' };
+      }
+      if (!contactOtpMatches(code, store.pending_contact_code_hash)) {
+        const attempts = Number(store.pending_contact_attempts) + 1;
+        await tx.query(
+          `UPDATE stores
+              SET pending_contact_attempts = $2,
+                  pending_contact_type = CASE WHEN $2 >= $3 THEN NULL ELSE pending_contact_type END,
+                  pending_contact_value = CASE WHEN $2 >= $3 THEN NULL ELSE pending_contact_value END,
+                  pending_contact_code_hash = CASE WHEN $2 >= $3 THEN NULL ELSE pending_contact_code_hash END,
+                  pending_contact_expires_at = CASE WHEN $2 >= $3 THEN NULL ELSE pending_contact_expires_at END
+            WHERE id = $1`,
+          [req.auth.sub, attempts, CONTACT_OTP_MAX_ATTEMPTS],
+        );
+        return {
+          status: attempts >= CONTACT_OTP_MAX_ATTEMPTS ? 429 : 400,
+          error: attempts >= CONTACT_OTP_MAX_ATTEMPTS
+            ? 'Too many incorrect codes. Request a new verification code.'
+            : 'That verification code is incorrect.',
+        };
+      }
+
+      if (type === 'email') {
+        const duplicate = await tx.query(
+          'SELECT 1 FROM stores WHERE LOWER(email) = LOWER($1) AND id <> $2 LIMIT 1',
+          [store.pending_contact_value, req.auth.sub],
+        );
+        if (duplicate.rows.length) {
+          return { status: 409, error: 'That email is already in use. Request a code for a different address.' };
+        }
+      } else {
+        await tx.query('SELECT pg_advisory_xact_lock(hashtext($1), 0)', [store.pending_contact_value]);
+        const duplicate = await tx.query(
+          'SELECT 1 FROM stores WHERE phone = $1 AND id <> $2 LIMIT 1',
+          [store.pending_contact_value, req.auth.sub],
+        );
+        if (duplicate.rows.length) {
+          return { status: 409, error: 'That phone number is already in use. Request a code for a different number.' };
+        }
+      }
+
+      const updated = await tx.query(
+        `UPDATE stores
+            SET email = CASE WHEN $2 = 'email' THEN pending_contact_value ELSE email END,
+                phone = CASE WHEN $2 = 'phone' THEN pending_contact_value ELSE phone END,
+                phone_verified = CASE WHEN $2 = 'phone' THEN TRUE ELSE phone_verified END,
+                pending_contact_type = NULL,
+                pending_contact_value = NULL,
+                pending_contact_code_hash = NULL,
+                pending_contact_expires_at = NULL,
+                pending_contact_attempts = 0
+          WHERE id = $1
+          RETURNING email, phone, phone_verified`,
+        [req.auth.sub, type],
+      );
+      return { status: 200, contact: updated.rows[0] };
+    });
+    if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+    res.json({
+      success: true,
+      email: result.contact.email,
+      phone: result.contact.phone,
+      phoneVerified: result.contact.phone_verified,
+    });
+  } catch (err) {
+    if (err?.code === '23505') {
+      return res.status(409).json({ error: 'That email is already in use. Request a code for a different address.' });
+    }
     next(err);
   }
 });
@@ -343,5 +655,3 @@ router.get('/2fa/status', requireSeller, async (req, res, next) => {
 });
 
 export default router;
-
-

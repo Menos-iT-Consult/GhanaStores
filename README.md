@@ -79,6 +79,10 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
   with each page. Seller/admin routes and private storefront flows are marked
   `noindex`; cart, checkout, and order-tracking URLs are excluded from store
   sitemaps.
+- Platform contact details, public social links, WhatsApp support visibility,
+  and separate seller/affiliate group invite links are managed by super admins
+  under **Configuration → Platform contact & links**. The public marketing
+  footer and support links read these settings from the API.
 - Run `npm run test:seo` to validate sitemap generation rules and the SEO route
   configuration.
 
@@ -122,7 +126,7 @@ on a phone. Removing only the meta tag silently re-enables zoom on iOS.
 Mobile form fields are floored at 16px to stop iOS zooming a form when an input
 is focused, and `safe-area-inset-*` keeps fixed bars clear of the notch.
 | `VITE_PLATFORM_DOMAIN` | Browser-side apex for seller storefront URLs - **fallback only**, the API's own apex wins (see `src/config.js`) | `VITE_`-prefixed mirror of `PLATFORM_DOMAIN` (`didwaghana.com`) |
-| `VITE_PLATFORM_PHONE` | Contact phone shown on the public Contact Us page (drives the call + WhatsApp links) | `+233 20 123 4567` |
+| `VITE_PLATFORM_PHONE` | Legacy variable; public platform contact details are managed at `/admin/platform-settings` | `+233 20 123 4567` |
 | `VITE_PREVIEW_HOSTS` | Host suffixes treated as platform traffic (preview URLs) | empty - nothing is exempt by default |
 | `ENABLE_CRON` | Start the billing scheduler | `false` |
 | `CLIENT_URL` | CORS origin for the PWA | `*` |

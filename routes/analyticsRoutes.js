@@ -27,6 +27,8 @@ export async function getDashboardFull(storeId) {
                      ELSE 0 END::numeric(12,2)           AS avg_order_value,
                 COALESCE(SUM(total) FILTER (WHERE created_at >= date_trunc('day', NOW())), 0)::numeric(12,2) AS today_revenue,
                 COALESCE(SUM(total) FILTER (WHERE created_at >= date_trunc('week', NOW())), 0)::numeric(12,2) AS week_revenue,
+                COALESCE(SUM(total) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'), 0)::numeric(12,2) AS revenue_7_days,
+                COALESCE(SUM(total) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days'), 0)::numeric(12,2) AS revenue_30_days,
                 COALESCE(SUM(points_earned), 0)::int     AS points_issued
            FROM orders
           WHERE store_id = $1 AND status IN ${PAID_STATUSES}`,
@@ -90,6 +92,8 @@ export async function getDashboardFull(storeId) {
         averageOrderValue: Number(k.avg_order_value),
         todayRevenue: Number(k.today_revenue),
         weekRevenue: Number(k.week_revenue),
+        revenue7Days: Number(k.revenue_7_days),
+        revenue30Days: Number(k.revenue_30_days),
         pointsIssued: k.points_issued,
       },
       monthlyTrend: trend.rows.map((r) => ({

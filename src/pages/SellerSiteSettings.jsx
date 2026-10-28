@@ -20,6 +20,7 @@ import {
 import { api, getCachedStore, setSession, getToken, clearSession } from '../api.js';
 import { navigate } from '../router.js';
 import { IconSpinner } from '../components/icons.jsx';
+import PasswordInput from '../components/PasswordInput.jsx';
 
 /* --------------------------------- Atoms ---------------------------------- */
 const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-card sm:p-6';
@@ -210,11 +211,11 @@ function PasswordCard({ store, busy, setBusy }) {
       <CardHeader icon={Lock} title="Password" hint="Change your password, or email yourself a reset link." />
       <form onSubmit={save} className="space-y-3">
         <Field id="curPw" label="Current password" icon={KeyRound}>
-          <input id="curPw" type="password" className={inputCls} value={current}
+          <PasswordInput id="curPw" className={inputCls} value={current}
             onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required />
         </Field>
         <Field id="newPw" label="New password" icon={KeyRound}>
-          <input id="newPw" type="password" className={inputCls} value={next}
+          <PasswordInput id="newPw" className={inputCls} value={next}
             onChange={(e) => setNext(e.target.value)} autoComplete="new-password" placeholder="At least 8 characters" required minLength={8} />
         </Field>
         <button type="submit" disabled={working} className={saveBtnCls}>
@@ -454,7 +455,7 @@ function DeleteCard({ store, busy, setBusy }) {
               onChange={(e) => setConfirmSlug(e.target.value)} placeholder={slug} required autoComplete="off" />
           </Field>
           <Field id="delPw" label="Current password" icon={Lock}>
-            <input id="delPw" type="password" className={inputCls} value={password}
+            <PasswordInput id="delPw" className={inputCls} value={password}
               onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
           </Field>
           <div className="flex items-center gap-3">
@@ -469,7 +470,6 @@ function DeleteCard({ store, busy, setBusy }) {
     </section>
   );
 }
-
 
 
 

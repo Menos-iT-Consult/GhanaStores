@@ -4,6 +4,7 @@ import type {
   CustomersPage,
   DashboardFull,
   DashboardStats,
+  DeviceNotificationPreferences,
   LoginResult,
   LoyaltyLookup,
   NotificationsPage,
@@ -20,6 +21,7 @@ import type {
   Product,
   ProductUpsertPayload,
   ProductUpsertResult,
+  StoreProfile,
   TopProductsPayload,
 } from '@/types';
 
@@ -112,6 +114,18 @@ export function registerDevice(token: string, platform: 'ios' | 'android') {
 
 export function unregisterDevice(token: string) {
   return api.delete('/api/mobile/devices/unregister', { data: { token } }).then((r) => r.data);
+}
+
+export function getDeviceNotificationPreferences(token: string) {
+  return api
+    .get<{ preferences: DeviceNotificationPreferences }>('/api/mobile/devices/preferences', { params: { token } })
+    .then((r) => r.data.preferences);
+}
+
+export function saveDeviceNotificationPreferences(token: string, preferences: DeviceNotificationPreferences) {
+  return api
+    .put<{ preferences: DeviceNotificationPreferences }>('/api/mobile/devices/preferences', { token, preferences })
+    .then((r) => r.data.preferences);
 }
 
 /* ------------------------------- Notifications ----------------------------- */
@@ -248,6 +262,35 @@ export interface TwoFactorMessage {
 export function renameStore(name: string) {
   return api
     .patch<{ success: boolean; name: string }>('/api/site-settings/name', { name })
+    .then((r) => r.data);
+}
+
+export function getStoreProfile() {
+  return api.get<StoreProfile>('/api/site-settings/profile').then((r) => r.data);
+}
+
+export function saveStoreProfile(profile: Pick<
+  StoreProfile,
+  'name' | 'publicEmail' | 'publicPhone' | 'whatsappNumber' | 'description' | 'address'
+>) {
+  return api.patch<StoreProfile>('/api/site-settings/profile', profile).then((r) => r.data);
+}
+
+export function requestAccountContactChange(type: 'email' | 'phone', value: string, currentPassword: string) {
+  return api
+    .post<{ success: boolean; type: 'email' | 'phone'; message: string }>(
+      '/api/site-settings/profile/contact/request',
+      { type, value, currentPassword },
+    )
+    .then((r) => r.data);
+}
+
+export function verifyAccountContactChange(type: 'email' | 'phone', code: string) {
+  return api
+    .post<{ success: boolean; email: string; phone: string; phoneVerified: boolean }>(
+      '/api/site-settings/profile/contact/verify',
+      { type, code },
+    )
     .then((r) => r.data);
 }
 

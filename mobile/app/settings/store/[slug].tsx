@@ -8,6 +8,7 @@ import * as endpoints from '@/api/endpoints';
 import { apiErrorMessage } from '@/api/client';
 import { ErrorState, LoadingState } from '@/components/ScreenState';
 import type { PaymentSettings } from '@/types';
+import { PasswordTextInput } from '@/components/PasswordTextInput';
 
 /**
  * Manage the store's own (BYOK) gateway keys + Cash on Delivery, exactly like the PWA's /settings/payments.
@@ -81,7 +82,7 @@ export default function StoreSettingsScreen() {
         <Card mode="elevated">
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Paystack</Text>
-            <TextInput
+            <PasswordTextInput
               label="Public key"
               value={paystackPublic}
               onChangeText={setPaystackPublic}
@@ -94,7 +95,6 @@ export default function StoreSettingsScreen() {
               value={paystackSecret}
               onChangeText={setPaystackSecret}
               autoCapitalize="none"
-              secureTextEntry
               mode="outlined"
               style={styles.input}
               placeholder={settings?.paystack.secretKeyMasked ? 'Leave blank to keep' : undefined}
@@ -106,12 +106,11 @@ export default function StoreSettingsScreen() {
           <View style={styles.cardBody}>
             <Text variant="titleSmall" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>Hubtel</Text>
             <TextInput label="Client ID" value={hubtelClientId} onChangeText={setHubtelClientId} autoCapitalize="none" mode="outlined" style={styles.input} />
-            <TextInput
+            <PasswordTextInput
               label={settings?.hubtel.clientSecretMasked ? `Client secret (${settings.hubtel.clientSecretMasked})` : 'Client secret'}
               value={hubtelSecret}
               onChangeText={setHubtelSecret}
               autoCapitalize="none"
-              secureTextEntry
               mode="outlined"
               style={styles.input}
               placeholder={settings?.hubtel.clientSecretMasked ? 'Leave blank to keep' : undefined}

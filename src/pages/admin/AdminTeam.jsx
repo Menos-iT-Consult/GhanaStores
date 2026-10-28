@@ -14,6 +14,7 @@ import {
   PageHeader, Pagination, Panel, PanelHeader, RefreshCw, Stacked, Toolbar, dateTimeOrDash, inputClass,
 } from '../../components/admin/ui.jsx';
 import { useAdminList } from '../../components/admin/useAdminList.js';
+import PasswordInput from '../../components/PasswordInput.jsx';
 
 export default function AdminTeam() {
   const team = useAdminList('/api/admin/team', { params: { rowsKey: 'admins' } });
@@ -164,9 +165,11 @@ export default function AdminTeam() {
           <Field label="Name" hint="Optional - shown in the audit log.">
             <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field label="Password" hint="At least 10 characters.">
-            <input type="password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} />
-          </Field>
+          <div>
+            <label htmlFor="admin-team-password" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Password</label>
+            <PasswordInput id="admin-team-password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <span className="mt-1 block text-[11px] text-slate-400">At least 10 characters.</span>
+          </div>
         </div>
       </Drawer>
 

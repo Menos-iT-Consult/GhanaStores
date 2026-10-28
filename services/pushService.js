@@ -53,6 +53,23 @@ export function summarizeExpoTickets(tokens, tickets) {
   return { acceptedTokens, invalidTokens, failed };
 }
 
+export function notificationCategory(type) {
+  const eventType = String(type || '');
+  if (eventType === 'order_created' || eventType === 'order_status') return 'orders';
+  if (eventType === 'order_paid' || eventType === 'payment_received') return 'payments';
+  if (eventType === 'low_stock') return 'stock';
+  return 'account';
+}
+
+export function isNotificationEnabled(preferences, category) {
+  if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)) return true;
+  return preferences[category] !== false;
+}
+
+export function shouldSendPushNotification(preferences, type) {
+  return isNotificationEnabled(preferences, notificationCategory(type));
+}
+
 /**
  * Send a push notification to every device registered for a store.
  *
@@ -109,13 +126,15 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
   let pushError;
   try {
     const { rows } = await query(
-      'SELECT expo_push_token, platform FROM device_tokens WHERE store_id = $1',
+      'SELECT expo_push_token, platform, notification_preferences FROM device_tokens WHERE store_id = $1',
       [storeId],
     );
 
-
     if (rows.length > 0) {
-      const messages = rows.map((r) => ({
+      const recipients = rows.filter((row) =>
+        shouldSendPushNotification(row.notification_preferences, data?.type),
+      );
+      const messages = recipients.map((r) => ({
         to: r.expo_push_token,
         sound: 'default',
         title: String(title),
@@ -132,7 +151,7 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
       const invalidTokens = [];
       let offset = 0;
       for (const batch of chunkExpoMessages(messages)) {
-        const batchTokens = rows.slice(offset, offset + batch.length).map((row) => row.expo_push_token);
+        const batchTokens = recipients.slice(offset, offset + batch.length).map((row) => row.expo_push_token);
         offset += batch.length;
         try {
           const response = await axios.post(EXPO_PUSH_URL, batch, {
