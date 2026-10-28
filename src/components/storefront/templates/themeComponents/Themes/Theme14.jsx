@@ -8,13 +8,15 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME = THEME_BY_ID["fashion-azure_mist-spacious_hero_minimal-subtle"];
-const BASE_CONFIG = templateToCustomizerTokens({
+const THEME_ID = "fashion-azure_mist-spacious_hero_minimal-subtle";
+const THEME_CATEGORY = "fashion";
+const THEME = THEME_BY_ID[THEME_ID];
+const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
   name: THEME.name,
   category: THEME.category,
   config: THEME.config,
-});
+}) : null;
 
 export default function Theme14({
   config: activeConfig = null,
@@ -32,14 +34,23 @@ export default function Theme14({
   shopShortcut,
   setShopShortcut,
 }) {
-  const config = activeConfig
-    ? {
-      ...normalizeCustomThemeConfig(mergeThemeConfig(BASE_CONFIG, activeConfig)),
-      theme_design: BASE_CONFIG.theme_design,
-      theme_id: THEME.id,
-      theme_category: THEME.category,
-    }
-    : BASE_CONFIG;
+  const config = BASE_CONFIG
+    ? activeConfig
+      ? {
+        ...normalizeCustomThemeConfig(mergeThemeConfig(BASE_CONFIG, activeConfig)),
+        theme_design: BASE_CONFIG.theme_design,
+        theme_id: THEME_ID,
+        theme_category: THEME_CATEGORY,
+      }
+      : BASE_CONFIG
+    : normalizeCustomThemeConfig({
+      ...activeConfig,
+      theme_id: activeConfig?.theme_id || THEME_ID,
+      theme_category: activeConfig?.theme_category || THEME_CATEGORY,
+    });
+  if (!BASE_CONFIG) {
+    console.error(`[storefront] Catalog entry missing for ${THEME_ID}; rendering with available storefront config.`);
+  }
   return (
     <BaseThemeComponent
       config={config}

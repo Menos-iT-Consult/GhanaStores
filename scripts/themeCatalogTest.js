@@ -63,12 +63,20 @@ try {
   ({ ThemePreview } = await vite.ssrLoadModule('/src/theme/preview.jsx'));
   const { default: Storefront } = await vite.ssrLoadModule('/src/components/storefront/Storefront.jsx');
   const { templateToCustomizerTokens } = await vite.ssrLoadModule('/src/theme/config.js');
+  const { THEME_BY_ID } = await vite.ssrLoadModule('/src/components/storefront/templates/themeComponents/themeData.js');
+  const themeWithMissingEntryId = 'marketplace-midnight_noir-dense_hero_bordered-crisp';
+  const themeWithMissingEntry = THEME_BY_ID[themeWithMissingEntryId];
+  delete THEME_BY_ID[themeWithMissingEntryId];
   const { THEME_COMPONENT_REGISTRY } = await vite.ssrLoadModule('/src/components/storefront/templates/themeComponents/themeRegistry.js');
+  THEME_BY_ID[themeWithMissingEntryId] = themeWithMissingEntry;
   let previewsRendered = true;
   let liveStorefrontsRendered = true;
   let liveSectionOrdersRendered = true;
   let registeredThemesRendered = true;
   let runtimeOverridesApplied = true;
+  let missingCatalogFallbackRendered = false;
+  let registeredThemeFailure = '';
+  let missingCatalogFallbackDetails = '';
   for (const theme of presets) {
     try {
       const html = renderToString(React.createElement(ThemePreview, { config: theme.config }));
@@ -80,13 +88,14 @@ try {
       const RegisteredTheme = THEME_COMPONENT_REGISTRY[theme.id];
       if (!RegisteredTheme || RegisteredTheme.themeName !== theme.name) {
         registeredThemesRendered = false;
+        registeredThemeFailure = `theme=${theme.id}, registered=${RegisteredTheme?.themeName || 'missing'}, expected=${theme.name}`;
         break;
       }
       const merchantTokens = {
         ...tokens,
         colors: { ...tokens.colors, primary: '#123456' },
         branding: { ...tokens.branding, site_title: 'Merchant storefront' },
-        theme_design: {},
+        theme_design: theme.id === themeWithMissingEntryId ? theme.config.design : {},
         theme_id: '',
         theme_category: '',
       };
@@ -99,12 +108,19 @@ try {
         || !registeredHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)
         || !registeredHtml.includes(`data-gs-profile="${theme.config.design.profile}"`)) {
         registeredThemesRendered = false;
+        registeredThemeFailure = `theme=${theme.id}, identity=${registeredHtml.includes(`data-gs-theme="${theme.id}"`)}, composition=${registeredHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)}, profile=${registeredHtml.includes(`data-gs-profile="${theme.config.design.profile}"`)}`;
         break;
       }
       if (!registeredHtml.includes('Merchant storefront')
         || !/--primary:\s*#123456/.test(registeredHtml)) {
         runtimeOverridesApplied = false;
         break;
+      }
+      if (theme.id === themeWithMissingEntryId) {
+        missingCatalogFallbackRendered = registeredHtml.includes(`data-gs-theme="${theme.id}"`)
+          && registeredHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)
+          && registeredHtml.includes('Merchant storefront');
+        missingCatalogFallbackDetails = `identity=${registeredHtml.includes(`data-gs-theme="${theme.id}"`)}, composition=${registeredHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)}, merchant=${registeredHtml.includes('Merchant storefront')}`;
       }
       for (const viewportWidth of [390, 768, 1200]) {
         const storefrontHtml = renderToString(React.createElement(Storefront, {
@@ -137,8 +153,9 @@ try {
   log('all 100 theme previews render with their composition identity', previewsRendered);
   log('all themes render as live storefronts at mobile, tablet and desktop widths', liveStorefrontsRendered);
   log('each live storefront respects its authored home-section order', liveSectionOrdersRendered);
-  log('all 100 registered theme components render their catalog identity', registeredThemesRendered);
+  log('all 100 registered theme components render their catalog identity', registeredThemesRendered, registeredThemeFailure);
   log('registered themes preserve merchant customizer overrides', runtimeOverridesApplied);
+  log('a missing catalog entry falls back to active storefront config without crashing', missingCatalogFallbackRendered, missingCatalogFallbackDetails);
 } finally {
   await vite.close();
 }
