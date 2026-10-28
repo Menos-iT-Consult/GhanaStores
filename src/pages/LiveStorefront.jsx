@@ -304,18 +304,6 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160);
-  const pageTitle = page === 'product' && activeProduct
-    ? `${activeProduct.name} | ${storeName}`
-    : page === 'shop'
-      ? `Shop ${storeName}`
-      : page === 'about'
-        ? `About ${storeName}`
-        : page === 'contact'
-          ? `Contact ${storeName}`
-          : `${storeName} | Online Store`;
-  const pageDescription = page === 'product' && activeProduct
-    ? productDescription || `View ${activeProduct.name} from ${storeName}.`
-    : `Shop online at ${storeName}. Browse the store's products and order online.`;
 
   /* The theme to paint with RIGHT NOW, preferring the copy already inlined in the
      resolve payload. That payload arrives in the same response as the logo, so
@@ -340,6 +328,19 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
      resolved at all. */
   const config = useMemo(() => bootTheme || normalizeCustomThemeConfig({}), [bootTheme]);
   const storeName = config?.branding?.site_title || tenant?.name || 'Online store';
+
+  const pageTitle = page === 'product' && activeProduct
+    ? `${activeProduct.name} | ${storeName}`
+    : page === 'shop'
+      ? `Shop ${storeName}`
+      : page === 'about'
+        ? `About ${storeName}`
+        : page === 'contact'
+          ? `Contact ${storeName}`
+          : `${storeName} | Online Store`;
+  const pageDescription = page === 'product' && activeProduct
+    ? productDescription || `View ${activeProduct.name} from ${storeName}.`
+    : `Shop online at ${storeName}. Browse the store's products and order online.`;
 
   function addToCart(product, variant, qty = 1) {
     const variants = product.variants || [];

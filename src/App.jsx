@@ -12,7 +12,7 @@
  * the web index stays open so merchants can discover the product first -
  * the PWA itself starts from the login page.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { navigate, usePathname } from './router.js';
 import { api, getToken, clearSession, getCachedStore } from './api.js';
 import TrialBanner from './components/TrialBanner.jsx';
@@ -34,17 +34,18 @@ import SellerMessages from './pages/SellerMessages.jsx';
 import SellerInventory from './pages/SellerInventory.jsx';
 import SellerOrders from './pages/SellerOrders.jsx';
 import SellerThemeSelector from './pages/SellerThemeSelector.jsx';
-import SellerThemeMarketplace from './pages/SellerThemeMarketplace.jsx';
-import ThemeDemoViewer from './pages/ThemeDemoViewer.jsx';
-import ThemeCustomizer from './pages/ThemeCustomizer.jsx';
 import DomainManager from './pages/DomainManager.jsx';
 import SellerDeveloperGuide from './pages/SellerDeveloperGuide.jsx';
-import LiveStorefront from './pages/LiveStorefront.jsx';
 import StorefrontFavicon from './components/StorefrontFavicon.jsx';
-import AdminGate from './pages/admin/AdminGate.jsx';
 
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import StoreNotFoundPage from './pages/StoreNotFoundPage.jsx';
+
+const LazySellerThemeMarketplace = lazy(() => import('./pages/SellerThemeMarketplace.jsx'));
+const LazyThemeDemoViewer = lazy(() => import('./pages/ThemeDemoViewer.jsx'));
+const LazyThemeCustomizer = lazy(() => import('./pages/ThemeCustomizer.jsx'));
+const LazyLiveStorefront = lazy(() => import('./pages/LiveStorefront.jsx'));
+const LazyAdminGate = lazy(() => import('./pages/admin/AdminGate.jsx'));
 import { isKnownRoute } from './routes.js';
 import StoreUrlWelcome, { welcomeSuppressed } from './components/StoreUrlWelcome.jsx';
 import { setPlatformDomain } from './config.js';
@@ -78,6 +79,7 @@ export default function App() {
   const host = window.location.hostname.toLowerCase();
   const platform = String(import.meta.env.VITE_PLATFORM_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0];
   const platformHost = platform.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
+  const hasPlatformHost = Boolean(platformHost);
   /* Hosts that must be treated as platform traffic outside production DNS
      (Vercel preview URLs, tunnels). Configured explicitly through
      VITE_PREVIEW_HOSTS as a comma separated list of suffixes - nothing is
@@ -87,18 +89,19 @@ export default function App() {
     .map((entry) => entry.trim().toLowerCase().replace(/^\*?\.+/, ''))
     .filter(Boolean);
   const isPreviewHost = previewHosts.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
-  const isPlatformHost = !platformHost || host === platformHost || host === `www.${platformHost}` || host === 'localhost' || host.endsWith('.localhost') || isPreviewHost;
+  const isLocalPlatformHost = host === 'localhost' || host.endsWith('.localhost');
+  const isPlatformHost = isLocalPlatformHost || isPreviewHost || (hasPlatformHost && (host === platformHost || host === `www.${platformHost}`));
   // A host is tenanted only when it is a real subdomain of the platform apex.
   // Never treat "any host containing a dot" as a tenant: that misclassifies www
   // and other platform hosts, and the storefront then requests a bogus slug.
-  const isPlatformSubdomain = Boolean(platformHost)
+  const isPlatformSubdomain = hasPlatformHost
     && host.endsWith(`.${platformHost}`)
     && host !== `www.${platformHost}`
     && host !== `api.${platformHost}`;
   // A seller custom domain is not derivable from the client, so any other
   // non-platform host is offered to the storefront, which resolves it through
   // the API and renders a clean error when no store claims it.
-  const isPlatformHostWithSubdomains = isPlatformHost || host === `api.${platformHost}`;
+  const isPlatformHostWithSubdomains = isPlatformHost || (hasPlatformHost && host === `api.${platformHost}`);
   const resolvedPlatformHost = String(hostState.platformDomain || platformHost || 'didwaghana.com').toLowerCase();
   const isAffiliateHost = Boolean(resolvedPlatformHost) && host === `affiliate.${resolvedPlatformHost}`;
   const isTenantHost = isPlatformSubdomain
@@ -231,6 +234,14 @@ export default function App() {
   const onAdminHost = Boolean(hostState.isAdminHost);
   const isLocalDev = host === 'localhost' || host.endsWith('.localhost');
   const adminDomain = hostState.adminDomain || `admin.${platformHost}`;
+  const hasHostResolution = hostState.status !== 'pending';
+  const shouldWaitForHostResolution =
+    !isLocalDev
+    && !onAdminHost
+    && !isAffiliateHost
+    && !isTenantHost
+    && !serverSaysPlatform
+    && hostState.status === 'pending';
   /* On the admin host every path is the admin app; '/' means the overview. */
   const effectiveRoute = onAdminHost ? (route === '/' ? '/admin' : route) : route;
 
@@ -245,7 +256,15 @@ export default function App() {
     // Live demo viewer with a dynamic :templateId segment.
     if (effectiveRoute.startsWith('/dashboard/themes/demo/')) {
       const templateId = decodeURIComponent(effectiveRoute.slice('/dashboard/themes/demo/'.length));
-      return templateId ? <ThemeDemoViewer templateId={templateId} /> : <SellerThemeMarketplace />;
+      return templateId ? (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-hidden="true" />}>
+          <LazyThemeDemoViewer templateId={templateId} />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-hidden="true" />}>
+          <LazySellerThemeMarketplace />
+        </Suspense>
+      );
     }
     /* The whole admin hub renders through one gate, which owns the sign-in, the
        session re-validation, the layout chrome, and the mapping of /admin/*
@@ -253,7 +272,11 @@ export default function App() {
        prefix here is what keeps a new admin page from needing an entry in this
        switch - it only has to exist in the route table. */
     if (effectiveRoute === '/admin' || effectiveRoute.startsWith('/admin/')) {
-      return <AdminGate />;
+      return (
+        <Suspense fallback={<div className="min-h-screen bg-slate-950 text-slate-400">Loading DiDwa Super Admin...</div>}>
+          <LazyAdminGate />
+        </Suspense>
+      );
     }
     switch (effectiveRoute) {
       case '/dashboard': return <SellerAnalytics />;
@@ -267,8 +290,16 @@ case '/messages': return <SellerMessages />;
       case '/inventory': return <SellerInventory />;
       case '/orders': return <SellerOrders />;
       case '/themes': return <SellerThemeSelector />;
-      case '/dashboard/themes': return <SellerThemeMarketplace />;
-      case '/dashboard/themes/customizer': return <ThemeCustomizer chromeless />;
+      case '/dashboard/themes': return (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-hidden="true" />}>
+          <LazySellerThemeMarketplace />
+        </Suspense>
+      );
+      case '/dashboard/themes/customizer': return (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-hidden="true" />}>
+          <LazyThemeCustomizer chromeless />
+        </Suspense>
+      );
       case '/domains': return <DomainManager subdomain={store?.subdomain_slug} storeId={store?.id} />;
       case '/developer-guide': return <SellerDeveloperGuide />;
       default: return <NotFoundPage authed={authed} embedded />;
@@ -295,6 +326,10 @@ case '/messages': return <SellerMessages />;
     }
     if (route === '/affiliate-program') return <AffiliateProgramPage />;
     if (route === '/' || route === '/affiliate/dashboard') return <AffiliateDashboardPage />;
+  }
+
+  if (shouldWaitForHostResolution) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Loading DiDwa…</div>;
   }
 
   /* Public web pages - open to everyone, no dashboard chrome. The index
@@ -328,11 +363,13 @@ case '/messages': return <SellerMessages />;
             because this is the point where the store is known to exist, and
             it renders nothing, so it cannot affect layout. */}
         <StorefrontFavicon faviconUrl={hostState.tenant?.faviconUrl} />
-        <LiveStorefront
-          resolvedHost={hostState}
-          onPlatformHost={() => setHostIsPlatform(true)}
-          onStoreNotFound={() => setStoreMissing(host)}
-        />
+        <Suspense fallback={<div className="min-h-screen bg-white" aria-hidden="true" />}>
+          <LazyLiveStorefront
+            resolvedHost={hostState}
+            onPlatformHost={() => setHostIsPlatform(true)}
+            onStoreNotFound={() => setStoreMissing(host)}
+          />
+        </Suspense>
       </>
     );
   }

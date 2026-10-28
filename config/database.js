@@ -81,9 +81,17 @@ if (!connectionString && ON_VERCEL) {
   );
 }
 if (!connectionString) {
+  const hasLocalPgSettings = Boolean(
+    process.env.PGHOST || process.env.PGUSER || process.env.PGPASSWORD || process.env.PGDATABASE,
+  );
+  if (!hasLocalPgSettings) {
+    throw new Error(
+      'DATABASE_URL is not set and no local PostgreSQL variables were provided. '
+      + 'Set DATABASE_URL or PGHOST/PGUSER/PGPASSWORD/PGDATABASE before starting the app.',
+    );
+  }
   console.warn(
-    '[db] DATABASE_URL is not set - falling back to a local PostgreSQL at '
-    + 'localhost:5432. Every API request will fail until it is configured.',
+    '[db] DATABASE_URL is not set; using local PostgreSQL settings from PGHOST/PGUSER/PGDATABASE.',
   );
 }
 

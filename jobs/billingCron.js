@@ -36,8 +36,14 @@ import { sendMerchantPushNotification } from '../services/pushService.js';
  * There is no retry and no latch here. If email fails the merchant still has
  * the SMS, and the next transition will try again anyway.
  */
+function logNotificationFailure(stage, store, err) {
+  console.warn(`[cron] ${stage} notification failed for store ${store?.id || 'unknown'}:`, err?.message || err);
+}
+
 function notifyEmail(store, template, extra) {
-  sendLifecycleEmail(store, template, extra).catch(() => {});
+  sendLifecycleEmail(store, template, extra).catch((err) => {
+    logNotificationFailure('email', store, err);
+  });
 }
 
 /**
@@ -54,7 +60,9 @@ function notifyEmail(store, template, extra) {
  * @param {string} type         payload type (drives the app's deep link)
  */
 function notifyPush(store, title, body, type) {
-  sendMerchantPushNotification({ storeId: store.id, title, body, data: { type } }).catch(() => {});
+  sendMerchantPushNotification({ storeId: store.id, title, body, data: { type } }).catch((err) => {
+    logNotificationFailure('push', store, err);
+  });
 }
 
 /** Day 11: nudge merchants before expiry. */
