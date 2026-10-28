@@ -253,7 +253,7 @@
   outline-offset: -1px;
 }
 
-@media (max-width: 640px) {
+@container storefront (max-width: 640px) {
   :is(
     [data-gs-page="home"][data-gs-hero="split"] > section:first-of-type,
     [data-gs-page="home"][data-gs-hero="split"] > main > section:first-of-type,
@@ -274,6 +274,41 @@
     width: calc(100% - 0.7rem);
   }
 
+  [data-gs-header] nav {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  [data-gs-header] nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section] {
+    min-width: 0;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section] h1 {
+    max-width: 100%;
+    font-size: clamp(1.75rem, 8vw, 2.75rem);
+    overflow-wrap: anywhere;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section] h2 {
+    overflow-wrap: anywhere;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] > div:first-child {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] > div:first-child button {
+    min-height: 2.5rem;
+  }
+
   :is(
     [data-gs-page="home"][data-gs-hero="framed"] > section:first-of-type,
     [data-gs-page="home"][data-gs-hero="framed"] > main > section:first-of-type,
@@ -281,6 +316,91 @@
   ) {
     margin: 0.75rem;
     min-height: 15rem;
+  }
+
+  [data-gs-composition] > header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-inline: 1rem;
+  }
+
+  [data-gs-composition] > header nav {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  [data-gs-composition] > header nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  [data-gs-composition] > section {
+    padding-inline: 1rem !important;
+  }
+
+  [data-gs-composition] > section h1 {
+    max-width: 100%;
+    font-size: clamp(1.75rem, 8vw, 2.75rem) !important;
+    overflow-wrap: anywhere;
+  }
+
+  [data-gs-composition] > section .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.625rem !important;
+  }
+
+  [data-gs-composition] > footer .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+@container storefront (max-width: 479px) {
+  [data-gs-header="editorial"] > header,
+  [data-gs-header="heritage"] > header {
+    padding-inline: 0.75rem;
+  }
+
+  [data-gs-header] nav button {
+    min-height: 2.5rem;
+    padding-inline: 0.65rem;
+    white-space: nowrap;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="categories"] > div {
+    gap: 0.5rem;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="categories"] button {
+    min-height: 2.5rem;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] {
+    padding-inline: 0.75rem;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] .grid {
+    gap: 0.5rem;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] .grid > * {
+    min-width: 0;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] .grid > * .mt-auto {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="products-grid"] .grid > * .mt-auto > button {
+    min-height: 2.5rem;
+    width: 100%;
+  }
+
+  [data-gs-page="home"][data-gs-hero="framed"] > main > div > section:first-of-type {
+    margin-inline: 0.5rem;
+    outline-offset: 2px;
   }
 }
 

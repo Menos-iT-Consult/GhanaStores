@@ -307,6 +307,8 @@ export default function StorefrontRenderer({
         '--text': config.colors.text,
         '--accent': config.colors.accent,
         '--radius': config.layout.border_radius,
+        containerType: 'inline-size',
+        containerName: 'storefront',
         background: dark ? '#090D16' : 'var(--bg)',
         color: dark ? '#E2E8F0' : 'var(--text)',
         fontFamily: t.fontStack,

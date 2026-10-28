@@ -365,6 +365,8 @@ export function ThemePreview({ config, className = '' }) {
         '--text': pal.text,
         '--accent': pal.accent,
         '--radius': radius,
+        containerType: 'inline-size',
+        containerName: 'storefront',
         background: pal.background,
         color: pal.text,
         fontFamily: fonts.body,

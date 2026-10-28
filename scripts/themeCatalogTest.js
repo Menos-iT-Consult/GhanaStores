@@ -79,6 +79,7 @@ try {
   let registeredThemesRendered = true;
   let runtimeOverridesApplied = true;
   let missingCatalogFallbackRendered = false;
+  let responsiveTiersRendered = true;
   let registeredThemeFailure = '';
   let missingCatalogFallbackDetails = '';
   for (const theme of presets) {
@@ -126,17 +127,24 @@ try {
           && registeredHtml.includes('Merchant storefront');
         missingCatalogFallbackDetails = `identity=${registeredHtml.includes(`data-gs-theme="${theme.id}"`)}, composition=${registeredHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)}, merchant=${registeredHtml.includes('Merchant storefront')}`;
       }
-      for (const viewportWidth of [390, 768, 1200]) {
+      for (const [viewportWidth, expectedDevice] of [
+        [320, 'mobile'],
+        [390, 'mobile'],
+        [768, 'tablet'],
+        [1280, 'desktop'],
+      ]) {
         const storefrontHtml = renderToString(React.createElement(Storefront, {
           config: tokens,
           viewportWidth,
           page: 'home',
         }));
-        if (!storefrontHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)) {
+        if (!storefrontHtml.includes(`data-gs-composition="${theme.config.design.composition}"`)
+          || !storefrontHtml.includes(`data-device="${expectedDevice}"`)) {
           liveStorefrontsRendered = false;
+          responsiveTiersRendered = false;
           break;
         }
-        if (viewportWidth === 1200) {
+        if (viewportWidth === 1280) {
           const renderedOrder = [...storefrontHtml.matchAll(/data-gs-home-section="([^"]+)"/g)]
             .map((match) => match[1]);
           const expectedOrder = theme.config.design.sectionOrder.filter((section) => section !== 'footer');
@@ -156,6 +164,7 @@ try {
   }
   log('all 100 theme previews render with their composition identity', previewsRendered);
   log('all themes render as live storefronts at mobile, tablet and desktop widths', liveStorefrontsRendered);
+  log('all themes receive the correct measured width tier at 320, 390, 768 and 1280px', responsiveTiersRendered);
   log('each live storefront respects its authored home-section order', liveSectionOrdersRendered);
   log('all 100 registered theme components render their catalog identity', registeredThemesRendered, registeredThemeFailure);
   log('registered themes preserve merchant customizer overrides', runtimeOverridesApplied);

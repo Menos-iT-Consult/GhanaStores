@@ -564,6 +564,8 @@ export default function ThemeDemoViewer({ templateId }) {
                 '--text': cfg.palette?.textPrimary || '#0F172A',
                 '--accent': cfg.palette?.accent || '#F59E0B',
                 '--radius': cfg.borderRadius?.base || '0.5rem',
+                containerType: 'inline-size',
+                containerName: 'storefront',
                 borderRadius: viewport === 'desktop' ? 16 : 34,
               }}
             >

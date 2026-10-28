@@ -42,6 +42,11 @@ const live = read('src/pages/LiveStorefront.jsx');
    old single-file assertions would otherwise pass while the code moved away. */
 const storefront = read('src/components/storefront/Storefront.jsx');
 const storefrontTokens = read('src/components/storefront/useTokens.js');
+const storefrontRenderer = read('src/components/storefront/templates/StorefrontRenderer.jsx');
+const themeCompositionCss = read('src/components/storefront/templates/themeCompositions.css');
+const themePreview = read('src/theme/preview.jsx');
+const themeDemo = read('src/pages/ThemeDemoViewer.jsx');
+const masonryGrid = read('src/components/storefront/templates/BoutiqueEditorial/MasonryGrid.jsx');
 const storefrontAbout = read('src/components/storefront/pages/AboutBody.jsx');
 const storefrontProduct = read('src/components/storefront/pages/ProductBody.jsx');
 const storefrontShop = read('src/components/storefront/pages/ShopBody.jsx');
@@ -99,6 +104,28 @@ console.log('\nDiDwa responsive behaviour -> index.html + src/index.css + src/li
   log('the measured width is attached to a real element', /ref=\{container\.ref\}/.test(live));
   log('the customizer still drives the storefront by frame width', /viewportWidth=\{frameSize\.width\}/.test(read('src/pages/ThemeCustomizer.jsx')));
   log('the storefront still defaults to no width when unmeasured', /viewportWidth = null,/.test(storefront));
+  log('the storefront exposes its measured width as a named CSS container',
+    /containerType:\s*'inline-size'/.test(storefrontRenderer)
+    && /containerName:\s*'storefront'/.test(storefrontRenderer));
+  log('market and demo previews expose the same responsive container',
+    /containerType:\s*'inline-size'/.test(themePreview)
+    && /containerName:\s*'storefront'/.test(themePreview)
+    && /containerType:\s*'inline-size'/.test(themeDemo)
+    && /containerName:\s*'storefront'/.test(themeDemo));
+  log('composition breakpoints use storefront container width, not browser width',
+    /@container storefront \(max-width: 640px\)/.test(themeCompositionCss)
+    && /@container storefront \(max-width: 479px\)/.test(themeCompositionCss)
+    && !/@media \(max-width:\s*640px\)/.test(themeCompositionCss));
+  log('mobile home headings can wrap long store and section names',
+    /overflow-wrap:\s*anywhere/.test(themeCompositionCss));
+  log('mobile category and navigation controls have usable minimum heights',
+    /nav button\s*\{[^}]*min-height:\s*2\.5rem/.test(themeCompositionCss)
+    && /\[data-gs-home-section="categories"\] button\s*\{[^}]*min-height:\s*2\.5rem/.test(themeCompositionCss));
+  log('small-screen product cards stack their purchase controls',
+    /\[data-gs-home-section="products-grid"\] \.grid > \* \.mt-auto\s*\{[^}]*flex-direction:\s*column/.test(themeCompositionCss)
+    && /\[data-gs-home-section="products-grid"\] \.grid > \* \.mt-auto > button\s*\{[^}]*min-height:\s*2\.5rem/.test(themeCompositionCss));
+  log('editorial product prices remain visible without hover on touch widths',
+    /opacity:\s*compact\s*\|\|\s*hot\s*\?\s*1\s*:\s*0/.test(masonryGrid));
 
   // The user-visible effect: 2 columns on a phone, not 4.
   const cols = (w) => {

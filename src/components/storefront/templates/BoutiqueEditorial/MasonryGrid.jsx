@@ -53,8 +53,8 @@ export default function MasonryGrid({ t, products, onQuickView }) {
                   background: 'rgba(255,255,255,.14)',
                   border: '1px solid rgba(255,255,255,.35)',
                   backdropFilter: 'blur(8px)',
-                  opacity: hot ? 1 : 0,
-                  transform: hot ? 'translateY(0)' : 'translateY(6px)',
+                  opacity: compact || hot ? 1 : 0,
+                  transform: compact || hot ? 'translateY(0)' : 'translateY(6px)',
                 }}
               >
                 {ghs(p.price)}
