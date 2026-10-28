@@ -55,11 +55,9 @@ export default function SellerAnalytics() {
     );
   }
 
-  // Defensive: ensure monthlyTrend is a valid array for Recharts
-  // If undefined/null/empty, use an empty array to prevent "Cannot access Y before initialization" error
+  const { kpis, monthlyTrend, recentOrders, operations } = data;
+  // Defensive: ensure monthlyTrend is a valid array for Recharts.
   const monthlyTrendSafe = Array.isArray(monthlyTrend) ? monthlyTrend : [];
-
-  const { kpis, monthlyTrend: _, recentOrders, operations } = data;
 
   return (
     <div className="space-y-6">
