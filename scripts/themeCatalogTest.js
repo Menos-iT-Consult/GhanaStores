@@ -24,6 +24,7 @@ const compositions = new Set(presets.map(({ config }) => config.design?.composit
 const categories = new Set(presets.map(({ category }) => category));
 const routeSource = readFileSync('routes/themeRoutes.js', 'utf8');
 const compositionsByCategory = new Map();
+const storefrontRendererSource = readFileSync('src/components/storefront/templates/StorefrontRenderer.jsx', 'utf8');
 for (const theme of presets) {
   if (!compositionsByCategory.has(theme.category)) compositionsByCategory.set(theme.category, new Set());
   compositionsByCategory.get(theme.category).add(theme.config.design?.composition);
@@ -51,6 +52,9 @@ log('public storefronts resolve the current curated config by existing active ID
   && routeSource.includes('CURATED_THEME_BY_ID.get(row?.theme_id)'));
 log('demo uses the same curated theme as the marketplace',
   routeSource.includes('CURATED_THEME_BY_ID.get(req.params.templateId)'));
+log('live storefront rendering does not load generated per-theme wrapper modules',
+  !storefrontRendererSource.includes('resolveComponent(')
+  && storefrontRendererSource.includes('RegisteredCuratedThemeHome'));
 
 const vite = await createServer({
   configFile: 'vite.config.js',
