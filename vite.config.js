@@ -29,14 +29,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     chunkSizeWarningLimit: 700,
-    rollupOptions: {
-      output: {
-        // Split heavy vendors so app code updates do not bust the framework cache.
-                manualChunks: {
-          charts: ['recharts'],
-        },
-      },
-    },
   },
 
 });
