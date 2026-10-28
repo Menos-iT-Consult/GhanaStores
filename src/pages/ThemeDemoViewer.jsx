@@ -14,6 +14,7 @@ import {
   ArrowLeft, Monitor, Smartphone, Tablet, X, BadgeCheck, Star, Palette,
 } from 'lucide-react';
 import { templateToCustomizerTokens, mergeThemeConfig, normalizeCustomThemeConfig } from '../theme/config.js';
+import '../components/storefront/templates/themeCompositions.css';
 
 const CATEGORY_BADGES = {
   fashion: 'Fashion & Apparel',
@@ -418,7 +419,12 @@ export default function ThemeDemoViewer({ templateId }) {
        saved overrides on top, so opening the customizer from a preview never
        discards their customisations. */
     const seeded = normalizeCustomThemeConfig(
-      mergeThemeConfig(templateToCustomizerTokens({ name: theme.name, config: theme.config }), overrides),
+      mergeThemeConfig(templateToCustomizerTokens({
+        id: theme.id,
+        name: theme.name,
+        category: theme.category,
+        config: theme.config,
+      }), overrides),
     );
     window.dispatchEvent(new CustomEvent('gs:open-customizer', { detail: seeded }));
     navigate('/dashboard/themes/customizer');
@@ -545,7 +551,21 @@ export default function ThemeDemoViewer({ templateId }) {
             {/* The storefront itself */}
             <div
               className="sandbox-shell relative overflow-hidden bg-white shadow-2xl"
-              style={{ borderRadius: viewport === 'desktop' ? 16 : 34 }}
+              data-gs-preview=""
+              data-gs-page="home"
+              data-gs-composition={cfg.design?.composition || ''}
+              data-gs-profile={cfg.design?.profile || ''}
+              data-gs-header={cfg.design?.header || ''}
+              data-gs-hero={cfg.design?.hero || ''}
+              data-gs-product-presentation={cfg.design?.productPresentation || ''}
+              style={{
+                '--primary': cfg.palette?.primary || '#0B6E4F',
+                '--bg': cfg.palette?.background || '#FFFFFF',
+                '--text': cfg.palette?.textPrimary || '#0F172A',
+                '--accent': cfg.palette?.accent || '#F59E0B',
+                '--radius': cfg.borderRadius?.base || '0.5rem',
+                borderRadius: viewport === 'desktop' ? 16 : 34,
+              }}
             >
               <div className="relative h-[calc(100vh-9.5rem)] min-h-[520px] overflow-y-auto overscroll-contain">
                 <StorefrontHeader

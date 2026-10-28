@@ -26,9 +26,14 @@ const CATEGORY_LABELS = {
 
 const FILTER_PILLS = [
   { key: 'popular', label: 'Popular' },
-  { key: 'minimal', label: 'Minimal' },
+  { key: 'all', label: 'All themes' },
+  { key: 'editorial', label: 'Editorial' },
+  { key: 'catalog', label: 'Catalog' },
+  { key: 'express', label: 'Express' },
   { key: 'fashion', label: 'Fashion' },
   { key: 'electronics', label: 'Electronics' },
+  { key: 'beauty', label: 'Beauty' },
+  { key: 'marketplace', label: 'Marketplace' },
   { key: 'supermarket', label: 'Supermarket' },
 ];
 
@@ -106,6 +111,11 @@ function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomiz
 
       <div className="p-3.5">
         <h3 className="line-clamp-1 text-sm font-bold text-charcoal" title={theme.name}>{theme.name}</h3>
+        {cfg.design?.description && (
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+            {cfg.design.description}
+          </p>
+        )}
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
@@ -123,6 +133,11 @@ function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomiz
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
             {layout.gridColumns || 3}-col grid
           </span>
+          {cfg.design?.name && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+              {cfg.design.name}
+            </span>
+          )}
         </div>
 
         {/* Expanded view gets its actions inline; the collapsed card puts them
@@ -196,7 +211,13 @@ export default function SellerThemeMarketplace() {
     const q = search.trim().toLowerCase();
     let list = themes.filter((t) => {
       if (!q) return true;
-      return `${t.name} ${t.category}`.toLowerCase().includes(q);
+      return [
+        t.name,
+        t.category,
+        t.config?.design?.name,
+        t.config?.design?.description,
+        ...(t.config?.design?.tags || []),
+      ].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
 
     if (pill === 'popular') {
@@ -210,11 +231,12 @@ export default function SellerThemeMarketplace() {
         };
         return score(b) - score(a) || a.name.localeCompare(b.name);
       });
-    } else if (pill === 'minimal') {
-      list = list.filter((t) => {
-        const l = t.config?.layout || {};
-        return l.cardStyle === 'minimal' || l.heroBanner === false;
-      });
+    } else if (pill === 'editorial') {
+      list = list.filter((t) => t.config?.design?.header === 'editorial' || t.config?.design?.hero === 'editorial');
+    } else if (pill === 'catalog') {
+      list = list.filter((t) => t.config?.design?.productPresentation === 'catalog');
+    } else if (pill === 'express') {
+      list = list.filter((t) => t.config?.design?.header === 'ticker' || t.config?.design?.productPresentation === 'list');
     } else if (pill === 'supermarket') {
       list = list.filter((t) => t.category === 'groceries');
     } else if (pill !== 'all') {

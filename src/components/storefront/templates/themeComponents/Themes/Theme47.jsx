@@ -1,15 +1,23 @@
 /**
  * components/storefront/templates/themeComponents/Themes/Theme47.jsx
- * Per-theme component for Theme 47 (beauty-golden_hour-compact_nohero_card-rounded).
- * Auto-generated - DO NOT EDIT BY HAND. Regenerate with:
+ * AUTO-GENERATED THEME WRAPPER - theme identity and design come from THEME_DATA.
+ * Regenerate with:
  *   node scripts/gen-theme-wrappers.js
  */
 import BaseThemeComponent from '../BaseThemeComponent.jsx';
-import { THEME_DATA } from '../themeData.js';
+import { THEME_BY_ID } from '../themeData.js';
+import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const CONFIG = THEME_DATA.find((t) => t.id === "beauty-golden_hour-compact_nohero_card-rounded").config;
+const THEME = THEME_BY_ID["beauty-golden_hour-compact_nohero_card-rounded"];
+const BASE_CONFIG = templateToCustomizerTokens({
+  id: THEME.id,
+  name: THEME.name,
+  category: THEME.category,
+  config: THEME.config,
+});
 
 export default function Theme47({
+  config: activeConfig = null,
   viewportWidth,
   page = 'home',
   onNavigate,
@@ -24,9 +32,17 @@ export default function Theme47({
   shopShortcut,
   setShopShortcut,
 }) {
+  const config = activeConfig
+    ? {
+      ...normalizeCustomThemeConfig(mergeThemeConfig(BASE_CONFIG, activeConfig)),
+      theme_design: BASE_CONFIG.theme_design,
+      theme_id: THEME.id,
+      theme_category: THEME.category,
+    }
+    : BASE_CONFIG;
   return (
     <BaseThemeComponent
-      config={CONFIG}
+      config={config}
       viewportWidth={viewportWidth}
       page={page}
       onNavigate={onNavigate}
@@ -46,5 +62,5 @@ export default function Theme47({
 
 Theme47.displayName = 'Theme47';
 Theme47.themeId = "beauty-golden_hour-compact_nohero_card-rounded";
-Theme47.themeName = "Theme 47";
+Theme47.themeName = "Skin Ceremony";
 Theme47.category = "beauty";

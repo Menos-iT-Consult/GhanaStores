@@ -7,10 +7,9 @@
  *   - layout     -> grid columns, hero presence, card style
  *   - borderRadius -> corner radius tokens
  *
- * Wrappers (Theme01..Theme100) hardcode their theme's config and delegate
- * here, giving every theme its own component file while sharing battle-tested
- * building blocks (BoutiqueHeader, DenseHeader, TickerHeader, MasonryGrid,
- * DenseProductGrid, ExpressList, etc.).
+ * Wrappers (Theme01..Theme100) load their catalog design and merge active
+ * merchant tokens before delegating here. Shared commerce building blocks keep
+ * behavior consistent while CuratedThemeHome applies each theme composition.
  *
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
@@ -40,6 +39,8 @@ import TickerHeader from '../FlashExpress/TickerHeader.jsx';
 import DealTimerHero from '../FlashExpress/DealTimerHero.jsx';
 import ExpressList from '../FlashExpress/ExpressList.jsx';
 import StickyCheckoutBar from '../FlashExpress/StickyCheckoutBar.jsx';
+import '../themeCompositions.css';
+import CuratedThemeHome from '../CuratedThemeHome.jsx';
 
 const PAGE_BODIES = {
   shop: ShopBody,
@@ -78,35 +79,48 @@ const GRID_BY_CATEGORY = {
  * Root wrapper: applies palette colors, border radius, and a unique
  * per-theme CSS class so every theme styles differently even before layout.
  */
-export function ThemeRoot({ config, children, className = '' }) {
+export function ThemeRoot({ config, children, className = '', page = 'home' }) {
+  const design = config.theme_design || config.design || {};
   const pal = config.palette || {};
   const br = config.borderRadius || {};
   const ly = config.layout || {};
-  const dark = pal.background !== '#FFFFFF';
-  const themeClass = `gs-theme-${config.category || 'marketplace'}-${ly.cardStyle || 'card'}-${br.name || 'subtle'}`;
+  const primary = config.colors?.primary || pal.primary || '#0B6E4F';
+  const secondary = config.colors?.accent || pal.secondary || primary;
+  const background = config.colors?.background || pal.background || '#FFFFFF';
+  const text = config.colors?.text || pal.textPrimary || '#0F172A';
+  const radius = ly.border_radius || br.base || '0.375rem';
+  const category = config.theme_category || config.category || 'marketplace';
+  const dark = background !== '#FFFFFF';
+  const themeClass = `gs-theme-${category}-${ly.cardStyle || 'card'}-${br.name || 'subtle'}`;
   return (
     <div
       data-gs-preview=""
-      data-gs-theme={config.themeId || ''}
+      data-gs-theme={config.themeId || config.theme_id || ''}
+      data-gs-page={page}
       data-gs-category={config.category || ''}
+      data-gs-composition={design.composition || ''}
+      data-gs-profile={design.profile || ''}
+      data-gs-header={design.header || ''}
+      data-gs-hero={design.hero || ''}
+      data-gs-product-presentation={design.productPresentation || ''}
       data-device="desktop"
       className={`h-full w-full overflow-y-auto overflow-x-hidden ${className}`}
       style={{
-        '--primary': pal.primary || '#0B6E4F',
-        '--secondary': pal.secondary || '#0B6E4F',
-        '--accent': pal.accent || '#F59E0B',
-        '--bg': pal.background || '#FFFFFF',
-        '--surface': pal.background === '#FFFFFF' ? '#F8FAFC' : 'rgba(15,23,42,.6)',
-        '--text': pal.textPrimary || '#0F172A',
+        '--primary': primary,
+        '--secondary': secondary,
+        '--accent': config.colors?.accent || pal.accent || '#F59E0B',
+        '--bg': background,
+        '--surface': background === '#FFFFFF' ? '#F8FAFC' : 'rgba(15,23,42,.6)',
+        '--text': text,
         '--textSecondary': pal.textSecondary || '#475569',
-        '--radius': br.base || '0.375rem',
+        '--radius': radius,
         '--radiusButtons': br.buttons || '0.375rem',
         background: dark ? '#090D16' : 'var(--bg)',
         color: dark ? '#E2E8F0' : 'var(--text)',
-        fontFamily: config.typography?.headingFont
-          ? `'${config.typography.headingFont.split(',')[0].replace(/'/g, '')}', system-ui, sans-serif`
+        fontFamily: config.typography?.font_family || config.typography?.headingFont
+          ? `'${(config.typography.font_family || config.typography.headingFont).split(',')[0].replace(/'/g, '')}', system-ui, sans-serif`
           : "'Poppins', system-ui, sans-serif",
-        fontSize: `${(config.typography?.baseFontSize ?? 16)}px`,
+        fontSize: `${(config.typography?.body_size ?? config.typography?.baseFontSize ?? 16)}px`,
       }}
     >
       {children}
@@ -118,11 +132,14 @@ export function ThemeRoot({ config, children, className = '' }) {
  * Home page composed per theme signature.
  */
 export function ThemeHome({ t, onNavigate, ctx, config, shopShortcut, setShopShortcut }) {
+  if ((config.theme_design || config.design)?.profile) {
+    return <CuratedThemeHome t={t} onNavigate={onNavigate} ctx={ctx} config={config} />;
+  }
   const hc = t.c?.home_content || {};
   const cats = categoriesOf(ctx.products);
   const filters = { category: 'All', term: '', ...(shopShortcut || {}) };
   const list = sortProducts(filterProducts(ctx.products, filters), 'featured').slice(0, 8);
-  const HeaderComp = HEADER_BY_CATEGORY[config.category] || DenseHeader;
+  const HeaderComp = HEADER_BY_CATEGORY[config.theme_category || config.category] || DenseHeader;
   const HeroComp = HERO_BY_CATEGORY[config.category] || DualCardHero;
   const GridComp = GRID_BY_CATEGORY[config.category] || DenseProductGrid;
   const [quickId, setQuickId] = useState(null);
@@ -226,7 +243,7 @@ export default function BaseThemeComponent({
   const themeClass = `gs-theme-${config.category || 'marketplace'}-${config.layout?.cardStyle ?? 'card'}-${config.borderRadius?.name ?? 'subtle'}`;
 
   return (
-    <ThemeRoot config={config} className={themeClass}>
+    <ThemeRoot config={config} className={themeClass} page={page}>
       {scoped ? <style>{scoped}</style> : null}
       {page === 'home' ? (
         <ThemeHome

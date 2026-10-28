@@ -41,6 +41,26 @@ npm run dev            # seller PWA on http://localhost:5173
 
 Demo login after seeding: `demo@didwa.com` / `didwa1`
 
+## Storefront Theme Catalog
+
+The 100 storefront themes are defined in `scripts/themeCatalog.js`, the shared
+catalog source used by the API and database seeder. Each theme keeps its
+existing stable ID for saved stores, and has a distinct name, description,
+retail category, searchable tags, and composition identity. Theme profiles
+define header, hero, product presentation, typography, and section order; shared
+accessible storefront components continue to own commerce behavior.
+
+`npm run test:theme-catalog` validates the catalog and server-rendered previews
+without connecting to a database. `node scripts/gen-theme-data.js` regenerates
+the checked-in frontend catalog. The wrapper generator only creates missing
+legacy wrappers and never deletes or overwrites existing theme components.
+
+The API overlays curated names/configurations on the existing database rows,
+so existing active theme IDs and merchant overrides continue to work without
+rewriting production rows. `npm run db:migrate` is a database-writing command;
+do not run it against a live database without an independently reviewed and
+approved operational change.
+
 ## Environment Variables (.env)
 
 | Key | Purpose | Fallback behaviour |

@@ -23,7 +23,12 @@ function log(name, ok, detail = '') {
   else { fail += 1; console.log(`  FAIL  ${name}${detail ? ` - ${detail}` : ''}`); }
 }
 
-const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+const vite = await createServer({
+  optimizeDeps: { noDiscovery: true, include: [] },
+  server: { middlewareMode: true },
+  appType: 'custom',
+  logLevel: 'error',
+});
 const { default: Storefront } = await vite.ssrLoadModule('/src/components/storefront/Storefront.jsx');
 const { DEFAULT_CUSTOM_THEME_CONFIG } = await vite.ssrLoadModule('/src/theme/config.js');
 const { matchesSearch, filterProducts, sortProducts, categoriesOf } = await vite.ssrLoadModule('/src/components/storefront/catalog.js');

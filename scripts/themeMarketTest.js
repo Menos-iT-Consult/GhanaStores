@@ -20,8 +20,9 @@
  * Usage: node scripts/themeMarketTest.js   (no server, no database)
  */
 import { createServer } from 'vite';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 let pass = 0;
 let fail = 0;
@@ -45,11 +46,17 @@ function readCode(relPath) {
     .replace(/^\s*\/\/.*$/gm, '');
 }
 
-const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+const vite = await createServer({
+  optimizeDeps: { noDiscovery: true, include: [] },
+  server: { middlewareMode: true },
+  appType: 'custom',
+  logLevel: 'error',
+});
 const { diffThemeTokens, THEME_BASELINE_KEY } = await vite.ssrLoadModule('/src/layouts/dashboard/useThemeDraft.js');
 const { DEFAULT_CUSTOM_THEME_CONFIG, normalizeCustomThemeConfig } = await vite.ssrLoadModule('/src/theme/config.js');
 const { ThemePreview, ThemeThumb, orderedSections } = await vite.ssrLoadModule('/src/theme/preview.jsx');
 await vite.close();
+const { generateThemeWrappers } = await import('./gen-theme-wrappers.js');
 
 console.log('\nDiDwa theme market + customizer publishing -> src/theme/preview.jsx, useThemeDraft.js\n');
 
@@ -141,6 +148,42 @@ console.log('\nDiDwa theme market + customizer publishing -> src/theme/preview.j
   log('the market no longer fabricates review counts', !/themeReviews/.test(marketSrc));
   log('the market renders the real theme preview', /ThemeThumb config=\{cfg\}/.test(marketSrc));
   log('the market offers a full expanded preview', /ThemePreview config=\{cfg\}/.test(marketSrc));
+  log('theme search includes design names, descriptions and tags',
+    /t\.config\?\.design\?\.description/.test(marketSrc)
+    && /t\.config\?\.design\?\.tags/.test(marketSrc));
+  log('catalog filters include editorial, catalog and express styles',
+    /key: 'editorial'/.test(marketSrc)
+    && /key: 'catalog'/.test(marketSrc)
+    && /key: 'express'/.test(marketSrc));
+}
+
+/* ---------- 4. Bespoke theme components survive wrapper generation ---------- */
+{
+  const outDir = mkdtempSync(join(tmpdir(), 'gs-theme-wrappers-'));
+  try {
+    const bespoke = 'export default function Theme01() { return null; }\n';
+    writeFileSync(join(outDir, 'Theme01.jsx'), bespoke);
+    generateThemeWrappers([
+      { id: 'bespoke-theme-01', name: 'Bespoke Theme 01', category: 'fashion' },
+      { id: 'legacy-theme-02', name: 'Legacy Theme 02', category: 'beauty' },
+    ], outDir);
+
+    log(
+      'generator preserves an existing bespoke theme component',
+      readFileSync(join(outDir, 'Theme01.jsx'), 'utf8') === bespoke,
+    );
+    log(
+      'generator fills a missing legacy wrapper',
+      readFileSync(join(outDir, 'Theme02.jsx'), 'utf8').includes('legacy-theme-02'),
+    );
+    generateThemeWrappers([{ id: 'changed-id', name: 'Changed', category: 'fashion' }], outDir);
+    log(
+      're-running generator does not overwrite existing components',
+      readFileSync(join(outDir, 'Theme01.jsx'), 'utf8') === bespoke,
+    );
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====`);

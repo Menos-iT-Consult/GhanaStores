@@ -59,6 +59,11 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
        'catalog_grid' (closest to the legacy single-template rendering). */
     template: 'catalog_grid',
   },
+  /* Preserved when the catalog template is translated into seller tokens so
+     live shops, marketplace previews, and the customizer share one design. */
+  theme_design: {},
+  theme_id: '',
+  theme_category: '',
   header: {
     sticky: false,
     show_search: true,
@@ -220,6 +225,9 @@ export function seedConfigFromTheme(themeConfig) {
     },
     colors: { primary: pal.primary || '', background: pal.background || '', text: pal.textPrimary || '', accent: pal.accent || '' },
     layout: { border_radius: c.borderRadius?.base || '', product_grid_columns: Number(c.layout?.gridColumns) || undefined },
+    theme_design: c.design || {},
+    theme_id: c.themeId || '',
+    theme_category: c.category || '',
   });
 }
 
@@ -234,6 +242,8 @@ export function templateToCustomizerTokens(theme) {
   return normalizeCustomThemeConfig(
     seedConfigFromTheme({
       ...cfg,
+      themeId: theme?.id || cfg.themeId,
+      category: theme?.category || cfg.category,
       seo: {
         ...(cfg.seo || {}),
         defaultTitle: theme?.name || cfg?.seo?.defaultTitle || DEFAULT_CUSTOM_THEME_CONFIG.branding.site_title,

@@ -1,15 +1,23 @@
 /**
  * components/storefront/templates/themeComponents/Themes/Theme84.jsx
- * Per-theme component for Theme 84 (groceries-midnight_noir-wide_nohero_list-extra_rounded).
- * Auto-generated - DO NOT EDIT BY HAND. Regenerate with:
+ * AUTO-GENERATED THEME WRAPPER - theme identity and design come from THEME_DATA.
+ * Regenerate with:
  *   node scripts/gen-theme-wrappers.js
  */
 import BaseThemeComponent from '../BaseThemeComponent.jsx';
-import { THEME_DATA } from '../themeData.js';
+import { THEME_BY_ID } from '../themeData.js';
+import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const CONFIG = THEME_DATA.find((t) => t.id === "groceries-midnight_noir-wide_nohero_list-extra_rounded").config;
+const THEME = THEME_BY_ID["groceries-midnight_noir-wide_nohero_list-extra_rounded"];
+const BASE_CONFIG = templateToCustomizerTokens({
+  id: THEME.id,
+  name: THEME.name,
+  category: THEME.category,
+  config: THEME.config,
+});
 
 export default function Theme84({
+  config: activeConfig = null,
   viewportWidth,
   page = 'home',
   onNavigate,
@@ -24,9 +32,17 @@ export default function Theme84({
   shopShortcut,
   setShopShortcut,
 }) {
+  const config = activeConfig
+    ? {
+      ...normalizeCustomThemeConfig(mergeThemeConfig(BASE_CONFIG, activeConfig)),
+      theme_design: BASE_CONFIG.theme_design,
+      theme_id: THEME.id,
+      theme_category: THEME.category,
+    }
+    : BASE_CONFIG;
   return (
     <BaseThemeComponent
-      config={CONFIG}
+      config={config}
       viewportWidth={viewportWidth}
       page={page}
       onNavigate={onNavigate}
@@ -46,5 +62,5 @@ export default function Theme84({
 
 Theme84.displayName = 'Theme84';
 Theme84.themeId = "groceries-midnight_noir-wide_nohero_list-extra_rounded";
-Theme84.themeName = "Theme 84";
+Theme84.themeName = "The Pantry Cart";
 Theme84.category = "groceries";

@@ -105,7 +105,12 @@ export function resolveStorefrontTheme(resolved, tenantMeta) {
      storefront would lose its colours rather than fall back to a safe palette. */
   const hasTemplate = Boolean(template && Object.keys(template).length);
   const tokens = hasTemplate
-    ? templateToCustomizerTokens({ config: template, name: resolved?.theme?.name })
+    ? templateToCustomizerTokens({
+      id: resolved?.theme?.id,
+      name: resolved?.theme?.name,
+      category: resolved?.theme?.category,
+      config: template,
+    })
     : normalizeCustomThemeConfig({});
   /* The seller's overrides are merged RAW. Normalising them first would expand
      them into a full config, and those schema defaults would then overwrite

@@ -1,15 +1,23 @@
 /**
  * components/storefront/templates/themeComponents/Themes/Theme34.jsx
- * Per-theme component for Theme 34 (electronics-azure_mist-spacious_hero_minimal-subtle).
- * Auto-generated - DO NOT EDIT BY HAND. Regenerate with:
+ * AUTO-GENERATED THEME WRAPPER - theme identity and design come from THEME_DATA.
+ * Regenerate with:
  *   node scripts/gen-theme-wrappers.js
  */
 import BaseThemeComponent from '../BaseThemeComponent.jsx';
-import { THEME_DATA } from '../themeData.js';
+import { THEME_BY_ID } from '../themeData.js';
+import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const CONFIG = THEME_DATA.find((t) => t.id === "electronics-azure_mist-spacious_hero_minimal-subtle").config;
+const THEME = THEME_BY_ID["electronics-azure_mist-spacious_hero_minimal-subtle"];
+const BASE_CONFIG = templateToCustomizerTokens({
+  id: THEME.id,
+  name: THEME.name,
+  category: THEME.category,
+  config: THEME.config,
+});
 
 export default function Theme34({
+  config: activeConfig = null,
   viewportWidth,
   page = 'home',
   onNavigate,
@@ -24,9 +32,17 @@ export default function Theme34({
   shopShortcut,
   setShopShortcut,
 }) {
+  const config = activeConfig
+    ? {
+      ...normalizeCustomThemeConfig(mergeThemeConfig(BASE_CONFIG, activeConfig)),
+      theme_design: BASE_CONFIG.theme_design,
+      theme_id: THEME.id,
+      theme_category: THEME.category,
+    }
+    : BASE_CONFIG;
   return (
     <BaseThemeComponent
-      config={CONFIG}
+      config={config}
       viewportWidth={viewportWidth}
       page={page}
       onNavigate={onNavigate}
@@ -46,5 +62,5 @@ export default function Theme34({
 
 Theme34.displayName = 'Theme34';
 Theme34.themeId = "electronics-azure_mist-spacious_hero_minimal-subtle";
-Theme34.themeName = "Theme 34";
+Theme34.themeName = "Urban Digital";
 Theme34.category = "electronics";

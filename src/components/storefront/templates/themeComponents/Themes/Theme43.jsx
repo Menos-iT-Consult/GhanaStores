@@ -1,15 +1,23 @@
 /**
  * components/storefront/templates/themeComponents/Themes/Theme43.jsx
- * Per-theme component for Theme 43 (beauty-midnight_noir-compact_nohero_card-rounded).
- * Auto-generated - DO NOT EDIT BY HAND. Regenerate with:
+ * AUTO-GENERATED THEME WRAPPER - theme identity and design come from THEME_DATA.
+ * Regenerate with:
  *   node scripts/gen-theme-wrappers.js
  */
 import BaseThemeComponent from '../BaseThemeComponent.jsx';
-import { THEME_DATA } from '../themeData.js';
+import { THEME_BY_ID } from '../themeData.js';
+import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const CONFIG = THEME_DATA.find((t) => t.id === "beauty-midnight_noir-compact_nohero_card-rounded").config;
+const THEME = THEME_BY_ID["beauty-midnight_noir-compact_nohero_card-rounded"];
+const BASE_CONFIG = templateToCustomizerTokens({
+  id: THEME.id,
+  name: THEME.name,
+  category: THEME.category,
+  config: THEME.config,
+});
 
 export default function Theme43({
+  config: activeConfig = null,
   viewportWidth,
   page = 'home',
   onNavigate,
@@ -24,9 +32,17 @@ export default function Theme43({
   shopShortcut,
   setShopShortcut,
 }) {
+  const config = activeConfig
+    ? {
+      ...normalizeCustomThemeConfig(mergeThemeConfig(BASE_CONFIG, activeConfig)),
+      theme_design: BASE_CONFIG.theme_design,
+      theme_id: THEME.id,
+      theme_category: THEME.category,
+    }
+    : BASE_CONFIG;
   return (
     <BaseThemeComponent
-      config={CONFIG}
+      config={config}
       viewportWidth={viewportWidth}
       page={page}
       onNavigate={onNavigate}
@@ -46,5 +62,5 @@ export default function Theme43({
 
 Theme43.displayName = 'Theme43';
 Theme43.themeId = "beauty-midnight_noir-compact_nohero_card-rounded";
-Theme43.themeName = "Theme 43";
+Theme43.themeName = "The Beauty Bar";
 Theme43.category = "beauty";

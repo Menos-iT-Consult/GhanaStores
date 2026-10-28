@@ -20,12 +20,28 @@ function log(name, ok, detail = '') {
   else { fail += 1; console.log(`  FAIL  ${name}${detail ? ` - ${detail}` : ''}`); }
 }
 
-const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+const vite = await createServer({
+  optimizeDeps: { noDiscovery: true, include: [] },
+  server: { middlewareMode: true },
+  appType: 'custom',
+  logLevel: 'error',
+});
 const { resolveStorefrontTheme } = await vite.ssrLoadModule('/src/pages/LiveStorefront.jsx');
-const { DEFAULT_CUSTOM_THEME_CONFIG } = await vite.ssrLoadModule('/src/theme/config.js');
+const { DEFAULT_CUSTOM_THEME_CONFIG, templateToCustomizerTokens } = await vite.ssrLoadModule('/src/theme/config.js');
 await vite.close();
 
 const TEMPLATE_CONFIG = {
+  themeId: 'fashion-midnight_noir-dense_hero_bordered-crisp',
+  category: 'fashion',
+  design: {
+    composition: 'editorial-split',
+    name: 'Editorial Split Fashion',
+    description: 'A split hero and asymmetric product gallery.',
+    header: 'editorial',
+    hero: 'split',
+    productPresentation: 'asymmetric',
+    sectionOrder: ['hero', 'products-grid', 'footer'],
+  },
   palette: { primary: '#0B1120', secondary: '#0F172A', background: '#FFFFFF', textPrimary: '#0F172A', accent: '#FFD700' },
   layout: { gridColumns: 4 },
   borderRadius: { base: '0px' },
@@ -34,7 +50,12 @@ const TEMPLATE_CONFIG = {
   seo: { defaultTitle: 'Midnight Noir' },
 };
 const TENANT = { name: "Kwame's Fashion", whatsappNumber: '+233201234567' };
-const RESOLVED = { storeName: "Kwame's Fashion", theme: { id: 'noir', name: 'Midnight Noir', category: 'Dark', config: TEMPLATE_CONFIG }, templateConfig: TEMPLATE_CONFIG, overrides: {} };
+const RESOLVED = {
+  storeName: "Kwame's Fashion",
+  theme: { id: TEMPLATE_CONFIG.themeId, name: 'Midnight Noir', category: 'fashion', config: TEMPLATE_CONFIG },
+  templateConfig: TEMPLATE_CONFIG,
+  overrides: {},
+};
 
 console.log('\nDiDwa storefront theme resolution -> src/pages/LiveStorefront.jsx\n');
 
@@ -48,6 +69,8 @@ console.log('\nDiDwa storefront theme resolution -> src/pages/LiveStorefront.jsx
   log('the template grid columns reach the storefront', cfg.layout.product_grid_columns === 4);
   log('the template tagline reaches the storefront', cfg.branding.tagline === 'Luxury Ghanaian streetwear');
   log('the template font reaches the storefront', String(cfg.typography.font_family).includes('Playfair'));
+  log('the curated composition reaches the live storefront', cfg.theme_design.composition === 'editorial-split');
+  log('theme identity reaches live storefront tokens', cfg.theme_id === TEMPLATE_CONFIG.themeId && cfg.theme_category === 'fashion');
 }
 
 /* ---------- The real store outranks the template's demo identity ---------- */
@@ -90,6 +113,16 @@ console.log('\nDiDwa storefront theme resolution -> src/pages/LiveStorefront.jsx
 {
   const cfg = resolveStorefrontTheme({ ...RESOLVED, theme: null, templateConfig: null, overrides: null }, TENANT);
   log('an empty payload still yields a usable config', cfg.colors.primary === DEFAULT_CUSTOM_THEME_CONFIG.colors.primary);
+}
+{
+  const tokens = templateToCustomizerTokens({
+    id: TEMPLATE_CONFIG.themeId,
+    category: 'fashion',
+    name: 'Accra Atelier',
+    config: TEMPLATE_CONFIG,
+  });
+  log('customizer tokens retain the named theme composition', tokens.theme_design.composition === 'editorial-split');
+  log('customizer tokens retain theme ID and category', tokens.theme_id === TEMPLATE_CONFIG.themeId && tokens.theme_category === 'fashion');
 }
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);

@@ -19,6 +19,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Star, Wallet } from 'lucide-react';
+import '../components/storefront/templates/themeCompositions.css';
 
 /** Natural width the preview is authored at; the thumbnail scales from this. */
 const CANVAS_W = 1200;
@@ -103,7 +104,7 @@ function PreviewHeader({ config, pal, fonts, radius, homeContent }) {
             D
           </span>
           <span className="text-lg font-extrabold" style={{ color: pal.text, fontFamily: fonts.heading }}>
-            {config?.seo?.defaultTitle?.split('—')[0]?.trim() || 'Storefront'}
+            {config?.design?.name || config?.seo?.defaultTitle?.split('—')[0]?.trim() || 'Storefront'}
           </span>
         </div>
         <nav className="flex items-center gap-7 text-sm font-semibold" style={{ color: pal.textSoft }}>
@@ -350,8 +351,24 @@ export function ThemePreview({ config, className = '' }) {
 
   return (
     <div
+      data-gs-preview=""
+      data-gs-page="home"
+      data-gs-composition={config?.design?.composition || ''}
+      data-gs-profile={config?.design?.profile || ''}
+      data-gs-header={config?.design?.header || ''}
+      data-gs-hero={config?.design?.hero || ''}
+      data-gs-product-presentation={config?.design?.productPresentation || ''}
       className={`w-full overflow-hidden ${className}`}
-      style={{ background: pal.background, color: pal.text, fontFamily: fonts.body }}
+      style={{
+        '--primary': pal.primary,
+        '--bg': pal.background,
+        '--text': pal.text,
+        '--accent': pal.accent,
+        '--radius': radius,
+        background: pal.background,
+        color: pal.text,
+        fontFamily: fonts.body,
+      }}
     >
       <PreviewHeader config={config} pal={pal} fonts={fonts} radius={radius} homeContent={homeContent} />
       {keys.map((key) => {

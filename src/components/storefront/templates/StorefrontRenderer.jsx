@@ -36,6 +36,8 @@ import TickerHeader from './FlashExpress/TickerHeader.jsx';
 import DealTimerHero from './FlashExpress/DealTimerHero.jsx';
 import ExpressList from './FlashExpress/ExpressList.jsx';
 import StickyCheckoutBar from './FlashExpress/StickyCheckoutBar.jsx';
+import './themeCompositions.css';
+import RegisteredCuratedThemeHome from './CuratedThemeHome.jsx';
 
 const PAGE_BODIES = {
   shop: ShopBody,
@@ -114,6 +116,109 @@ const HEADERS = {
   flash_express: TickerHeader,
 };
 
+const CURATED_HERO_BY_CATEGORY = {
+  fashion: EditorialHero,
+  beauty: EditorialHero,
+  electronics: DualCardHero,
+  marketplace: DualCardHero,
+  groceries: DealTimerHero,
+};
+
+const CURATED_GRID_BY_CATEGORY = {
+  fashion: MasonryGrid,
+  beauty: MasonryGrid,
+  electronics: DenseProductGrid,
+  marketplace: DenseProductGrid,
+  groceries: ExpressList,
+};
+
+function CuratedThemeHome({ t, onNavigate, ctx, config }) {
+  const design = config.theme_design || {};
+  const category = config.theme_category || config.category || 'marketplace';
+  const homeContent = config.home_content || {};
+  const Hero = CURATED_HERO_BY_CATEGORY[category] || DualCardHero;
+  const grid = CURATED_GRID_BY_CATEGORY[category] || DenseProductGrid;
+  const products = sortProducts(filterProducts(ctx.products, { category: 'All', term: '' }), 'featured').slice(0, 8);
+  const categories = categoriesOf(ctx.products).filter((value) => value !== 'All');
+  const [quickId, setQuickId] = useState(null);
+  const quickProduct = ctx.products.find((product) => String(product.id) === String(quickId)) || null;
+  const sections = Array.isArray(design.sectionOrder)
+    ? design.sectionOrder
+    : ['hero', 'categories', 'products-grid', 'social-proof', 'footer'];
+
+  return (
+    <>
+      {sections.map((section) => {
+        if (section === 'hero') {
+          return <div key={section} data-gs-home-section="hero"><Hero t={t} onNavigate={onNavigate} ctx={ctx} /></div>;
+        }
+        if (section === 'categories') {
+          return (
+            <section key={section} data-gs-home-section="categories" className="mx-auto max-w-6xl px-4 py-8">
+              <h2 className="mb-4 text-xl font-extrabold">{homeContent.category_heading || 'Shop by category'}</h2>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => onNavigate('shop')}
+                    className="rounded-full border px-4 py-2 text-xs font-bold"
+                    style={{ borderColor: 'var(--accent)', color: 'var(--text)' }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        }
+        if (section === 'products-grid') {
+          return (
+            <section key={section} data-gs-home-section="products-grid" className="mx-auto max-w-6xl px-4 py-8">
+              <div className="mb-5 flex items-end justify-between gap-3">
+                <h2 className="text-xl font-extrabold">{homeContent.featured_heading || 'Featured products'}</h2>
+                <button type="button" onClick={() => onNavigate('shop')} className="text-xs font-bold underline underline-offset-4">
+                  {homeContent.view_all_label || 'View all'}
+                </button>
+              </div>
+              {grid === MasonryGrid
+                ? <MasonryGrid t={t} products={products} onQuickView={(product) => setQuickId(product.id)} />
+                : grid === ExpressList
+                  ? <ExpressList t={t} products={products} onNavigate={onNavigate} ctx={ctx} />
+                  : <DenseProductGrid t={t} products={products} onNavigate={onNavigate} ctx={ctx} columns={config.layout.product_grid_columns} />}
+              {grid === MasonryGrid && (
+                <QuickViewDrawer t={t} product={quickProduct} ctx={ctx} onClose={() => setQuickId(null)} />
+              )}
+            </section>
+          );
+        }
+        if (section === 'urgency') {
+          return (
+            <div key={section} data-gs-home-section="urgency" className="px-4 py-2 text-center text-xs font-bold text-white" style={{ background: 'var(--primary)' }}>
+              {config.conversion?.urgencyTicker || 'New arrivals'} · Nationwide delivery
+            </div>
+          );
+        }
+        if (section === 'social-proof') {
+          return <div key={section} data-gs-home-section="social-proof" className="mx-auto max-w-6xl px-4 py-6"><TrustStrip t={t} /></div>;
+        }
+        if (section === 'cta-banner') {
+          const threshold = Number(config.conversion?.freeShippingThresholdGHS) || 0;
+          return (
+            <section key={section} data-gs-home-section="cta-banner" className="px-4 py-8 text-center text-white" style={{ background: 'var(--primary)' }}>
+              {threshold > 0 && <p className="mb-3 text-sm font-bold">Free delivery on orders over ₵{threshold}</p>}
+              <button type="button" onClick={() => onNavigate('shop')} className="rounded-full bg-white px-5 py-2.5 text-xs font-extrabold" style={{ color: 'var(--primary)' }}>
+                {homeContent.hero_button_label || 'Shop now'}
+              </button>
+            </section>
+          );
+        }
+        return null;
+      })}
+    </>
+  );
+}
+
 /**
  * StorefrontRenderer - renders any storefront page inside the token-styled
  * root, for BOTH the customizer preview and the live shop.
@@ -151,7 +256,7 @@ export default function StorefrontRenderer({
   /* Resolve a dedicated per-theme component first; fall back to archetype-based
    * rendering for backward compatibility with themes that have no dedicated
    * component yet. */
-  const themeId = config?.themeId;
+  const themeId = config?.themeId || config?.theme_id;
   const [ThemeComp, setThemeComp] = useState(null);
   const [themeResolved, setThemeResolved] = useState(false);
 
@@ -171,12 +276,19 @@ export default function StorefrontRenderer({
   const Header = HEADERS[template] || DenseHeader;
   const dark = template !== 'catalog_grid';
   const [shopShortcut, setShopShortcut] = useState(null);
+  const design = config.theme_design || {};
 
   return (
     <div
       data-gs-preview=""
       data-gs-template={template}
-      data-gs-theme={themeId || ''}
+      data-gs-theme={config.themeId || config.theme_id || ''}
+      data-gs-page={page}
+      data-gs-composition={design.composition || ''}
+      data-gs-profile={design.profile || ''}
+      data-gs-header={design.header || ''}
+      data-gs-hero={design.hero || ''}
+      data-gs-product-presentation={design.productPresentation || ''}
       data-device={d}
       className="h-full w-full overflow-y-auto overflow-x-hidden"
       style={{
@@ -197,6 +309,7 @@ export default function StorefrontRenderer({
       {ThemeComp && themeResolved ? (
         /* Dedicated per-theme component handles header + body + footer. */
         <ThemeComp
+          config={config}
           viewportWidth={viewportWidth}
           page={page}
           onNavigate={nav}
@@ -219,9 +332,12 @@ export default function StorefrontRenderer({
             ? <Header t={t} active={page} onNavigate={nav} ctx={ctx} onShopShortcut={setShopShortcut} />
             : <Header t={t} active={page} onNavigate={nav} ctx={ctx} />}
           <main style={{ minHeight: '60%' }}>
-            {page === 'home' && template === 'boutique_editorial' ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} /> : null}
-            {page === 'home' && template === 'catalog_grid' ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} /> : null}
-            {page === 'home' && template === 'flash_express' ? <FlashHome t={t} onNavigate={nav} ctx={ctx} /> : null}
+            {page === 'home' && design.profile
+              ? <RegisteredCuratedThemeHome t={t} onNavigate={nav} ctx={ctx} config={config} />
+              : null}
+            {page === 'home' && !design.profile && template === 'boutique_editorial' ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} /> : null}
+            {page === 'home' && !design.profile && template === 'catalog_grid' ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} /> : null}
+            {page === 'home' && !design.profile && template === 'flash_express' ? <FlashHome t={t} onNavigate={nav} ctx={ctx} /> : null}
             {page !== 'home' ? (() => {
               const Body = PAGE_BODIES[page] || ShopBody;
               return <Body t={t} onNavigate={nav} ctx={ctx} orderNumber={orderNumber} />;
@@ -233,4 +349,3 @@ export default function StorefrontRenderer({
     </div>
   );
 }
-

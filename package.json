@@ -41,6 +41,7 @@
     "test:dashboard-refactor": "node scripts/dashboardRefactorTest.js",
     "test:customizer-render": "node scripts/customizerRenderTest.js",
     "test:theme-market": "node scripts/themeMarketTest.js",
+    "test:theme-catalog": "node scripts/themeCatalogTest.js",
     "test:reserved-slugs": "node scripts/reservedSlugsTest.js",
     "test:site-settings": "node scripts/siteSettingsTest.js",
     "test:email-templates": "node scripts/emailTemplatesTest.js",

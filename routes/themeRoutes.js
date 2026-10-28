@@ -9,8 +9,11 @@ import { Router } from 'express';
 import { query } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
 import { canonicalDomain } from '../services/domainService.js';
+import { buildPresets } from '../scripts/themeCatalog.js';
 
 const router = Router();
+const CURATED_THEMES = buildPresets();
+const CURATED_THEME_BY_ID = new Map(CURATED_THEMES.map((theme) => [theme.id, theme]));
 
 /**
  * Recursively merge theme config with per-store overrides.
@@ -27,7 +30,7 @@ function mergeConfig(base, override) {
 }
 
 /* ----------------------------- Catalog (seller browsing) ------------------- */
-// GET /api/themes  - all 100+ templates, sorted by category for the dashboard grid
+// GET /api/themes - curated catalog overlaid on legacy database rows.
 router.get('/themes', async (req, res, next) => {
   try {
     const { rows } = await query(
@@ -47,15 +50,25 @@ router.get('/themes', async (req, res, next) => {
                  END ASC NULLS LAST,
                  name ASC`,
     );
-    res.json({
-      themes: rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        category: r.category,
-        config: r.config,
-        createdAt: r.created_at,
-      })),
-    });
+    const storedById = new Map(rows.map((row) => [row.id, row]));
+    const themes = CURATED_THEMES.map((theme) => ({
+      id: theme.id,
+      name: theme.name,
+      category: theme.category,
+      config: theme.config,
+      createdAt: storedById.get(theme.id)?.created_at || null,
+    }));
+    for (const row of rows) {
+      if (CURATED_THEME_BY_ID.has(row.id)) continue;
+      themes.push({
+        id: row.id,
+        name: row.name,
+        category: row.category,
+        config: row.config,
+        createdAt: row.created_at,
+      });
+    }
+    res.json({ themes });
   } catch (err) {
     next(err);
   }
@@ -94,15 +107,17 @@ router.get('/store/theme/public/:slug', async (req, res, next) => {
       return res.status(404).json({ error: 'Store not found for this theme.' });
     }
 
-    const merged = mergeConfig(store.base_config || {}, store.custom_theme_config || {});
+    const catalogTheme = CURATED_THEME_BY_ID.get(store.theme_id);
+    const template = catalogTheme?.config || store.base_config || {};
+    const merged = mergeConfig(template, store.custom_theme_config || {});
     res.json({
       storeName: store.store_name,
       slug: store.slug,
       customDomain: store.custom_domain,
       theme: {
         id: store.theme_id,
-        name: store.theme_name,
-        category: store.theme_category,
+        name: catalogTheme?.name || store.theme_name,
+        category: catalogTheme?.category || store.theme_category,
         config: merged,
       },
       /* The two layers are also returned UNMERGED. `theme.config` above is a
@@ -111,7 +126,7 @@ router.get('/store/theme/public/:slug', async (req, res, next) => {
          storefront would fall back to schema defaults for every template key.
          Exposed separately so a client can map them explicitly - template
          tokens first, seller overrides on top, store identity last. */
-      templateConfig: store.base_config || {},
+      templateConfig: template,
       overrides: store.custom_theme_config || {},
     });
   } catch (err) {
@@ -169,7 +184,9 @@ router.put('/store/theme', requireSeller, async (req, res, next) => {
       [storeId],
     );
     const row = rows[0];
-    const merged = mergeConfig(row?.base_config || {}, row?.custom_theme_config || {});
+    const catalogTheme = CURATED_THEME_BY_ID.get(row?.theme_id);
+    const template = catalogTheme?.config || row?.base_config || {};
+    const merged = mergeConfig(template, row?.custom_theme_config || {});
 
     res.json({
       message: 'Store theme updated.',
@@ -177,8 +194,8 @@ router.put('/store/theme', requireSeller, async (req, res, next) => {
       theme: row
         ? {
             id: row.theme_id,
-            name: row.theme_name,
-            category: row.theme_category,
+            name: catalogTheme?.name || row.theme_name,
+            category: catalogTheme?.category || row.theme_category,
             config: merged,
           }
         : null,
@@ -262,7 +279,7 @@ router.get('/themes/demo/:templateId', async (req, res, next) => {
       'SELECT id, name, category, config FROM theme_templates WHERE id = $1',
       [req.params.templateId],
     );
-    const theme = rows[0];
+    const theme = CURATED_THEME_BY_ID.get(req.params.templateId) || rows[0];
     if (!theme) {
       return res.status(404).json({ error: 'Theme template not found.' });
     }
@@ -293,6 +310,8 @@ router.get('/store/theme', requireSeller, async (req, res, next) => {
       [req.auth.sub],
     );
     const row = rows[0];
+    const catalogTheme = CURATED_THEME_BY_ID.get(row?.theme_id);
+    const template = catalogTheme?.config || row?.base_config || {};
     res.json({
       activeThemeId: row?.theme_id || null,
       /* The seller's overrides, UNMERGED, alongside the merged theme below.
@@ -307,9 +326,9 @@ router.get('/store/theme', requireSeller, async (req, res, next) => {
       theme: row && row.theme_id
         ? {
             id: row.theme_id,
-            name: row.theme_name,
-            category: row.theme_category,
-            config: mergeConfig(row.base_config || {}, row.custom_theme_config || {}),
+            name: catalogTheme?.name || row.theme_name,
+            category: catalogTheme?.category || row.theme_category,
+            config: mergeConfig(template, row.custom_theme_config || {}),
           }
         : null,
     });
