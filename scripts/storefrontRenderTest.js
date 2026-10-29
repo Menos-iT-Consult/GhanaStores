@@ -161,6 +161,26 @@ for (const page of PAGES) {
   log('the merchant heading reaches the storefront', html.includes('Bestsellers this week'));
   log('the trust badge copy is merchant-owned', html.includes('Verified Seller'));
 
+  const socialConfig = normalizeCustomThemeConfig({
+    social: {
+      instagram: 'https://instagram.com/merchant',
+      facebook: 'https://facebook.com/merchant',
+    },
+    social_settings: {
+      alignment: 'center',
+      style: 'soft',
+      shape: 'rounded',
+      visibility: { facebook: false },
+    },
+  });
+  const socialHtml = renderToString(React.createElement(Storefront, {
+    config: socialConfig, page: 'home', viewportWidth: 1024,
+  }));
+  log('social URLs render in the storefront footer', socialHtml.includes('https://instagram.com/merchant'));
+  log('per-network visibility hides a linked social icon', !socialHtml.includes('https://facebook.com/merchant'));
+  log('social presentation settings control alignment, style, and shape',
+    socialHtml.includes('justify-center') && socialHtml.includes('bg-[#FCE7F3]') && socialHtml.includes('rounded-xl'));
+
   /* Arrays must REPLACE, not merge index-wise, or a merchant cannot shorten a
      list: deleting a bullet from a three-item list used to leave the rest in
      place and could never produce an empty one. */

@@ -3,8 +3,9 @@
  * The storefront footer: brand blurb, socials, link columns, newsletter and the
  * accepted-payment badges. Rendered by both the live shop and the customizer.
  */
-import { Facebook, Instagram, MessageCircle, Music2, Send, CreditCard } from 'lucide-react';
+import { Send, CreditCard } from 'lucide-react';
 import { socialUrl } from '../../theme/config.js';
+import SocialIconLink from '../SocialIconLink.jsx';
 
 /**
  * The footer link columns. Entries marked `page` navigate to a real storefront
@@ -30,18 +31,27 @@ const COMPANY_LINKS = [
 export default function StorefrontFooter({ t, onNavigate }) {
   const { c, footColumns } = t;
   const f = c.footer || {};
-  /* Every entry is [href, Icon, label]. A network appears ONLY when it has
+  const socialSettings = c.social_settings || {};
+  const socialVisibility = socialSettings.visibility || {};
+  /* Every entry is [network, href, label]. A network appears ONLY when it has
      something to link to - the icons used to be plain <span>s driven by
      booleans, so they rendered on every storefront but went nowhere. */
   const waDigits = String(c.features?.whatsapp_number || '').replace(/\D/g, '').replace(/^0/, '233');
   const socials = [
-    [socialUrl('instagram', c.social?.instagram), Instagram, 'Instagram'],
-    [socialUrl('facebook', c.social?.facebook), Facebook, 'Facebook'],
-    [socialUrl('tiktok', c.social?.tiktok), Music2, 'TikTok'],
-    [c.features?.enable_whatsapp_buy && waDigits ? `https://wa.me/${waDigits}` : '', MessageCircle, 'WhatsApp'],
-  ].filter(([href]) => Boolean(href));
+    ['instagram', socialUrl('instagram', c.social?.instagram), 'Instagram'],
+    ['facebook', socialUrl('facebook', c.social?.facebook), 'Facebook'],
+    ['tiktok', socialUrl('tiktok', c.social?.tiktok), 'TikTok'],
+    ['youtube', socialUrl('youtube', c.social?.youtube), 'YouTube'],
+    ['x', socialUrl('x', c.social?.x), 'X'],
+    ['linkedin', socialUrl('linkedin', c.social?.linkedin), 'LinkedIn'],
+    ['whatsapp', c.features?.enable_whatsapp_buy && waDigits ? `https://wa.me/${waDigits}` : '', 'WhatsApp'],
+  ].filter(([network, href]) => Boolean(href) && socialVisibility[network] !== false);
 
   const linkCls = 'block transition hover:underline';
+  const socialAlignment = {
+    center: 'justify-center',
+    right: 'justify-end',
+  }[socialSettings.alignment] || 'justify-start';
 
   return (
     <footer className="border-t" style={{ borderColor: 'rgba(148,163,184,.3)' }}>
@@ -50,12 +60,17 @@ export default function StorefrontFooter({ t, onNavigate }) {
           <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>{c.branding.site_title}</p>
           <p className="text-[11px] leading-relaxed opacity-70">{f.blurb}</p>
           {f.show_social && socials.length > 0 && (
-            <div className="flex gap-2 pt-1">
-              {socials.map(([href, Icon, label]) => (
-                <a key={label} href={href} target="_blank" rel="noopener noreferrer" title={label} aria-label={label}
-                  className="grid h-7 w-7 place-items-center rounded-md opacity-70 ring-1 ring-current transition hover:opacity-100">
-                  <Icon size={13} aria-hidden="true" />
-                </a>
+            <div className={`flex flex-wrap gap-2 pt-1 ${socialAlignment}`}>
+              {socials.map(([network, href, label]) => (
+                <SocialIconLink
+                  key={label}
+                  href={href}
+                  network={network}
+                  label={label}
+                  size={34}
+                  style={socialSettings.style}
+                  shape={socialSettings.shape}
+                />
               ))}
             </div>
           )}

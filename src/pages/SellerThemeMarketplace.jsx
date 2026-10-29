@@ -60,7 +60,7 @@ function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomiz
           expanded (solo) reveals the whole theme at a readable scale. */}
       {isSolo ? (
         <div className="relative border-b border-slate-100">
-          <ThemePreview config={cfg} />
+          <ThemePreview config={cfg} theme={theme} />
           <button
             type="button"
             onClick={onSolo}
@@ -72,7 +72,7 @@ function ThemeCard({ theme, isActive, isApplying, onApply, onPreview, onCustomiz
         </div>
       ) : (
         <div className={`relative aspect-[16/10] overflow-hidden ${isActive ? '' : 'border-b border-slate-100'}`}>
-          <ThemeThumb config={cfg} />
+          <ThemeThumb config={cfg} theme={theme} />
 
           {/* Hover quick-actions - keyboard reachable via focus-within */}
           <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-slate-900/55 opacity-0 backdrop-blur-[1.5px] transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">

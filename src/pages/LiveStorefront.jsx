@@ -142,6 +142,14 @@ export function resolveStorefrontTheme(resolved, tenantMeta) {
     || storePhone
     || merged.pages_content?.contact_phone
     || '';
+  const typedEmail = resolved?.overrides?.pages_content?.contact_email;
+  const storeEmail = tenantMeta?.email || '';
+  const contactEmail = (typeof typedEmail === 'string' && typedEmail.trim())
+    || storeEmail
+    || (merged.pages_content?.contact_email && merged.pages_content.contact_email !== 'hello@didwaghana.com'
+      ? merged.pages_content.contact_email
+      : '')
+    || '';
   /* WhatsApp gets one extra preference ahead of the fallback chain: the domain
      resolve payload ships a dedicated whatsappNumber (a seller may publish a
      different number than their signup phone). Everything below keeps the
@@ -155,7 +163,11 @@ export function resolveStorefrontTheme(resolved, tenantMeta) {
   return {
     ...merged,
     branding: { ...merged.branding, site_title: siteTitle },
-    pages_content: { ...merged.pages_content, contact_phone: contactPhone },
+    pages_content: {
+      ...merged.pages_content,
+      contact_phone: contactPhone,
+      contact_email: contactEmail,
+    },
     features: {
       ...merged.features,
       ...(whatsappPhone ? { whatsapp_number: whatsappPhone } : {}),

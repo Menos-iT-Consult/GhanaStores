@@ -238,6 +238,8 @@ export default function StorefrontRenderer({
   checkout = null,
   storeSlug = null,
   orderNumber = null,
+  className = '',
+  rootStyle = {},
 }) {
   const mq = useMediaQuery();
   const [, setWindowTier] = useState(null);
@@ -300,7 +302,7 @@ export default function StorefrontRenderer({
       data-gs-hero={design.hero || ''}
       data-gs-product-presentation={design.productPresentation || ''}
       data-device={d}
-      className="h-full w-full overflow-y-auto overflow-x-hidden"
+      className={`h-full w-full overflow-y-auto overflow-x-hidden ${className}`}
       style={{
         '--primary': config.colors.primary,
         '--bg': config.colors.background,
@@ -313,6 +315,7 @@ export default function StorefrontRenderer({
         color: dark ? '#E2E8F0' : 'var(--text)',
         fontFamily: t.fontStack,
         fontSize: `${config.typography.body_size}px`,
+        ...rootStyle,
       }}
       aria-label={`Live storefront preview - ${page} page`}
     >

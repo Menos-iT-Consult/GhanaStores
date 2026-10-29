@@ -39,7 +39,7 @@ export function Accordion({ id, icon: Icon, title, children, defaultOpen = false
         id={panelId}
         role="region"
         aria-labelledby={`accordion-toggle-${id}`}
-        className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-96' : 'max-h-0'}`}
+        className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-[1200px]' : 'max-h-0'}`}
       >
         <div className="px-3 pt-1 pb-2">{children}</div>
       </div>

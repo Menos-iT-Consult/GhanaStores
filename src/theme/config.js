@@ -85,6 +85,23 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     instagram: '',
     facebook: '',
     tiktok: '',
+    youtube: '',
+    x: '',
+    linkedin: '',
+  },
+  social_settings: {
+    alignment: 'left',
+    style: 'brand',
+    shape: 'circle',
+    visibility: {
+      instagram: true,
+      facebook: true,
+      tiktok: true,
+      youtube: true,
+      x: true,
+      linkedin: true,
+      whatsapp: true,
+    },
   },
   product_page: {
     breadcrumbs: true,
@@ -145,7 +162,7 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
   pages_content: {
     about_title: 'Our Story',
     about_body: 'We source authentic, high-quality goods directly from trusted makers and farmers across the country, so every purchase supports local families and communities.',
-    contact_email: 'hello@didwaghana.com',
+    contact_email: '',
     /* Empty, NOT a sample number. This used to ship "+233 20 123 4567", which
        is not a placeholder that degrades gracefully - it is a live-looking
        number that a real store published as its own call button, because the
@@ -182,6 +199,12 @@ export function socialUrl(network, handle) {
   const clean = raw.replace(/^@+/, '').replace(/^\/+/, '').replace(/\/+$/, '').trim();
   if (!clean) return '';
   if (network === 'tiktok') return `https://tiktok.com/@${clean}`;
+  if (network === 'youtube') return `https://youtube.com/@${clean}`;
+  if (network === 'x') return `https://x.com/${clean}`;
+  if (network === 'linkedin') {
+    if (clean.startsWith('company/') || clean.startsWith('in/')) return `https://linkedin.com/${clean}`;
+    return `https://linkedin.com/in/${clean}`;
+  }
   return `https://${network}.com/${clean}`;
 }
 

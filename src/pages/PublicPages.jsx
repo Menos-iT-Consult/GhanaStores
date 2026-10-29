@@ -11,12 +11,12 @@
  */
 import { Fragment, useEffect, useState } from 'react';
 import {
-  ArrowRight, BarChart3, BellRing, Check, CreditCard, Facebook, Globe, Instagram,
-  Linkedin, Mail, MapPin, ChevronRight, Menu, MessageCircle, Music2, Package, Phone, QrCode, Scale, Send,
+  ArrowRight, BarChart3, BellRing, Check, CreditCard, Globe, Mail, MapPin, ChevronRight, Menu, MessageCircle, Package, Phone, QrCode, Scale, Send,
   ShieldCheck, Smartphone, X,
-  Twitter, Wallet, Youtube, Zap,
+  Wallet, Zap,
 } from 'lucide-react';
 import { LogoLockup, IconSpinner } from '../components/icons.jsx';
+import SocialIconLink from '../components/SocialIconLink.jsx';
 import { api } from '../api.js';
 import PlanGrid, { CycleToggle } from '../components/PlanGrid.jsx';
 import { usePlans } from '../lib/plans.js';
@@ -217,12 +217,12 @@ function SiteHeader({ authed = false, wide = false, onStart, onDashboard }) {
 /** The one public footer: brand blurb, product / company / legal columns. */
 function SiteFooter({ settings, error, onRetry }) {
   const socialItems = [
-    ['facebook', Facebook, 'Facebook'],
-    ['instagram', Instagram, 'Instagram'],
-    ['tiktok', Music2, 'TikTok'],
-    ['youtube', Youtube, 'YouTube'],
-    ['x', Twitter, 'X'],
-    ['linkedin', Linkedin, 'LinkedIn'],
+    ['facebook', 'Facebook'],
+    ['instagram', 'Instagram'],
+    ['tiktok', 'TikTok'],
+    ['youtube', 'YouTube'],
+    ['x', 'X'],
+    ['linkedin', 'LinkedIn'],
   ].filter(([key]) => settings?.socialLinks?.[key]);
   const contactItems = [
     settings?.contact?.supportEmail && {
@@ -252,18 +252,8 @@ function SiteFooter({ settings, error, onRetry }) {
           </p>
           {socialItems.length > 0 && (
             <nav className="flex flex-wrap gap-2 pt-1" aria-label="DiDwa social media">
-              {socialItems.map(([key, Icon, label]) => (
-                <a
-                  key={key}
-                  href={settings.socialLinks[key]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  title={label}
-                  className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
-                >
-                  <Icon size={16} aria-hidden="true" />
-                </a>
+              {socialItems.map(([network, label]) => (
+                <SocialIconLink key={network} href={settings.socialLinks[network]} network={network} label={label} size={40} aria-label={label} />
               ))}
             </nav>
           )}

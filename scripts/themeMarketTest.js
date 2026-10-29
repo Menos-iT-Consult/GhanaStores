@@ -20,6 +20,8 @@
  * Usage: node scripts/themeMarketTest.js   (no server, no database)
  */
 import { createServer } from 'vite';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -63,6 +65,16 @@ console.log('\nDiDwa theme market + customizer publishing -> src/theme/preview.j
 /* ---------- 1. The preview renders the template's real config ---------- */
 {
   const config = {
+    themeId: 'live-catalog-preview',
+    category: 'fashion',
+    design: {
+      profile: 'editorial-split',
+      composition: 'fashion-live-renderer',
+      header: 'editorial',
+      hero: 'split',
+      productPresentation: 'asymmetric',
+      sectionOrder: ['hero', 'products-grid'],
+    },
     palette: { primary: '#0B1120', secondary: '#1E293B', accent: '#FFD700', background: '#FFFFFF', textPrimary: '#0F172A', textSecondary: '#64748B' },
     layout: { gridColumns: 4, heroBanner: true, cardStyle: 'minimal', gridGap: '1rem', productCardRounded: '1.5rem' },
     borderRadius: { base: '1.5rem', name: 'Extra Rounded' },
@@ -85,6 +97,17 @@ console.log('\nDiDwa theme market + customizer publishing -> src/theme/preview.j
 
   log('the preview module exports both surfaces', typeof ThemePreview === 'function' && typeof ThemeThumb === 'function');
   log('a config with no sections still previews every part', orderedSections({ palette: {} }).length >= 6, `${orderedSections({ palette: {} }).length} sections`);
+
+  const livePreview = renderToStaticMarkup(
+    React.createElement(ThemePreview, {
+      config,
+      theme: { id: 'live-catalog-preview', name: 'Accra Atelier', category: 'fashion', config },
+    }),
+  );
+  log('market preview uses the live storefront renderer', livePreview.includes('data-gs-template='));
+  log('market preview carries the selected theme identity', livePreview.includes('data-gs-theme="live-catalog-preview"'));
+  log('market preview renders its real authored composition', livePreview.includes('data-gs-composition="fashion-live-renderer"'));
+  log('market preview includes storefront demo products', livePreview.includes('Kente Cloth Scarf'));
 }
 
 
