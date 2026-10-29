@@ -47,6 +47,7 @@
     "test:email-templates": "node scripts/emailTemplatesTest.js",
     "test:mobile": "node scripts/mobileApiTest.js",
     "test:payments": "node scripts/paymentTest.js",
+    "test:managed-payments": "node scripts/managedPaymentsTest.js",
     "test:platform-fallback": "node scripts/platformFallbackTest.js",
     "test:payments-db": "node scripts/paymentDbTest.js",
     "payments:repair-db": "node scripts/paymentDbRepair.js",

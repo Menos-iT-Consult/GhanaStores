@@ -26,6 +26,7 @@ import AffiliateDashboardPage from './pages/affiliate/AffiliateDashboardPage.jsx
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
+import SellerPayouts from './pages/SellerPayouts.jsx';
 import SellerSmsSettings from './pages/SellerSmsSettings.jsx';
 import SellerPlan from './pages/SellerPlan.jsx';
 import SellerSiteSettings from './pages/SellerSiteSettings.jsx';
@@ -283,6 +284,7 @@ export default function App() {
       case '/login': return null; // redirected by the effect above
       case '/pos': return <SellerPOS />;
       case '/settings/payments': return <SellerPaymentSettings />;
+      case '/payouts': return <SellerPayouts />;
     case '/settings/notifications': return <SellerSmsSettings />;
       case '/settings/plan': return <SellerPlan />;
       case '/settings/site': return <SellerSiteSettings />;

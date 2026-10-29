@@ -1,8 +1,8 @@
 /**
  * DiDwa - Platform-level Paystack service (Fallback 2 for platform payments).
  *
- * Subscription, prepaid SMS segments and domain purchases are PLATFORM-level
- * payments (money moves customer -> DiDwa), charged with the platform's own
+ * Subscription, prepaid SMS segments, domain purchases and managed store orders
+ * are PLATFORM-level payments (money moves customer -> DiDwa), charged with the platform's own
  * gateway credentials - never a merchant's BYOK keys (that model lives in
  * storePayments.js). The rail order for these flows is:
  *
@@ -61,12 +61,13 @@ export function verifyPlatformSignature(rawBody, signature) {
  * unambiguous - a callback can never be reinterpreted as a different flow.
  *
  * @param {string} reference
- * @returns {'subscription'|'sms'|'domain'|null}
+ * @returns {'subscription'|'sms'|'domain'|'managed-order'|null}
  */
 export function platformReferenceKind(reference) {
   const ref = String(reference || '');
   if (ref.startsWith('GS-SUB-')) return 'subscription';
   if (ref.startsWith('GS-SMS-')) return 'sms';
+  if (ref.startsWith('GS-MGD-')) return 'managed-order';
   if (ref.startsWith('GSD-')) return 'domain';
   return null;
 }

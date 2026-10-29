@@ -1,5 +1,5 @@
 /**
- * DiDwa - Merchant Payment Settings (BYOK)
+ * DiDwa - Merchant Payment Settings (managed checkout or BYOK)
  *
  * GET    /api/payment-settings              -> masked settings for the signed-in store
  * PUT    /api/payment-settings              -> save keys / COD toggle / active gateway
@@ -17,11 +17,16 @@
 import { Router } from 'express';
 import axios from 'axios';
 import { requireSeller } from '../middleware/authMiddleware.js';
+import { query, withTransaction } from '../config/database.js';
 import {
   GATEWAYS, getSettings, saveSettings, toClientView,
   isPaystackReady, isHubtelReady,
 } from '../services/storePayments.js';
 import { encryptionConfigured } from '../services/secretBox.js';
+import { normalizeGhPhone } from '../utils/helpers.js';
+import {
+  getManagedPaymentPolicy, getManagedStoreProfile, normalizeMomoNetwork,
+} from '../services/managedPaymentSettings.js';
 
 const router = Router();
 
@@ -63,11 +68,19 @@ async function mergeWithStored(storeId, input) {
 
 router.get('/', requireSeller, async (req, res, next) => {
   try {
-    const settings = await getSettings(req.store.id);
+    const [settings, storeProfile, managedPolicy] = await Promise.all([
+      getSettings(req.store.id),
+      getManagedStoreProfile(req.store.id),
+      getManagedPaymentPolicy(),
+    ]);
     res.json({
       // A store with no row is not an error: it is simply COD-only, which is
       // the correct default for a merchant who has not connected keys yet.
       settings: toClientView(settings),
+      paymentMode: storeProfile?.use_managed_payments === false ? 'BYOK' : 'MANAGED',
+      payoutMomoNumber: storeProfile?.payout_momo_number || '',
+      payoutMomoNetwork: storeProfile?.payout_momo_network || '',
+      managedPaymentsAvailable: managedPolicy.enabled && managedPolicy.paystackReady,
       storageConfigured: encryptionConfigured(),
     });
   } catch (err) { next(err); }
@@ -154,16 +167,38 @@ router.post('/test', requireSeller, async (req, res, next) => {
 
 router.put('/', requireSeller, async (req, res, next) => {
   try {
-    // Fail closed: without a master key we must not write, rather than store a
-    // gateway secret in a form we cannot protect or read back.
-    if (!encryptionConfigured()) {
+    const input = parseBody(req.body);
+    const merged = await mergeWithStored(req.store.id, input);
+    const currentProfile = await getManagedStoreProfile(req.store.id);
+    const paymentMode = String(req.body?.paymentMode || '').toUpperCase()
+      || (currentProfile?.use_managed_payments === false ? 'BYOK' : 'MANAGED');
+    if (!['MANAGED', 'BYOK'].includes(paymentMode)) {
+      return res.status(400).json({ error: 'Payment mode must be MANAGED or BYOK.' });
+    }
+    const hasByokCredentials = Boolean(
+      merged.paystackPublicKey || merged.paystackSecretKey || merged.hubtelClientId
+      || merged.hubtelClientSecret || merged.hubtelMerchantAccountId,
+    );
+    if (!encryptionConfigured() && (paymentMode === 'BYOK' || hasByokCredentials)) {
       return res.status(503).json({
-        error: 'Payment key storage is not configured on this server, so keys cannot be saved.',
+        error: 'Payment key storage is not configured on this server, so BYOK keys cannot be saved.',
         code: 'PAYMENT_KEYS_NOT_CONFIGURED',
       });
     }
 
-    const merged = await mergeWithStored(req.store.id, parseBody(req.body));
+    let payoutMomoNumber = currentProfile?.payout_momo_number || null;
+    let payoutMomoNetwork = currentProfile?.payout_momo_network || null;
+    if (paymentMode === 'MANAGED') {
+      const submittedNumber = req.body?.payoutMomoNumber ?? payoutMomoNumber;
+      const submittedNetwork = req.body?.payoutMomoNetwork ?? payoutMomoNetwork;
+      payoutMomoNumber = normalizeGhPhone(submittedNumber);
+      payoutMomoNetwork = normalizeMomoNetwork(submittedNetwork);
+      if (!payoutMomoNumber || !payoutMomoNetwork) {
+        return res.status(400).json({
+          error: 'Enter a valid Ghana Mobile Money number and select MTN, Telecel or AT before enabling managed payments.',
+        });
+      }
+    }
 
     if (!GATEWAYS.includes(merged.activeGateway)) {
       return res.status(400).json({ error: `activeGateway must be one of ${GATEWAYS.join(', ')}.` });
@@ -180,17 +215,41 @@ router.put('/', requireSeller, async (req, res, next) => {
       return res.status(400).json({ error: 'Cash on Delivery is your active gateway, so it cannot also be disabled.' });
     }
 
-    const saved = await saveSettings(req.store.id, merged);
+    let saved;
+    await withTransaction(async ({ query: txQuery }) => {
+      saved = await saveSettings(req.store.id, merged, txQuery);
+      await txQuery(
+        `UPDATE stores
+            SET use_managed_payments = $2,
+                payout_momo_number = $3,
+                payout_momo_network = $4
+          WHERE id = $1`,
+        [
+          req.store.id,
+          paymentMode === 'MANAGED',
+          payoutMomoNumber,
+          payoutMomoNetwork,
+        ],
+      );
+    });
     // Deliberately NOT written to admin_audit_log: that ledger is keyed to an
     // authenticated ADMIN actor, and a merchant changing their own gateway keys
     // is not an admin action. The log line carries presence flags only - never
     // a key value.
     console.log(
       `[payment-settings] store=${req.store.id} gateway=${saved.activeGateway} `
-      + `paystack=${isPaystackReady(saved)} hubtel=${isHubtelReady(saved)}`,
+      + `paystack=${isPaystackReady(saved)} hubtel=${isHubtelReady(saved)} mode=${paymentMode}`,
     );
 
-    res.json({ settings: toClientView(saved) });
+    const profile = await getManagedStoreProfile(req.store.id, query);
+    const policy = await getManagedPaymentPolicy();
+    res.json({
+      settings: toClientView(saved),
+      paymentMode,
+      payoutMomoNumber: profile?.payout_momo_number || '',
+      payoutMomoNetwork: profile?.payout_momo_network || '',
+      managedPaymentsAvailable: policy.enabled && policy.paystackReady,
+    });
   } catch (err) { next(err); }
 });
 

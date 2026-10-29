@@ -13,7 +13,7 @@
  *   /api/billing     14-day trial engine, auth, subscription, cron webhook
  *   /api/analytics   Sales KPIs + Recharts series
  *   /api/pos         Offline POS sales, rider COD reconciliation
- *   /api/payouts     Instant Hubtel MoMo disbursements
+ *   /api/seller/payouts  Managed balance and manual payout requests
  *   /api/orders      WhatsApp commerce + PDF receipts
  *   /api/inventory   Multi-variant stock + low-stock SMS
  *   /api/domains     Subdomain / custom-domain routing + SSL hook
@@ -33,6 +33,7 @@ import billingRoutes from './routes/billingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import posRoutes from './routes/posRoutes.js';
 import paymentSettingsRoutes from './routes/paymentSettingsRoutes.js';
+import managedPayoutRoutes from './routes/managedPayoutRoutes.js';
 import smsSettingsRoutes from './routes/smsSettingsRoutes.js';
 import smsPacksRoutes from './routes/smsPacksRoutes.js';
 import whatsappInvoiceRoutes, { whatsappRouter } from './routes/whatsappInvoiceRoutes.js';
@@ -233,13 +234,12 @@ app.get('/health', async (_req, res) => {
 
 app.use('/api/billing', billingRoutes);
 app.use('/api/payment-settings', paymentSettingsRoutes);
+app.use('/api', managedPayoutRoutes);
 app.use('/api/sms-settings', smsSettingsRoutes);
 app.use('/api/sms-packs', smsPacksRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/pos', posRoutes);
-// Seller payouts were removed with the escrow model: customer money now settles
-// directly in the merchant's own gateway account, so there is no platform
-// balance to pay out from. See db/schema.sql (payouts_retired).
+// Managed payout requests are reviewed and paid manually by platform admins.
 app.use('/api/orders', whatsappInvoiceRoutes);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/inventory', inventoryRoutes);

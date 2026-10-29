@@ -1391,9 +1391,9 @@ async function domainPaymentGuards(pending, paidAmountGhs) {
  *     the Hubtel hosted checkout. Signed with the platform-wide
  *     PAYSTACK_SECRET_KEY, then guarded (replay, amount) and fulfilled exactly
  *     like the Hubtel domain branch below.
- *   - anything else -> a per-store BYOK gateway order (or a platform
- *     subscription/SMS pack), where the store is resolved from data.reference
- *     and the signature is checked with that merchant's own secret key.
+ *   - anything else -> a managed platform Paystack order, per-store BYOK order,
+ *     or a platform subscription/SMS pack, resolved by its reference and
+ *     verified with the owning platform or merchant secret.
  */
 webhookRouter.post('/paystack', async (req, res) => {
   try {

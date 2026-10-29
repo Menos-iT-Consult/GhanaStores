@@ -1,9 +1,9 @@
 /**
  * DiDwa - Seller Payment Settings (/settings/payments)
  *
- * Bring Your Own Gateway Keys. The merchant pastes their own Paystack or Hubtel
- * credentials; DiDwa stores them encrypted and charges with them, so the money
- * goes straight from the customer into the merchant's gateway account.
+ * Merchants may use DiDwa Managed Payments or keep using their own Paystack or
+ * Hubtel credentials. BYOK secrets remain encrypted and are never cleared when
+ * switching payment modes.
  *
  * Secret-handling rules this page follows:
  *  - Secrets are write-only. The API never returns one, so once saved a key is
@@ -35,6 +35,9 @@ const EMPTY = {
   hubtelMerchantAccountId: '',
   enableCod: true,
   activeGateway: 'COD',
+  paymentMode: 'MANAGED',
+  payoutMomoNumber: '',
+  payoutMomoNetwork: 'MTN',
 };
 
 /** Label for a field that already holds a saved key. */
@@ -47,6 +50,7 @@ export default function SellerPaymentSettings() {
   const [form, setForm] = useState(EMPTY);
   const [state, setState] = useState(null);
   const [storageOk, setStorageOk] = useState(true);
+  const [managedAvailable, setManagedAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -61,6 +65,7 @@ export default function SellerPaymentSettings() {
       const data = await api.get('/api/payment-settings');
       const s = data.settings || {};
       setStorageOk(data.storageConfigured !== false);
+      setManagedAvailable(data.managedPaymentsAvailable === true);
       setForm({
         // Secrets stay blank: the page never receives them.
         paystackPublicKey: s.paystack?.publicKey || '',
@@ -70,6 +75,9 @@ export default function SellerPaymentSettings() {
         hubtelMerchantAccountId: s.hubtel?.merchantAccountId || '',
         enableCod: s.enableCod !== false,
         activeGateway: s.activeGateway || 'COD',
+        paymentMode: data.paymentMode || 'MANAGED',
+        payoutMomoNumber: data.payoutMomoNumber || '',
+        payoutMomoNetwork: data.payoutMomoNetwork || 'MTN',
       });
       setState(s);
     } catch (err) {
@@ -127,6 +135,9 @@ export default function SellerPaymentSettings() {
       const body = {
         activeGateway: form.activeGateway,
         enableCod: form.enableCod,
+        paymentMode: form.paymentMode,
+        payoutMomoNumber: form.payoutMomoNumber,
+        payoutMomoNetwork: form.payoutMomoNetwork,
       };
       if (form.paystackPublicKey) body.paystackPublicKey = form.paystackPublicKey;
       if (form.paystackSecretKey) body.paystackSecretKey = form.paystackSecretKey;
@@ -136,6 +147,7 @@ export default function SellerPaymentSettings() {
 
       const data = await api.put('/api/payment-settings', body);
       setState(data.settings);
+      setManagedAvailable(data.managedPaymentsAvailable === true);
       setSaveMsg('Payment settings saved.');
       setTest(null);
       setForm((f) => ({ ...f, paystackSecretKey: '', hubtelClientSecret: '' }));
@@ -165,12 +177,11 @@ export default function SellerPaymentSettings() {
           <CreditCard size={22} /> Payment Settings
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Connect your own Paystack or Hubtel account. Payments go directly from your
-          customer into your account - DiDwa never holds your money.
+          Choose DiDwa Managed Payments or keep using your own Paystack or Hubtel account.
         </p>
       </header>
 
-      {!storageOk && (
+      {!storageOk && form.paymentMode === 'BYOK' && (
         <div className="mb-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
           <p className="text-sm text-amber-800">
@@ -183,7 +194,7 @@ export default function SellerPaymentSettings() {
 
       {/* No keys yet: this is the default state for every new store, and it is
           a valid configuration - not an error. */}
-      {!state?.configured && (
+      {!state?.configured && form.paymentMode === 'BYOK' && (
         <div className="mb-6 flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <Wallet className="mt-0.5 shrink-0 text-slate-400" size={18} />
           <p className="text-sm text-slate-600">
@@ -206,6 +217,94 @@ export default function SellerPaymentSettings() {
       )}
 
       <form onSubmit={save} className="space-y-6">
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-1 text-sm font-bold text-charcoal">Payment processing mode</h2>
+          <p className="mb-4 text-xs text-slate-500">
+            Switching modes never deletes your saved BYOK credentials.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              ['MANAGED', 'DiDwa Managed Payments', 'DiDwa collects online payments and tracks your net payout balance.'],
+              ['BYOK', 'Use my own API keys', 'Your Paystack or Hubtel account receives online payments directly.'],
+            ].map(([value, title, description]) => (
+              <label
+                key={value}
+                className={`cursor-pointer rounded-lg border p-4 ${
+                  form.paymentMode === value ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-200'
+                }`}
+              >
+                <span className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="paymentMode"
+                    value={value}
+                    checked={form.paymentMode === value}
+                    onChange={() => setForm((current) => ({ ...current, paymentMode: value }))}
+                    className="mt-1"
+                  />
+                  <span>
+                    <strong className="block text-sm text-charcoal">{title}</strong>
+                    <span className="mt-1 block text-xs text-slate-500">{description}</span>
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {form.paymentMode === 'MANAGED' && (
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-charcoal">
+              <Wallet size={16} /> Mobile Money payout destination
+            </h2>
+            <p className="mb-4 text-xs text-slate-500">
+              Payouts are reviewed and transferred manually by DiDwa. Verify these details carefully.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelCls} htmlFor="payoutNetwork">Network</label>
+                <select
+                  id="payoutNetwork"
+                  className={inputCls}
+                  value={form.payoutMomoNetwork}
+                  onChange={set('payoutMomoNetwork')}
+                  required
+                >
+                  <option value="MTN">MTN Mobile Money</option>
+                  <option value="TELECEL">Telecel Cash</option>
+                  <option value="AT">AT Money</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="payoutNumber">Mobile Money number</label>
+                <input
+                  id="payoutNumber"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  maxLength={20}
+                  className={inputCls}
+                  value={form.payoutMomoNumber}
+                  onChange={set('payoutMomoNumber')}
+                  placeholder="0244123456"
+                  required
+                />
+              </div>
+            </div>
+            <p className={`mt-4 rounded-lg border p-3 text-xs ${
+              managedAvailable
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}>
+              {managedAvailable
+                ? 'The platform Paystack account is configured. Managed online checkout is available once your payout details are saved.'
+                : 'Managed online checkout is unavailable until the platform administrator configures Paystack and enables the service.'}
+            </p>
+          </section>
+        )}
+
+        {form.paymentMode === 'BYOK' && (
+          <>
         {/* ------------------------------ Gateway ------------------------------ */}
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="mb-1 text-sm font-bold text-charcoal">Active payment method</h2>
@@ -310,6 +409,8 @@ export default function SellerPaymentSettings() {
             </div>
           </div>
         </section>
+          </>
+        )}
 
         {/* --------------------------------- COD -------------------------------- */}
         <section className="rounded-xl border border-slate-200 bg-white p-5">
@@ -346,7 +447,7 @@ export default function SellerPaymentSettings() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={saving || !storageOk}
+            disabled={saving || (form.paymentMode === 'BYOK' && !storageOk)}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {saving ? <IconSpinner size={14} /> : null}
@@ -355,7 +456,7 @@ export default function SellerPaymentSettings() {
           <button
             type="button"
             onClick={runTest}
-            disabled={testing || !storageOk}
+            disabled={testing || !storageOk || form.paymentMode !== 'BYOK'}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
           >
             {testing ? <IconSpinner size={14} /> : null}

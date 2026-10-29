@@ -20,6 +20,7 @@ export const ACTION_LABELS = {
   'admin.team.revoke': 'Revoked an administrator',
   'merchant.status': 'Changed a merchant status',
   'merchant.plan': 'Changed a merchant plan',
+  'merchant.subscription': 'Changed a merchant subscription',
   'merchant.balance': 'Adjusted a merchant balance',
   'merchant.contact': 'Changed merchant contact (phone/email)',
   'order.status': 'Moved an order',
@@ -36,6 +37,9 @@ export const ACTION_LABELS = {
   'domain.provider_price_refresh': 'Refreshed OpenProvider domain prices',
   'affiliate_program.settings': 'Changed affiliate program settings',
   'platform.public_settings': 'Changed platform public contact and social settings',
+  'managed_payments.settings': 'Changed managed payment fee or payout policy',
+  'managed_payout.paid': 'Recorded a completed managed vendor payout',
+  'managed_payout.rejected': 'Rejected a managed vendor payout request',
 };
 
 router.get('/audit', requireAdmin, async (req, res, next) => {

@@ -26,6 +26,12 @@ const EMPTY_SETTINGS = {
     affiliateGroupUrl: '',
   },
 };
+const EMPTY_MANAGED_POLICY = {
+  enabled: true,
+  feePercent: 2,
+  minimumPayoutGhs: 50,
+  paystackReady: false,
+};
 
 const CONTACT_FIELDS = [
   ['supportEmail', 'Support email', 'email'],
@@ -46,19 +52,28 @@ const SOCIAL_FIELDS = [
 export default function AdminPlatformSettings() {
   const [settings, setSettings] = useState(null);
   const [draft, setDraft] = useState(EMPTY_SETTINGS);
+  const [managedPolicy, setManagedPolicy] = useState(null);
+  const [managedDraft, setManagedDraft] = useState(EMPTY_MANAGED_POLICY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [notice, setNotice] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [managedBusy, setManagedBusy] = useState(false);
+  const [managedReason, setManagedReason] = useState('');
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const result = await adminApi.get('/api/admin/platform-settings');
+      const [result, managedResult] = await Promise.all([
+        adminApi.get('/api/admin/platform-settings'),
+        adminApi.get('/api/admin/managed-payment-settings'),
+      ]);
       setSettings(result.settings);
       setDraft(result.settings);
+      setManagedPolicy(managedResult.settings);
+      setManagedDraft(managedResult.settings);
     } catch (requestError) {
       setError(requestError.message || 'Platform settings could not be loaded.');
     } finally {
@@ -74,8 +89,13 @@ export default function AdminPlatformSettings() {
       [section]: { ...current[section], [key]: value },
     }));
   };
+  const updateManaged = (key, value) => {
+    setManagedDraft((current) => ({ ...current, [key]: value }));
+  };
 
   const isDirty = settings && JSON.stringify(settings) !== JSON.stringify(draft);
+  const isManagedDirty = managedPolicy
+    && ['enabled', 'feePercent', 'minimumPayoutGhs'].some((key) => managedPolicy[key] !== managedDraft[key]);
 
   const save = async () => {
     setBusy(true);
@@ -91,6 +111,30 @@ export default function AdminPlatformSettings() {
       setSaveError(requestError.message || 'Platform settings could not be saved.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveManaged = async () => {
+    setManagedBusy(true);
+    setSaveError('');
+    setNotice('');
+    try {
+      const result = await adminApi.patch('/api/admin/managed-payment-settings', {
+        settings: {
+          enabled: managedDraft.enabled,
+          feePercent: Number(managedDraft.feePercent),
+          minimumPayoutGhs: Number(managedDraft.minimumPayoutGhs),
+        },
+        reason: managedReason,
+      });
+      setManagedPolicy(result.settings);
+      setManagedDraft(result.settings);
+      setManagedReason('');
+      setNotice('Managed payment policy saved.');
+    } catch (requestError) {
+      setSaveError(requestError.message || 'Managed payment policy could not be saved.');
+    } finally {
+      setManagedBusy(false);
     }
   };
 
@@ -176,6 +220,78 @@ export default function AdminPlatformSettings() {
                 placeholder="https://chat.whatsapp.com/..."
               />
             </Field>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel>
+        <PanelHeader
+          title="Managed payments & payouts"
+          subtitle="Configure the platform fee, payout threshold, and the managed checkout kill switch."
+        />
+        <div className="space-y-5 p-5">
+          <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={managedDraft.enabled}
+              onChange={(event) => updateManaged('enabled', event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            Allow managed online checkout
+          </label>
+          <p className={`rounded-lg border px-3 py-2 text-xs ${
+            managedPolicy?.paystackReady
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}>
+            {managedPolicy?.paystackReady
+              ? 'Platform Paystack credentials are present; signed webhooks are required for settlement.'
+              : 'PAYSTACK_SECRET_KEY is not configured. Managed online checkout remains unavailable.'}
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Platform fee (%)" hint="Applied to new managed orders when they are created. Maximum 20%.">
+              <input
+                type="number"
+                min="0"
+                max="20"
+                step="0.01"
+                className={inputClass}
+                value={managedDraft.feePercent}
+                onChange={(event) => updateManaged('feePercent', event.target.value)}
+              />
+            </Field>
+            <Field label="Minimum payout (GHS)" hint="Vendors can request payouts at or above this amount.">
+              <input
+                type="number"
+                min="1"
+                max="1000000"
+                step="0.01"
+                className={inputClass}
+                value={managedDraft.minimumPayoutGhs}
+                onChange={(event) => updateManaged('minimumPayoutGhs', event.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <Field label="Reason for managed payment change">
+              <input
+                type="text"
+                maxLength={500}
+                className={inputClass}
+                value={managedReason}
+                onChange={(event) => setManagedReason(event.target.value)}
+                placeholder="Why is this policy changing?"
+              />
+            </Field>
+            <Button
+              tone="primary"
+              icon={Save}
+              busy={managedBusy}
+              disabled={!isManagedDirty || !managedReason.trim()}
+              onClick={saveManaged}
+            >
+              Save managed policy
+            </Button>
           </div>
         </div>
       </Panel>

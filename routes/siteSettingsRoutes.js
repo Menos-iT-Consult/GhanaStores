@@ -399,6 +399,18 @@ router.patch('/password', requireSeller, async (req, res, next) => {
       return res.status(403).json({ error: 'Your current password is incorrect.' });
     }
 
+    const managedFinancials = await query(
+      `SELECT EXISTS (SELECT 1 FROM store_managed_ledger WHERE store_id = $1)
+           OR EXISTS (SELECT 1 FROM store_payout_requests WHERE store_id = $1) AS has_history`,
+      [req.auth.sub],
+    );
+    if (managedFinancials.rows[0]?.has_history) {
+      return res.status(409).json({
+        error: 'This store has managed payment or payout records that must be retained for financial reconciliation. Contact DiDwa support to close the account.',
+        code: 'MANAGED_FINANCIAL_HISTORY',
+      });
+    }
+
     await query('UPDATE stores SET password_hash = $2 WHERE id = $1', [
       req.auth.sub,
       await hashPassword(newPassword),

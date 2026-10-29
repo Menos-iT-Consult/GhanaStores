@@ -1,5 +1,5 @@
 ﻿/**
- * DiDwa - Payment webhook handling (per-store BYOK gateways).
+ * DiDwa - Payment webhook handling for store BYOK and platform-managed orders.
  *
  * Each merchant's gateway posts to ONE shared DiDwa URL, so the store must be
  * resolved from the transaction reference BEFORE the payment can be trusted -
@@ -29,6 +29,7 @@ import { formatGhs } from '../utils/helpers.js';
 import { sendMerchantPushNotification } from './pushService.js';
 import { sendSubscriptionActiveSms } from './smsService.js';
 import { sendLifecycleEmail } from './emailService.js';
+import { managedOrderAmounts, roundGhs } from './managedPaymentSettings.js';
 
 /**
  * Find the order a gateway callback refers to. The reference we send is the
@@ -38,8 +39,12 @@ import { sendLifecycleEmail } from './emailService.js';
 export async function findOrderByReference(reference) {
   if (!reference) return null;
   const { rows } = await query(
-    `SELECT id, store_id, order_number, total, status, payment_status
-       FROM orders WHERE order_number = $1 LIMIT 1`,
+    `SELECT id, store_id, order_number, total, status, payment_status,
+            payment_processor, payment_reference, gateway_transaction_id,
+            managed_fee_percent, managed_fee_ghs, managed_net_ghs
+       FROM orders
+      WHERE order_number = $1 OR payment_reference = $1
+      LIMIT 1`,
     [String(reference).trim()],
   );
   return rows[0] || null;
@@ -91,6 +96,203 @@ async function markOrderFailed(order, note) {
   return { changed: true };
 }
 
+function ghsFromPaystackAmount(value) {
+  const pesewas = Number(value);
+  return Number.isFinite(pesewas) && pesewas > 0 ? roundGhs(pesewas / 100) : null;
+}
+
+async function findManagedOrderForReversal(data) {
+  const reference = String(
+    data?.transaction_reference
+      || data?.transaction?.reference
+      || data?.reference
+      || '',
+  ).trim();
+  const transactionId = data?.transaction?.id ?? data?.transaction_id ?? null;
+  const { rows } = await query(
+    `SELECT id, store_id, order_number, total, status, payment_status,
+            payment_processor, payment_reference, gateway_transaction_id,
+            managed_fee_percent, managed_fee_ghs, managed_net_ghs
+       FROM orders
+      WHERE payment_processor = 'PLATFORM_PAYSTACK'
+        AND (($1 <> '' AND (payment_reference = $1 OR order_number = $1))
+          OR ($2::text IS NOT NULL AND gateway_transaction_id = $2::text))
+      LIMIT 1`,
+    [reference, transactionId == null ? null : String(transactionId)],
+  );
+  return rows[0] || null;
+}
+
+async function processManagedOrderPayment(payload) {
+  const data = payload?.data || {};
+  const reference = String(data.reference || '').trim();
+  const isReversal = payload.event === 'refund.processed' || payload.event === 'charge.dispute.create';
+  const order = isReversal
+    ? await findManagedOrderForReversal(data)
+    : await findOrderByReference(reference);
+  if (!order || order.payment_processor !== 'PLATFORM_PAYSTACK'
+      || (!isReversal && order.payment_reference !== reference)) {
+    return { status: 404, body: { error: 'Unknown managed payment reference.' } };
+  }
+
+  if (payload.event === 'charge.failed') {
+    const result = await markOrderFailed(order, 'managed Paystack charge.failed');
+    return { status: 200, body: { received: true, processed: result.changed } };
+  }
+
+  if (payload.event === 'charge.success') {
+    const amount = ghsFromPaystackAmount(data.amount);
+    if (data.status !== 'success' || String(data.currency || '').toUpperCase() !== 'GHS'
+        || amount === null || Math.abs(amount - Number(order.total)) > 0.01) {
+      console.warn(`[payment-webhook] managed Paystack charge did not match order ${order.order_number}`);
+      return { status: 409, body: { error: 'Payment does not match this order.' } };
+    }
+
+    const settled = await withTransaction(async (t) => {
+      const { rows } = await t.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [order.id]);
+      const lockedOrder = rows[0];
+      if (!lockedOrder || lockedOrder.payment_processor !== 'PLATFORM_PAYSTACK'
+          || lockedOrder.payment_reference !== reference) {
+        return { processed: false, reason: 'order_changed' };
+      }
+      if (lockedOrder.payment_status === 'PAID' || lockedOrder.status === 'CANCELLED') {
+        return { processed: false, reason: 'already_settled' };
+      }
+
+      const amounts = managedOrderAmounts(
+        lockedOrder.total,
+        lockedOrder.managed_fee_percent,
+      );
+      const externalReference = `paystack:charge:${String(data.id || reference)}`;
+      const ledger = await t.query(
+        `INSERT INTO store_managed_ledger
+           (store_id, order_id, entry_type, gross_amount_ghs, platform_fee_ghs,
+            net_amount_ghs, external_reference)
+         VALUES ($1, $2, 'SALE', $3, $4, $5, $6)
+         ON CONFLICT (external_reference) DO NOTHING
+         RETURNING id`,
+        [lockedOrder.store_id, lockedOrder.id, amounts.gross, amounts.fee, amounts.net, externalReference],
+      );
+      if (!ledger.rows[0]) return { processed: false, reason: 'duplicate_event' };
+
+      await t.query(
+        `INSERT INTO store_managed_balances
+           (store_id, total_sales_ghs, platform_fees_ghs, net_payable_ghs)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (store_id) DO UPDATE SET
+           total_sales_ghs = store_managed_balances.total_sales_ghs + EXCLUDED.total_sales_ghs,
+           platform_fees_ghs = store_managed_balances.platform_fees_ghs + EXCLUDED.platform_fees_ghs,
+           net_payable_ghs = store_managed_balances.net_payable_ghs + EXCLUDED.net_payable_ghs,
+           updated_at = NOW()`,
+        [lockedOrder.store_id, amounts.gross, amounts.fee, amounts.net],
+      );
+      await t.query(
+        `UPDATE orders
+            SET status = 'PAID', payment_status = 'PAID', order_status = 'PROCESSING',
+                gateway_transaction_id = $2,
+                paid_at = COALESCE(paid_at, NOW()), updated_at = NOW()
+          WHERE id = $1`,
+        [lockedOrder.id, data.id == null ? null : String(data.id)],
+      );
+      return { processed: true };
+    });
+
+    if (settled.processed) {
+      console.log(`[payment-webhook] order ${order.order_number} marked PAID (managed Paystack)`);
+      sendMerchantPushNotification({
+        storeId: order.store_id,
+        title: 'Payment received',
+        body: `Payment received for Order #${order.order_number} - ${formatGhs(order.total, { symbol: true })}`,
+        data: { type: 'order_paid', orderId: order.id, orderNumber: order.order_number },
+      }).catch(() => {});
+    }
+    return {
+      status: 200,
+      body: { received: true, processed: settled.processed, reason: settled.reason || undefined },
+    };
+  }
+
+  if (!isReversal) {
+    return { status: 200, body: { received: true, processed: false, ignored: payload.event } };
+  }
+
+  const reversalOrder = order;
+  const amount = ghsFromPaystackAmount(data.amount);
+  const reversalId = data.id == null ? '' : String(data.id);
+  const type = payload.event === 'refund.processed' ? 'REFUND' : 'CHARGEBACK';
+  if (!reversalOrder || !amount || !reversalId
+      || (data.currency && String(data.currency).toUpperCase() !== 'GHS')) {
+    console.warn(`[payment-webhook] managed Paystack ${type.toLowerCase()} could not be matched to a settled order`);
+    return { status: 409, body: { error: 'Reversal could not be matched to a settled order.' } };
+  }
+
+  const reversed = await withTransaction(async (t) => {
+    const { rows } = await t.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [reversalOrder.id]);
+    const lockedOrder = rows[0];
+    if (!lockedOrder || lockedOrder.payment_processor !== 'PLATFORM_PAYSTACK'
+        || lockedOrder.payment_status !== 'PAID') {
+      return { processed: false, reason: 'order_not_settled' };
+    }
+    if (data.transaction?.id != null && lockedOrder.gateway_transaction_id
+        && String(data.transaction.id) !== String(lockedOrder.gateway_transaction_id)) {
+      return { processed: false, reason: 'transaction_mismatch' };
+    }
+    const { rows: previousRows } = await t.query(
+      `SELECT COALESCE(SUM(-gross_amount_ghs), 0) AS reversed_gross,
+              COALESCE(SUM(-platform_fee_ghs), 0) AS reversed_fee
+         FROM store_managed_ledger
+        WHERE order_id = $1 AND entry_type IN ('REFUND', 'CHARGEBACK')
+          AND gross_amount_ghs < 0`,
+      [lockedOrder.id],
+    );
+    const previousGross = Number(previousRows[0]?.reversed_gross || 0);
+    const previousFee = Number(previousRows[0]?.reversed_fee || 0);
+    const remainingGross = roundGhs(Number(lockedOrder.total) - previousGross);
+    if (amount > remainingGross + 0.01 || remainingGross <= 0) {
+      return { processed: false, reason: 'reversal_exceeds_remaining_amount' };
+    }
+
+    const reversalAmount = roundGhs(Math.min(amount, remainingGross));
+    const feeRemaining = roundGhs(Number(lockedOrder.managed_fee_ghs || 0) - previousFee);
+    const fee = reversalAmount >= remainingGross - 0.01
+      ? feeRemaining
+      : Math.min(feeRemaining, roundGhs(
+        reversalAmount * Number(lockedOrder.managed_fee_percent || 0) / 100,
+      ));
+    const net = roundGhs(reversalAmount - fee);
+    const inserted = await t.query(
+      `INSERT INTO store_managed_ledger
+         (store_id, order_id, entry_type, gross_amount_ghs, platform_fee_ghs,
+          net_amount_ghs, external_reference)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (external_reference) DO NOTHING
+       RETURNING id`,
+      [
+        lockedOrder.store_id,
+        lockedOrder.id,
+        type,
+        -reversalAmount,
+        -fee,
+        -net,
+        `paystack:${payload.event}:${reversalId}`,
+      ],
+    );
+    if (!inserted.rows[0]) return { processed: false, reason: 'duplicate_event' };
+
+    await t.query(
+      `UPDATE store_managed_balances
+          SET total_sales_ghs = total_sales_ghs - $2,
+              platform_fees_ghs = platform_fees_ghs - $3,
+              net_payable_ghs = net_payable_ghs - $4,
+              updated_at = NOW()
+        WHERE store_id = $1`,
+      [lockedOrder.store_id, reversalAmount, fee, net],
+    );
+    return { processed: true };
+  });
+  return { status: 200, body: { received: true, ...reversed } };
+}
+
 /* -------------------------------- Paystack ---------------------------------- */
 
 /**
@@ -106,14 +308,16 @@ export async function handlePaystackWebhook(rawBody, signature) {
     return { status: 400, body: { error: 'Body is not valid JSON.' } };
   }
 
-  /* PLATFORM payments (GS-SUB-... subscriptions and GS-SMS-... SMS packs)
+  /* PLATFORM payments (GS-SUB-... subscriptions, GS-SMS-... SMS packs and
+     GS-MGD-... managed vendor orders)
      are signed with the platform's own PAYSTACK_SECRET_KEY - they never touch
      a merchant's BYOK payment_settings. Domain purchases (GSD-...) are
      dispatched by the router, which needs domainService + store_domains, so
-     only the two billing flows land here. Everything else - order numbers are
-     GS-YYMMDD-... - falls through to the per-store order path below. */
-  const platformKind = platformReferenceKind(payload?.data?.reference);
-  if (platformKind === 'subscription' || platformKind === 'sms') {
+     those callbacks are handled separately. */
+  const platformKind = platformReferenceKind(payload?.data?.reference)
+    || platformReferenceKind(payload?.data?.transaction_reference)
+    || platformReferenceKind(payload?.data?.transaction?.reference);
+  if (platformKind === 'subscription' || platformKind === 'sms' || platformKind === 'managed-order') {
     if (paystackPlatformReady()) {
       if (!verifyPlatformSignature(rawBody, signature)) {
         console.warn(`[payment-webhook] Paystack platform signature rejected for ${payload?.data?.reference}`);
@@ -127,6 +331,10 @@ export async function handlePaystackWebhook(rawBody, signature) {
     }
 
     const event = payload?.event;
+    if (platformKind === 'managed-order') {
+      const result = await processManagedOrderPayment(payload);
+      return result;
+    }
     if (!paystackEventSucceeded(event)) {
       return { status: 200, body: { received: true, processed: false, ignored: event } };
     }

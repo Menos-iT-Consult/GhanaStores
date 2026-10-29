@@ -71,7 +71,7 @@ export function isHubtelReady(s) {
 }
 
 /** Persist settings, encrypting every secret. Callers validate the gateway first. */
-export async function saveSettings(storeId, input) {
+export async function saveSettings(storeId, input, runQuery = query) {
   const sealed = {
     pub: encryptSecret(input.paystackPublicKey),
     sec: encryptSecret(input.paystackSecretKey),
@@ -80,7 +80,7 @@ export async function saveSettings(storeId, input) {
     acct: encryptSecret(input.hubtelMerchantAccountId),
   };
 
-  const { rows } = await query(
+  const { rows } = await runQuery(
     `INSERT INTO payment_settings
        (store_id, paystack_public_key, paystack_secret_key,
         hubtel_client_id, hubtel_client_secret, hubtel_merchant_account_id,
@@ -344,4 +344,3 @@ export default {
   isPaystackReady,
   isHubtelReady,
 };
-

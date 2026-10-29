@@ -13,7 +13,7 @@
 import { Router } from 'express';
 import { pool, query, withTransaction } from '../config/database.js';
 import { requireSeller as authenticateSeller } from '../middleware/authMiddleware.js';
-import { generateOrderNumber, money, toIntOr, formatGhs } from '../utils/helpers.js';
+import { generateOrderNumber, money, toIntOr, formatGhs, normalizeGhPhone } from '../utils/helpers.js';
 import {
   CONSOLE_TO_CANONICAL,
   PAID_STATUSES,
@@ -35,6 +35,10 @@ import {
   chargeStorePayment,
   availableMethods,
 } from '../services/storePayments.js';
+import { initPaystackCheckout } from '../services/paystackPlatform.js';
+import {
+  getManagedPaymentPolicy, getManagedStoreProfile, normalizeMomoNetwork, managedOrderAmounts,
+} from '../services/managedPaymentSettings.js';
 
 const router = Router();
 
@@ -43,11 +47,27 @@ const ORDER_STATUSES = ['PENDING', 'PROCESSING', 'DELIVERED', 'CANCELLED'];
 const PAYMENT_STATUSES = ['PENDING', 'PAID', 'FAILED'];
 /* Must match the orders.payment_method CHECK constraint in db/schema.sql.
    BANK_TRANSFER was advertised here but rejected by the database.
-   PAYSTACK/HUBTEL name the specific BYOK gateway that took the money; CASH and
-   MOMO are the legacy spellings kept for older orders and the POS. */
+   PAYSTACK/HUBTEL name the checkout rail (provider is snapshotted separately);
+   CASH and MOMO are the legacy spellings kept for older orders and the POS. */
 const PAYMENT_METHODS = ['COD', 'MOMO', 'CASH', 'PAYSTACK', 'HUBTEL'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function managedMethods(settings, profile, policy) {
+  const methods = [];
+  const payoutReady = Boolean(
+    normalizeGhPhone(profile?.payout_momo_number)
+    && normalizeMomoNetwork(profile?.payout_momo_network),
+  );
+  if (policy?.enabled && policy?.paystackReady && payoutReady) methods.push('PAYSTACK');
+  if (!settings || settings.enableCod !== false || settings.activeGateway === 'COD') methods.push('COD');
+  return methods;
+}
+
+function managedActiveGateway(methods) {
+  if (methods.includes('PAYSTACK')) return 'PAYSTACK';
+  return methods.includes('COD') ? 'COD' : null;
+}
 
 /** Normalise the three accepted body shapes for the fulfilment transition. */
 function paymentParam(b) {
@@ -80,7 +100,7 @@ function canonicalParam(b) {
  * Lets the storefront render exactly the methods this store can charge with,
  * before an order exists. Public by necessity (a customer is not a signed-in
  * seller) but strictly read-only and it exposes only method NAMES - no keys, no
- * amounts, no store internals. A store with no configured keys reports COD.
+ * amounts, no store internals. Unready managed checkout is never advertised.
  */
 router.get('/public/payment-methods', async (req, res, next) => {
   try {
@@ -88,7 +108,7 @@ router.get('/public/payment-methods', async (req, res, next) => {
     if (!key) return res.status(400).json({ error: 'A store slug or custom domain is required.' });
 
     const s = await query(
-      `SELECT id FROM stores
+      `SELECT id, use_managed_payments FROM stores
         WHERE LOWER(subdomain_slug) = LOWER($1)
            OR LOWER(custom_domain) = ANY ($2::text[])
         LIMIT 1`,
@@ -96,16 +116,22 @@ router.get('/public/payment-methods', async (req, res, next) => {
     );
     if (!s.rows[0]) return res.status(404).json({ error: 'Store not found.' });
 
-    const settings = await getStoreSettings(s.rows[0].id);
-    const methods = availableMethods(settings);
+    const [settings, profile, policy] = await Promise.all([
+      getStoreSettings(s.rows[0].id),
+      getManagedStoreProfile(s.rows[0].id),
+      getManagedPaymentPolicy(),
+    ]);
+    const isManaged = profile?.use_managed_payments !== false;
+    const methods = isManaged ? managedMethods(settings, profile, policy) : availableMethods(settings);
 
     res.json({
       methods,
       // The gateway whose keys are live, so the storefront can label the option.
-      activeGateway: settings?.activeGateway || 'COD',
+      activeGateway: isManaged ? managedActiveGateway(methods) : settings?.activeGateway || 'COD',
+      paymentMode: isManaged ? 'MANAGED' : 'BYOK',
       codEnabled: methods.includes('COD'),
       // Paystack's public key is publishable - the checkout script needs it.
-      paystackPublicKey: methods.includes('PAYSTACK') ? settings.paystackPublicKey : null,
+      paystackPublicKey: !isManaged && methods.includes('PAYSTACK') ? settings.paystackPublicKey : null,
     });
   } catch (err) { next(err); }
 });
@@ -172,11 +198,48 @@ router.post('/public/orders', async (req, res, next) => {
       return res.status(400).json({ error: 'Every cart line needs a valid variant_id or product_id.' });
     }
 
-    // Resolve the store's own payment configuration. This is what makes checkout
-    // BYOK: the methods offered are the merchant's, and a store with no keys
-    // can only ever be COD, regardless of what the request asked for.
-    const paymentSettings = await getStoreSettings(storeId);
-    const paymentMethod = resolveMethod(paymentSettings, methodRaw);
+    const [paymentSettings, storeProfile] = await Promise.all([
+      getStoreSettings(storeId),
+      getManagedStoreProfile(storeId),
+    ]);
+    if (!storeProfile) return res.status(404).json({ error: 'Store not found.' });
+    const isManaged = storeProfile.use_managed_payments !== false;
+    const managedPolicy = isManaged ? await getManagedPaymentPolicy() : null;
+    const methods = isManaged
+      ? managedMethods(paymentSettings, storeProfile, managedPolicy)
+      : availableMethods(paymentSettings);
+    let paymentMethod;
+    if (isManaged) {
+      if (!['COD', 'CASH', 'PAYSTACK'].includes(methodRaw)) {
+        return res.status(400).json({ error: 'This store accepts Cash on Delivery or Paystack checkout.' });
+      }
+      if (methodRaw === 'PAYSTACK' && !methods.includes('PAYSTACK')) {
+        return res.status(503).json({
+          error: 'Online payments are not ready for this store. Choose Cash on Delivery or contact the store.',
+          code: 'MANAGED_PAYMENTS_NOT_READY',
+        });
+      }
+      if ((methodRaw === 'COD' || methodRaw === 'CASH') && methods.includes('COD')) {
+        paymentMethod = 'COD';
+      } else if (methods.includes('PAYSTACK')) {
+        paymentMethod = 'PAYSTACK';
+      } else {
+        return res.status(503).json({
+          error: 'No payment method is currently available for this store.',
+          code: 'PAYMENT_METHODS_UNAVAILABLE',
+        });
+      }
+    } else {
+      paymentMethod = resolveMethod(paymentSettings, methodRaw);
+    }
+
+    const orderNumber = generateOrderNumber();
+    const paymentProcessor = paymentMethod === 'COD'
+      ? null
+      : isManaged ? 'PLATFORM_PAYSTACK' : `STORE_${paymentMethod}`;
+    const paymentReference = paymentProcessor === 'PLATFORM_PAYSTACK'
+      ? `GS-MGD-${orderNumber}`
+      : paymentProcessor ? orderNumber : null;
 
     const alertCandidates = [];
 const orderLines = [];
@@ -188,12 +251,24 @@ const orderLines = [];
       const orderRow = await t.query(
         `INSERT INTO orders
             (store_id, order_number, customer_name, customer_phone, customer_address,
-             channel, payment_method, status, payment_status, order_status,
+             channel, payment_method, payment_processor, payment_reference,
+             managed_fee_percent, status, payment_status, order_status,
              subtotal, total, total_amount, notes)
-         VALUES ($1, $2, $3, $4, $5, 'ONLINE_WHATSAPP', $6,
-                 'PENDING', 'PENDING', 'PENDING', 0, 0, 0, $7)
+         VALUES ($1, $2, $3, $4, $5, 'ONLINE_WHATSAPP', $6, $7, $8, $9,
+                 'PENDING', 'PENDING', 'PENDING', 0, 0, 0, $10)
          RETURNING id, order_number, created_at`,
-        [storeId, generateOrderNumber(), customerName, customerPhone, customerAddress, paymentMethod, notes],
+        [
+          storeId,
+          orderNumber,
+          customerName,
+          customerPhone,
+          customerAddress,
+          paymentMethod,
+          paymentProcessor,
+          paymentReference,
+          paymentProcessor === 'PLATFORM_PAYSTACK' ? managedPolicy.feePercent : null,
+          notes,
+        ],
       );
       const order = orderRow.rows[0];
       let totalAmount = 0;
@@ -268,11 +343,17 @@ const orderLines = [];
         }
       }
 
+      const managedAmounts = paymentProcessor === 'PLATFORM_PAYSTACK'
+        ? managedOrderAmounts(totalAmount, managedPolicy.feePercent)
+        : null;
       await t.query(
-        'UPDATE orders SET subtotal = $2, total = $2, total_amount = $2, updated_at = NOW() WHERE id = $1',
-        [order.id, totalAmount],
+        `UPDATE orders
+            SET subtotal = $2, total = $2, total_amount = $2,
+                managed_fee_ghs = $3, managed_net_ghs = $4, updated_at = NOW()
+          WHERE id = $1`,
+        [order.id, totalAmount, managedAmounts?.fee ?? null, managedAmounts?.net ?? null],
       );
-      return { ...order, totalAmount };
+      return { ...order, totalAmount, paymentProcessor, paymentReference };
     });
 
     // Post-commit side effects - dispatchLowStockAlerts re-arms the latch on
@@ -287,22 +368,37 @@ const orderLines = [];
     let payment = { method: paymentMethod, requiresCharge: false, success: true };
     if (paymentMethod !== 'COD') {
       try {
-        payment = await chargeStorePayment(storeId, {
-          reference: created.order_number,
-          /* `totalAmount` is computed inside the transaction above and only
-             exists on its return value. Referring to the bare name here threw a
-             ReferenceError that the catch below swallowed into a generic
-             "Payment could not be started", so EVERY gateway checkout silently
-             failed with no authorizationUrl and the customer was never sent to
-             the payment page. */
-          amount: created.totalAmount,
-          method: paymentMethod,
-          email: b.customer_email || b.customerEmail || null,
-          msisdn: customerPhone,
-          network: b.momoNetwork || 'MTN',
-          description: `Order ${created.order_number}`,
-          callbackUrl: `${process.env.CLIENT_URL || ''}/api/webhooks/${paymentMethod.toLowerCase()}`,
-        });
+        if (created.paymentProcessor === 'PLATFORM_PAYSTACK') {
+          const checkout = await initPaystackCheckout({
+            reference: created.paymentReference,
+            amountGhs: created.totalAmount,
+            email: b.customer_email || b.customerEmail || null,
+            metadata: {
+              type: 'managed_order',
+              orderId: created.id,
+              orderNumber: created.order_number,
+              storeId,
+            },
+          });
+          payment = {
+            method: 'PAYSTACK',
+            success: true,
+            requiresCharge: true,
+            authorizationUrl: checkout.checkoutUrl,
+            accessCode: checkout.checkoutId,
+          };
+        } else {
+          payment = await chargeStorePayment(storeId, {
+            reference: created.order_number,
+            amount: created.totalAmount,
+            method: paymentMethod,
+            email: b.customer_email || b.customerEmail || null,
+            msisdn: customerPhone,
+            network: b.momoNetwork || 'MTN',
+            description: `Order ${created.order_number}`,
+            callbackUrl: `${process.env.CLIENT_URL || ''}/api/webhooks/${paymentMethod.toLowerCase()}`,
+          });
+        }
         // The reference sent to the gateway IS the order number, so the webhook
         // can match the callback to this order with no extra bookkeeping.
         if (!payment.success) {
@@ -377,7 +473,7 @@ const orderLines = [];
       },
       // What this store can offer, so the storefront renders exactly the
       // methods that are actually chargeable right now.
-      availableMethods: availableMethods(paymentSettings),
+      availableMethods: isManaged ? methods : availableMethods(paymentSettings),
     });
   } catch (err) {
     if (err.status) {

@@ -15,7 +15,7 @@ import { toDisplayProduct } from './mappers.js';
  */
 export const PAYMENT_LABELS = {
   COD: 'Cash on Delivery',
-  PAYSTACK: 'Card',
+  PAYSTACK: 'Paystack',
   HUBTEL: 'Mobile Money',
 };
 

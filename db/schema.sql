@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ------------------------------------------------------------ system settings
 -- Platform-wide configurable values shared by public pages and operational
--- routes. Affiliate terms and public contact links are admin-managed.
+-- routes. Affiliate, managed-payment and public-contact settings are admin-managed.
 CREATE TABLE IF NOT EXISTS system_settings (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   setting_key   TEXT UNIQUE NOT NULL,
@@ -24,6 +24,9 @@ INSERT INTO system_settings (setting_key, setting_value, description) VALUES
   ('affiliate_attribution_days', '30', 'Days a referral attribution remains valid'),
   ('affiliate_payout_min_days', '3', 'Minimum business days to process an affiliate payout'),
   ('affiliate_payout_max_days', '5', 'Maximum business days to process an affiliate payout'),
+  ('managed_payments_enabled', 'true', 'Allow stores to accept payments through the DiDwa managed Paystack account'),
+  ('managed_payments_fee_percent', '2.00', 'Platform fee percent deducted from settled managed orders'),
+  ('managed_payout_minimum_ghs', '50.00', 'Minimum available balance in GHS required for managed payout requests'),
   ('platform_contact_support_email', 'hello@didwaghana.com', 'Platform support email'),
   ('platform_contact_support_phone', '+233 20 123 4567', 'Platform support phone'),
   ('platform_contact_whatsapp_number', '+233 20 123 4567', 'Platform WhatsApp number'),
@@ -126,6 +129,17 @@ CREATE TABLE IF NOT EXISTS stores (
   currency              TEXT NOT NULL DEFAULT 'GHS',
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS use_managed_payments BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS payout_momo_number TEXT,
+  ADD COLUMN IF NOT EXISTS payout_momo_network TEXT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stores_payout_momo_network_check') THEN
+    ALTER TABLE stores ADD CONSTRAINT stores_payout_momo_network_check
+      CHECK (payout_momo_network IS NULL OR payout_momo_network IN ('MTN', 'TELECEL', 'AT'));
+  END IF;
+END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS stores_email_lower_idx ON stores ((LOWER(email)));
 -- stores_phone may already contain duplicates on long-lived databases (demo
 -- seeds, pre-validation rows), which would make a plain CREATE UNIQUE INDEX
@@ -395,7 +409,23 @@ ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'PENDING',
   ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  ADD COLUMN IF NOT EXISTS client_reference TEXT;
+  ADD COLUMN IF NOT EXISTS client_reference TEXT,
+  ADD COLUMN IF NOT EXISTS payment_processor TEXT,
+  ADD COLUMN IF NOT EXISTS payment_reference TEXT,
+  ADD COLUMN IF NOT EXISTS gateway_transaction_id TEXT,
+  ADD COLUMN IF NOT EXISTS managed_fee_percent NUMERIC(5,2),
+  ADD COLUMN IF NOT EXISTS managed_fee_ghs NUMERIC(12,2),
+  ADD COLUMN IF NOT EXISTS managed_net_ghs NUMERIC(12,2);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orders_payment_processor_check') THEN
+    ALTER TABLE orders ADD CONSTRAINT orders_payment_processor_check
+      CHECK (payment_processor IS NULL OR payment_processor IN ('PLATFORM_PAYSTACK', 'STORE_PAYSTACK', 'STORE_HUBTEL'));
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS orders_payment_reference_idx
+  ON orders (payment_reference) WHERE payment_reference IS NOT NULL;
 
 UPDATE orders
    SET order_status = CASE
@@ -453,11 +483,9 @@ ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS active_theme_id VARCHAR(100) REFERENCES theme_templates(id),
   ADD COLUMN IF NOT EXISTS custom_theme_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 
--- ------------------------------------------------------------ payouts (retired)
--- The instant-payout ledger is gone: customer money now settles directly in the
--- merchant's own gateway account, so DiDwa never holds a balance to pay out from.
--- The table is RENAMED to payouts_retired rather than dropped - it is a financial
--- record merchants may need for reconciliation, and DROP cannot be undone.
+-- ------------------------------------------------------------ legacy payouts (retired)
+-- The former instant-payout table is retained for reconciliation. The managed
+-- payment ledger and manually reviewed withdrawal requests are defined below.
 --
 -- This whole block is intentionally NOT re-created: a fresh install has no payout
 -- ledger to create, and on an existing install the rename below is guarded so that
@@ -480,9 +508,10 @@ END $$;
 /* =============================================================================
  * Per-store payment settings (BYOK - Bring Your Own Keys)
  *
- * The platform no longer holds customer funds. Each merchant connects their own
- * gateway credentials and money moves straight from the customer into the
- * merchant's gateway account. Nothing here is readable by another store, and
+ * In BYOK mode each merchant's money moves directly to their own gateway
+ * account. Credentials remain store-scoped and encrypted at rest; managed mode
+ * is selected separately on stores and uses the platform Paystack account.
+ * Nothing here is readable by another store, and
  * every secret column is AES-256-GCM ciphertext written by
  * services/secretBox.js - never plaintext, never selected into a public payload.
  *
@@ -520,6 +549,52 @@ ALTER TABLE payment_settings ADD CONSTRAINT payment_settings_gateway_ready_check
 CREATE INDEX IF NOT EXISTS payment_settings_gateway_idx
   ON payment_settings (active_gateway) WHERE active_gateway <> 'COD';
 
+-- Managed online sales are credited only after a verified platform Paystack
+-- webhook. The ledger is immutable and uniquely keyed to prevent duplicate
+-- credits when a provider retries a callback.
+CREATE TABLE IF NOT EXISTS store_managed_balances (
+  store_id           UUID PRIMARY KEY REFERENCES stores(id) ON DELETE RESTRICT,
+  total_sales_ghs    NUMERIC(14,2) NOT NULL DEFAULT 0,
+  platform_fees_ghs  NUMERIC(14,2) NOT NULL DEFAULT 0,
+  net_payable_ghs    NUMERIC(14,2) NOT NULL DEFAULT 0,
+  paid_out_ghs       NUMERIC(14,2) NOT NULL DEFAULT 0,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS store_managed_ledger (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id           UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
+  order_id           UUID REFERENCES orders(id) ON DELETE RESTRICT,
+  entry_type         TEXT NOT NULL CHECK (entry_type IN ('SALE', 'REFUND', 'CHARGEBACK', 'PAYOUT')),
+  gross_amount_ghs   NUMERIC(14,2) NOT NULL DEFAULT 0,
+  platform_fee_ghs   NUMERIC(14,2) NOT NULL DEFAULT 0,
+  net_amount_ghs     NUMERIC(14,2) NOT NULL,
+  external_reference TEXT NOT NULL UNIQUE,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS store_managed_ledger_store_created_idx
+  ON store_managed_ledger (store_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS store_managed_ledger_order_idx
+  ON store_managed_ledger (order_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS store_payout_requests (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id              UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
+  amount_ghs            NUMERIC(14,2) NOT NULL CHECK (amount_ghs > 0),
+  momo_number           TEXT NOT NULL,
+  momo_network          TEXT NOT NULL CHECK (momo_network IN ('MTN', 'TELECEL', 'AT')),
+  status                TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'paid', 'rejected')),
+  transfer_reference    TEXT,
+  admin_note            TEXT,
+  requested_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at          TIMESTAMPTZ,
+  processed_by_admin_id UUID
+);
+CREATE INDEX IF NOT EXISTS store_payout_requests_store_requested_idx
+  ON store_payout_requests (store_id, requested_at DESC);
+CREATE INDEX IF NOT EXISTS store_payout_requests_review_idx
+  ON store_payout_requests (status, requested_at ASC);
 
 -- ---------------------------------------------------------------------------
 -- Per-store SMS provider credentials (BYOK), used for ORDER messages only.

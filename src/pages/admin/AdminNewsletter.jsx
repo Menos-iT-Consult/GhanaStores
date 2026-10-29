@@ -3,7 +3,7 @@ import { adminApi } from '../../api.js';
 import {
   Button, Panel, PageHeader, Toolbar, DataTable, EmptyState, ErrorBanner,
   LoadingBlock,
-  Input, Textarea, RadioGroup, Label, Alert, Select,
+  Input, Textarea, Label, Alert, Select,
 } from '../../components/admin/ui.jsx';
 import { useAdminList } from '../../components/admin/useAdminList.js';
 
@@ -195,15 +195,14 @@ export default function AdminNewsletter() {
               />
             </div>
             <div className='flex items-center gap-3'>
-              <RadioGroup
-                value={emailRecipientType}
-                onChange={setEmailRecipientType}
-                disabled={emailSending}
-              >
+              <fieldset disabled={emailSending} className='flex flex-wrap gap-4'>
                 <Label className='flex items-center gap-2'>
                   <input
                     type='radio'
+                    name='emailRecipientType'
                     value='all'
+                    checked={emailRecipientType === 'all'}
+                    onChange={(e) => setEmailRecipientType(e.target.value)}
                     className='peer cursor-pointer'
                   />
                   <span className='text-sm font-medium'>Send to all customers</span>
@@ -211,12 +210,15 @@ export default function AdminNewsletter() {
                 <Label className='flex items-center gap-2'>
                   <input
                     type='radio'
+                    name='emailRecipientType'
                     value='selected'
+                    checked={emailRecipientType === 'selected'}
+                    onChange={(e) => setEmailRecipientType(e.target.value)}
                     className='peer cursor-pointer'
                   />
                   <span className='text-sm font-medium'>Send to selected customers</span>
                 </Label>
-              </RadioGroup>
+              </fieldset>
             </div>
             {!emailHasRecipients && (
               <Alert tone='warning' className='mt-2'>
@@ -267,15 +269,14 @@ export default function AdminNewsletter() {
               <span>SMS segments: {smsSegments} (160 chars each)</span>
             </div>
             <div className='flex items-center gap-3'>
-              <RadioGroup
-                value={smsRecipientType}
-                onChange={setSmsRecipientType}
-                disabled={smsSending}
-              >
+              <fieldset disabled={smsSending} className='flex flex-wrap gap-4'>
                 <Label className='flex items-center gap-2'>
                   <input
                     type='radio'
+                    name='smsRecipientType'
                     value='all'
+                    checked={smsRecipientType === 'all'}
+                    onChange={(e) => setSmsRecipientType(e.target.value)}
                     className='peer cursor-pointer'
                   />
                   <span className='text-sm font-medium'>Send to all customers</span>
@@ -283,13 +284,16 @@ export default function AdminNewsletter() {
                 <Label className='flex items-center gap-2'>
                   <input
                     type='radio'
+                    name='smsRecipientType'
                     value='selected'
+                    checked={smsRecipientType === 'selected'}
+                    onChange={(e) => setSmsRecipientType(e.target.value)}
                     className='peer cursor-pointer'
                   />
                   <span className='text-sm font-medium'>Send to selected customers</span>
                   <span className='text-xs text-slate-500 ml-2'>({smsSelectedIds.size})</span>
                 </Label>
-              </RadioGroup>
+              </fieldset>
             </div>
             {!smsHasRecipients && (
               <Alert tone='warning' className='mt-2'>
