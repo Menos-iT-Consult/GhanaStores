@@ -17,6 +17,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { personalizeNewsletterContent } from '../services/newsletterContent.js';
+import {
+  EMAIL_NEWSLETTER_TEMPLATES, SMS_NEWSLETTER_TEMPLATES,
+} from '../src/pages/admin/newsletterTemplates.js';
 
 let pass = 0;
 let fail = 0;
@@ -139,6 +143,20 @@ log('newsletter recipient radio groups render without the crashing options-based
   !/RadioGroup/.test(newsletterPage)
   && /name='emailRecipientType'[\s\S]*checked=\{emailRecipientType === 'all'\}/.test(newsletterPage)
   && /name='smsRecipientType'[\s\S]*checked=\{smsRecipientType === 'all'\}/.test(newsletterPage));
+log('newsletter templates support the personalized name and store tokens',
+  personalizeNewsletterContent('Hi {{name}} from {{store}}', { name: 'Ama', store_name: 'Shop' }) === 'Hi Ama from Shop'
+  && personalizeNewsletterContent('Hi {{name}}', {}) === 'Hi there');
+log('newsletter offers six matching, editable email and SMS campaign templates',
+  EMAIL_NEWSLETTER_TEMPLATES.length >= 5
+  && SMS_NEWSLETTER_TEMPLATES.length >= 5
+  && EMAIL_NEWSLETTER_TEMPLATES.map((template) => template.id).join(',')
+    === SMS_NEWSLETTER_TEMPLATES.map((template) => template.id).join(',')
+  && EMAIL_NEWSLETTER_TEMPLATES.every((template) => template.subject && template.message)
+  && SMS_NEWSLETTER_TEMPLATES.every((template) => template.message));
+log('newsletter recipient checkboxes and SMS segment estimate match backend behavior',
+  /toggleEmailSelection\(row\.id\)/.test(newsletterPage)
+  && /toggleSmsSelection\(row\.id\)/.test(newsletterPage)
+  && /Math\.ceil\(smsCharCount \/ 140\)/.test(newsletterPage));
 log('newsletter send routes are mounted at the client paths and scope customers to a store',
   /router\.post\('\/newsletter\/send-email'/.test(newsletterRoutes)
   && /router\.post\('\/newsletter\/send-sms'/.test(newsletterRoutes)

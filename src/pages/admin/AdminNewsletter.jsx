@@ -6,6 +6,9 @@ import {
   Input, Textarea, Label, Alert, Select,
 } from '../../components/admin/ui.jsx';
 import { useAdminList } from '../../components/admin/useAdminList.js';
+import {
+  EMAIL_NEWSLETTER_TEMPLATES, SMS_NEWSLETTER_TEMPLATES,
+} from './newsletterTemplates.js';
 
 export default function AdminNewsletter() {
   const merchants = useAdminList('/api/admin/merchants', { params: { rowsKey: 'merchants' }, limit: 100 });
@@ -17,6 +20,7 @@ export default function AdminNewsletter() {
   });
 
   /* ---- Email newsletter state ---- */
+  const [emailTemplateId, setEmailTemplateId] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
   const [emailRecipientType, setEmailRecipientType] = useState('all');
@@ -26,6 +30,7 @@ export default function AdminNewsletter() {
   const [emailSendResult, setEmailSendResult] = useState(null);
 
   /* ---- SMS newsletter state ---- */
+  const [smsTemplateId, setSmsTemplateId] = useState('');
   const [smsMessage, setSmsMessage] = useState('');
   const [smsRecipientType, setSmsRecipientType] = useState('all');
   const [smsSelectedIds, setSmsSelectedIds] = useState(new Set());
@@ -38,6 +43,15 @@ export default function AdminNewsletter() {
     value: m.id,
     label: m.name || m.slug || 'Unnamed',
   }));
+  const selectStore = (storeId) => {
+    setSelectedStoreId(storeId);
+    setEmailSelectedIds(new Set());
+    setSmsSelectedIds(new Set());
+    setEmailSendResult(null);
+    setSmsSendResult(null);
+    setEmailSendError('');
+    setSmsSendError('');
+  };
 
   /* ---- Email helpers ---- */
   const toggleEmailSelection = useCallback((id) => {
@@ -51,6 +65,14 @@ export default function AdminNewsletter() {
 
   const isEmailSelected = useCallback((id) => emailSelectedIds.has(id), [emailSelectedIds]);
   const emailHasRecipients = emailRecipientType === 'all' || emailSelectedIds.size > 0;
+  const applyEmailTemplate = (templateId) => {
+    setEmailTemplateId(templateId);
+    const template = EMAIL_NEWSLETTER_TEMPLATES.find((item) => item.id === templateId);
+    if (template) {
+      setEmailSubject(template.subject);
+      setEmailMessage(template.message);
+    }
+  };
 
   const sendEmailNewsletter = useCallback(async () => {
     if (!emailSubject.trim()) {
@@ -101,7 +123,12 @@ export default function AdminNewsletter() {
   const isSmsSelected = useCallback((id) => smsSelectedIds.has(id), [smsSelectedIds]);
   const smsHasRecipients = smsRecipientType === 'all' || smsSelectedIds.size > 0;
   const smsCharCount = smsMessage.length;
-  const smsSegments = Math.ceil(smsCharCount / 160);
+  const smsSegments = Math.ceil(smsCharCount / 140);
+  const applySmsTemplate = (templateId) => {
+    setSmsTemplateId(templateId);
+    const template = SMS_NEWSLETTER_TEMPLATES.find((item) => item.id === templateId);
+    if (template) setSmsMessage(template.message);
+  };
 
   const sendSmsNewsletter = useCallback(async () => {
     if (!smsMessage.trim()) {
@@ -148,7 +175,7 @@ export default function AdminNewsletter() {
               <Label>Merchant</Label>
               <Select
                 value={selectedStoreId || ''}
-                onChange={setSelectedStoreId}
+                onChange={selectStore}
                 placeholder='Select a merchant...'
                 options={[{ value: '', label: 'Select a merchant...' }, ...merchantOptions]}
                 disabled={merchants.loading}
@@ -176,11 +203,29 @@ export default function AdminNewsletter() {
         <Panel className='mt-6 p-6'>
           <div className='space-y-4'>
             <div>
+              <label className='block text-sm font-medium mb-2' htmlFor='emailTemplate'>Start with a template</label>
+              <select
+                id='emailTemplate'
+                value={emailTemplateId}
+                onChange={(e) => applyEmailTemplate(e.target.value)}
+                disabled={emailSending}
+                className='w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm'
+              >
+                <option value=''>Custom email</option>
+                {EMAIL_NEWSLETTER_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>{template.label}</option>
+                ))}
+              </select>
+              <p className='mt-1 text-xs text-slate-500'>
+                Templates are editable. <code>{'{{name}}'}</code> and <code>{'{{store}}'}</code> are filled in per recipient; replace bracketed instructions before sending.
+              </p>
+            </div>
+            <div>
               <label className='block text-sm font-medium mb-2'>Subject (required)</label>
               <Input
                 value={emailSubject}
                 onChange={e => setEmailSubject(e.target.value)}
-                placeholder='Hello {{name}}, ...'
+                placeholder='Write a clear subject'
                 disabled={emailSending}
               />
             </div>
@@ -189,7 +234,7 @@ export default function AdminNewsletter() {
               <Textarea
                 value={emailMessage}
                 onChange={e => setEmailMessage(e.target.value)}
-                placeholder='Welcome to DiDwa! ...'
+                placeholder='Write your message. You can use {{name}} and {{store}}.'
                 rows={6}
                 disabled={emailSending}
               />
@@ -255,18 +300,36 @@ export default function AdminNewsletter() {
         <Panel className='mt-6 p-6'>
           <div className='space-y-4'>
             <div>
+              <label className='block text-sm font-medium mb-2' htmlFor='smsTemplate'>Start with a template</label>
+              <select
+                id='smsTemplate'
+                value={smsTemplateId}
+                onChange={(e) => applySmsTemplate(e.target.value)}
+                disabled={smsSending}
+                className='w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm'
+              >
+                <option value=''>Custom SMS</option>
+                {SMS_NEWSLETTER_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>{template.label}</option>
+                ))}
+              </select>
+              <p className='mt-1 text-xs text-slate-500'>
+                Templates are editable. <code>{'{{name}}'}</code> and <code>{'{{store}}'}</code> are personalized; replace bracketed instructions before sending.
+              </p>
+            </div>
+            <div>
               <label className='block text-sm font-medium mb-2'>Message <span className='text-slate-400'>(no subject)</span></label>
               <Textarea
                 value={smsMessage}
                 onChange={e => setSmsMessage(e.target.value)}
-                placeholder='Hello {{name}}! ...'
+                placeholder='Write your message. You can use {{name}} and {{store}}.'
                 rows={6}
                 disabled={smsSending}
               />
             </div>
             <div className='flex items-center justify-between text-sm text-slate-500'>
               <span>{smsCharCount} characters</span>
-              <span>SMS segments: {smsSegments} (160 chars each)</span>
+              <span>Estimated segments: {smsSegments} (140 characters per segment; personalization may change this)</span>
             </div>
             <div className='flex items-center gap-3'>
               <fieldset disabled={smsSending} className='flex flex-wrap gap-4'>
@@ -339,31 +402,49 @@ export default function AdminNewsletter() {
                   {
                     key: 'name',
                     label: 'Customer',
+                    render: (row) => row.name || 'Unnamed',
+                  },
+                  {
+                    key: 'emailSelection',
+                    label: 'Email',
                     render: (row) => (
-                      <span
-                        className='flex items-center gap-2 cursor-pointer select-none'
-                        onClick={() => toggleEmailSelection(row.id)}
-                      >
+                      <label className='flex items-center gap-2'>
                         <input
                           type='checkbox'
                           checked={isEmailSelected(row.id)}
                           onChange={() => toggleEmailSelection(row.id)}
                           className='cursor-pointer'
-                          disabled={smsSending}
+                          disabled={emailSending || !row.email}
                         />
-                        {row.name || 'Unnamed'}
-                      </span>
+                        <span className='text-xs text-slate-500'>{row.email ? 'Select' : 'No email'}</span>
+                      </label>
                     ),
                   },
                   {
-                    key: 'phone',
-                    label: 'Phone',
-                    render: (row) => row.phone || <span className='text-slate-400'>No phone</span>,
+                    key: 'smsSelection',
+                    label: 'SMS',
+                    render: (row) => (
+                      <label className='flex items-center gap-2'>
+                        <input
+                          type='checkbox'
+                          checked={isSmsSelected(row.id)}
+                          onChange={() => toggleSmsSelection(row.id)}
+                          className='cursor-pointer'
+                          disabled={smsSending || !row.phone}
+                        />
+                        <span className='text-xs text-slate-500'>{row.phone ? 'Select' : 'No phone'}</span>
+                      </label>
+                    ),
                   },
                   {
-                    key: 'email',
-                    label: 'Email',
-                    render: (row) => row.email || <span className='text-slate-400'>No email</span>,
+                    key: 'contact',
+                    label: 'Contact details',
+                    render: (row) => (
+                      <span className='block'>
+                        <span className='block'>{row.email || <span className='text-slate-400'>No email</span>}</span>
+                        <span className='block text-xs text-slate-500'>{row.phone || 'No phone'}</span>
+                      </span>
+                    ),
                   },
                 ]}
               />

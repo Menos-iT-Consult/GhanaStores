@@ -18,6 +18,7 @@ import { sendEmail } from '../../services/emailService.js';
 import { sendSms, estimateSegments } from '../../services/smsService.js';
 import { consumeSegments } from '../../services/smsQuota.js';
 import { uuidParam } from './helpers.js';
+import { personalizeNewsletterContent } from '../../services/newsletterContent.js';
 
 const router = Router();
 
@@ -46,8 +47,9 @@ async function resolveCustomers({ recipientType = 'all', customerIds = [], store
   }
 
   const { rows } = await query(
-    `SELECT c.id, c.name, c.email, c.phone
+    `SELECT c.id, c.name, c.email, c.phone, s.name AS store_name
        FROM customers c
+       JOIN stores s ON s.id = c.store_id
       WHERE ${filters.join(' AND ')}
        ORDER BY c.name`,
     params,
@@ -73,8 +75,17 @@ router.post('/newsletter/send-email', requireAdmin, async (req, res, next) => {
     if (!subject || !subject.trim()) {
       return res.status(400).json({ error: 'Subject is required for email newsletters.' });
     }
+    if (subject.length > 200 || /[\r\n]/.test(subject)) {
+      return res.status(400).json({ error: 'Email subject must be 200 characters or fewer and cannot contain line breaks.' });
+    }
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required.' });
+    }
+    if (message.length > 10_000) {
+      return res.status(400).json({ error: 'Email message must be 10,000 characters or fewer.' });
+    }
+    if (!['all', 'selected'].includes(recipientType)) {
+      return res.status(400).json({ error: 'Recipient type must be all or selected.' });
     }
 
     const rows = await resolveCustomers({ recipientType, customerIds, storeId });
@@ -87,16 +98,16 @@ router.post('/newsletter/send-email', requireAdmin, async (req, res, next) => {
       });
     }
 
-    const emails = rows.filter((r) => r.email).map((r) => r.email);
+    const emailCustomers = rows.filter((customer) => customer.email);
 
     let emailSent = 0;
     let emailFailed = 0;
 
-    for (const to of emails) {
+    for (const customer of emailCustomers) {
       const result = await sendEmail({
-        to,
-        subject: subject.trim(),
-        text: message.trim(),
+        to: customer.email,
+        subject: personalizeNewsletterContent(subject.trim(), customer),
+        text: personalizeNewsletterContent(message.trim(), customer),
       });
       if (result.sent) emailSent++;
       else emailFailed++;
@@ -109,7 +120,7 @@ router.post('/newsletter/send-email', requireAdmin, async (req, res, next) => {
       detail: {
         recipientType,
         customerCount: rows.length,
-        emailCount: emails.length,
+        emailCount: emailCustomers.length,
         emailSent,
         emailFailed,
         subject: subject.trim().substring(0, 100),
@@ -145,6 +156,12 @@ router.post('/newsletter/send-sms', requireAdmin, async (req, res, next) => {
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required for SMS.' });
     }
+    if (message.length > 2_000) {
+      return res.status(400).json({ error: 'SMS message must be 2,000 characters or fewer.' });
+    }
+    if (!['all', 'selected'].includes(recipientType)) {
+      return res.status(400).json({ error: 'Recipient type must be all or selected.' });
+    }
     const rows = await resolveCustomers({ recipientType, customerIds, storeId });
     if (!rows.length) {
       return res.json({
@@ -155,21 +172,23 @@ router.post('/newsletter/send-sms', requireAdmin, async (req, res, next) => {
       });
     }
 
-    const phones = rows.filter((r) => r.phone).map((r) => r.phone);
+    const smsCustomers = rows.filter((customer) => customer.phone);
 
     let smsSent = 0;
     let smsFailed = 0;
+    let segmentsCharged = 0;
 
-    const segmentsPerMessage = estimateSegments(message.trim());
-
-    for (const phone of phones) {
+    for (const customer of smsCustomers) {
+      const personalizedMessage = personalizeNewsletterContent(message.trim(), customer);
+      const segmentsPerMessage = estimateSegments(personalizedMessage);
       const quota = await consumeSegments('platform', segmentsPerMessage);
       if (!quota.ok) {
         smsFailed++;
         continue;
       }
+      segmentsCharged += segmentsPerMessage;
 
-      const result = await sendSms([phone], message.trim());
+      const result = await sendSms([customer.phone], personalizedMessage);
       if (result.ok) smsSent++;
       else smsFailed++;
     }
@@ -181,9 +200,8 @@ router.post('/newsletter/send-sms', requireAdmin, async (req, res, next) => {
       detail: {
         recipientType,
         customerCount: rows.length,
-        phoneCount: phones.length,
-        segmentsPerMessage,
-        totalSegments: segmentsPerMessage * phones.length,
+        phoneCount: smsCustomers.length,
+        totalSegments: segmentsCharged,
         smsSent,
         smsFailed,
         message: message.trim().substring(0, 100),
@@ -194,7 +212,7 @@ router.post('/newsletter/send-sms', requireAdmin, async (req, res, next) => {
       success: true,
       sent: smsSent,
       failed: smsFailed,
-      segments: segmentsPerMessage * phones.length,
+      segments: segmentsCharged,
       message: `Sent ${smsSent} SMS${smsSent === 1 ? '' : 's'}.`,
     });
   } catch (err) {
