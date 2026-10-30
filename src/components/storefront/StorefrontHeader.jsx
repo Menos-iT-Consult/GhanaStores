@@ -9,6 +9,7 @@
 import SafeImage from '../SafeImage.jsx';
 import { IconLogo, IconCart } from '../icons.jsx';
 import { Search } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { NAV_LINKS } from './navigation.js';
 
 /**
@@ -41,6 +42,15 @@ export default function StorefrontHeader({ t, active, onNavigate, ctx }) {
           </span>
         </button>
         <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-3'}`}>
+          <button
+            type="button"
+            onClick={() => onNavigate('wishlist')}
+            aria-label={`Open wishlist${ctx.wishlistCount ? `, ${ctx.wishlistCount} saved` : ''}`}
+            className="relative rounded-md p-1.5 opacity-75 transition hover:opacity-100"
+          >
+            <Heart size={16} aria-hidden="true" />
+            {ctx.wishlistCount > 0 && <span className="absolute -right-0.5 -top-0.5 text-[9px] font-bold">{ctx.wishlistCount}</span>}
+          </button>
           {h.show_search && (
             /* The search control itself lives on the shop page; this takes the
                shopper there rather than sitting in the header as decoration. */

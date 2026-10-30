@@ -4,7 +4,7 @@
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis
  * (the spec's rocket emoji ships as a Lucide Rocket icon + text).
  */
-import { Rocket, MapPin } from 'lucide-react';
+import { Rocket, MapPin, Heart, PackageSearch } from 'lucide-react';
 import SafeImage from '../../../SafeImage.jsx';
 import { IconLogo, IconCart } from '../../../icons.jsx';
 
@@ -33,6 +33,23 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
             </span>
           </button>
           <span className="flex-1" />
+          <button
+            type="button"
+            onClick={() => onNavigate('wishlist')}
+            aria-label={`Open wishlist${ctx.wishlistCount ? `, ${ctx.wishlistCount} saved` : ''}`}
+            className="relative shrink-0 rounded-lg p-2 text-white/80 hover:bg-white/10"
+          >
+            <Heart size={16} aria-hidden="true" />
+            {ctx.wishlistCount > 0 && <span className="absolute right-0 top-0 text-[9px] font-bold">{ctx.wishlistCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('track')}
+            aria-label="Track order"
+            className="shrink-0 rounded-lg p-2 text-white/80 hover:bg-white/10"
+          >
+            <PackageSearch size={16} aria-hidden="true" />
+          </button>
           <button
             type="button"
             onClick={() => onNavigate('cart')}

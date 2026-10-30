@@ -87,10 +87,14 @@ const schema = fs.readFileSync(path.join(ROOT, 'db', 'schema.sql'), 'utf8');
 const checkout = fs.readFileSync(path.join(ROOT, 'routes', 'orderRoutes.js'), 'utf8');
 const webhook = fs.readFileSync(path.join(ROOT, 'services', 'paymentWebhooks.js'), 'utf8');
 const payouts = fs.readFileSync(path.join(ROOT, 'routes', 'managedPayoutRoutes.js'), 'utf8');
+const paymentSettings = fs.readFileSync(path.join(ROOT, 'routes', 'paymentSettingsRoutes.js'), 'utf8');
+const paystack = fs.readFileSync(path.join(ROOT, 'services', 'paystackPlatform.js'), 'utf8');
 await test('schema enables managed mode for existing/new stores without backfilling sales', () => {
   assert.match(schema, /ADD COLUMN IF NOT EXISTS use_managed_payments BOOLEAN NOT NULL DEFAULT TRUE/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS store_managed_ledger/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS store_payout_requests/);
+  assert.match(schema, /payout_momo_account_name TEXT/);
+  assert.match(schema, /ADD COLUMN IF NOT EXISTS momo_account_name TEXT/);
   assert.doesNotMatch(schema, /INSERT INTO store_managed_ledger/);
 });
 await test('managed checkout snapshots processor and fee, while webhook verifies exact amount and credits once', () => {
@@ -103,6 +107,15 @@ await test('managed checkout snapshots processor and fee, while webhook verifies
 await test('payout requests reserve balance and manual payout processing is ledger-backed', () => {
   assert.match(payouts, /FOR UPDATE/);
   assert.match(payouts, /status = 'pending'/);
+  assert.match(payouts, /payout_momo_account_name/);
+  assert.match(payouts, /momo_account_name/);
+  assert.match(paymentSettings, /resolvePaystackMomoAccountName/);
+  assert.match(paystack, /TELECEL: \['VODAFONE', 'VODAFONE CASH', 'TELECEL', 'TELECEL CASH'\]/);
+});
+await test('public order tracking requires the checkout phone number', () => {
+  assert.match(checkout, /normalizeGhPhone\(phone\)/);
+  assert.match(checkout, /Enter the Ghana phone number used at checkout/);
+  assert.match(checkout, /normalizedPhone !== normalizeGhPhone\(order\.customer_phone\)/);
 });
 
 console.log(`\n${pass} managed payment assertions passed`);

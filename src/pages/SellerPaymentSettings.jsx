@@ -38,6 +38,8 @@ const EMPTY = {
   paymentMode: 'MANAGED',
   payoutMomoNumber: '',
   payoutMomoNetwork: 'MTN',
+  payoutMomoAccountName: '',
+  payoutMomoVerifiedAt: null,
 };
 
 /** Label for a field that already holds a saved key. */
@@ -78,6 +80,8 @@ export default function SellerPaymentSettings() {
         paymentMode: data.paymentMode || 'MANAGED',
         payoutMomoNumber: data.payoutMomoNumber || '',
         payoutMomoNetwork: data.payoutMomoNetwork || 'MTN',
+        payoutMomoAccountName: data.payoutMomoAccountName || '',
+        payoutMomoVerifiedAt: data.payoutMomoVerifiedAt || null,
       });
       setState(s);
     } catch (err) {
@@ -91,7 +95,13 @@ export default function SellerPaymentSettings() {
 
   const set = (key) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => ({
+      ...f,
+      [key]: value,
+      ...(key === 'payoutMomoNumber' || key === 'payoutMomoNetwork'
+        ? { payoutMomoAccountName: '', payoutMomoVerifiedAt: null }
+        : {}),
+    }));
     setTest(null);
     setSaveMsg(null);
   };
@@ -150,7 +160,15 @@ export default function SellerPaymentSettings() {
       setManagedAvailable(data.managedPaymentsAvailable === true);
       setSaveMsg('Payment settings saved.');
       setTest(null);
-      setForm((f) => ({ ...f, paystackSecretKey: '', hubtelClientSecret: '' }));
+      setForm((f) => ({
+        ...f,
+        paystackSecretKey: '',
+        hubtelClientSecret: '',
+        payoutMomoNumber: data.payoutMomoNumber || '',
+        payoutMomoNetwork: data.payoutMomoNetwork || f.payoutMomoNetwork,
+        payoutMomoAccountName: data.payoutMomoAccountName || '',
+        payoutMomoVerifiedAt: data.payoutMomoVerifiedAt || null,
+      }));
     } catch (err) {
       setError(err.message || 'Could not save your payment settings.');
     } finally {
@@ -258,7 +276,7 @@ export default function SellerPaymentSettings() {
               <Wallet size={16} /> Mobile Money payout destination
             </h2>
             <p className="mb-4 text-xs text-slate-500">
-              Payouts are reviewed and transferred manually by DiDwa. Verify these details carefully.
+              When you save, DiDwa verifies the Mobile Money account name through Paystack. Payouts are still reviewed and transferred manually.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -291,6 +309,19 @@ export default function SellerPaymentSettings() {
                 />
               </div>
             </div>
+            {form.payoutMomoAccountName ? (
+              <p role="status" className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  Verified account name: <strong>{form.payoutMomoAccountName}</strong>
+                  {form.payoutMomoVerifiedAt ? ` · verified ${new Date(form.payoutMomoVerifiedAt).toLocaleDateString('en-GB')}` : ''}
+                </span>
+              </p>
+            ) : (
+              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                Save your payment settings to verify this number and display its registered account name before requesting payouts.
+              </p>
+            )}
             <p className={`mt-4 rounded-lg border p-3 text-xs ${
               managedAvailable
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'

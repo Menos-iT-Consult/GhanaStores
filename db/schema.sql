@@ -132,7 +132,9 @@ CREATE TABLE IF NOT EXISTS stores (
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS use_managed_payments BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS payout_momo_number TEXT,
-  ADD COLUMN IF NOT EXISTS payout_momo_network TEXT;
+  ADD COLUMN IF NOT EXISTS payout_momo_network TEXT,
+  ADD COLUMN IF NOT EXISTS payout_momo_account_name TEXT,
+  ADD COLUMN IF NOT EXISTS payout_momo_verified_at TIMESTAMPTZ;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stores_payout_momo_network_check') THEN
@@ -591,6 +593,8 @@ CREATE TABLE IF NOT EXISTS store_payout_requests (
   processed_at          TIMESTAMPTZ,
   processed_by_admin_id UUID
 );
+ALTER TABLE store_payout_requests
+  ADD COLUMN IF NOT EXISTS momo_account_name TEXT;
 CREATE INDEX IF NOT EXISTS store_payout_requests_store_requested_idx
   ON store_payout_requests (store_id, requested_at DESC);
 CREATE INDEX IF NOT EXISTS store_payout_requests_review_idx

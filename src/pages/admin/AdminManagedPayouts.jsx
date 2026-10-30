@@ -64,7 +64,7 @@ export default function AdminManagedPayouts() {
   const columns = [
     { key: 'store_name', label: 'Merchant', render: (row) => <div><p className="font-bold text-charcoal">{row.store_name}</p><p className="text-xs text-slate-400">{row.store_email}</p></div> },
     { key: 'amount_ghs', label: 'Amount', align: 'right', render: (row) => <strong>{ghs(row.amount_ghs)}</strong> },
-    { key: 'momo_number', label: 'Destination', render: (row) => <div><p className="font-semibold">{row.momo_number}</p><p className="text-xs text-slate-400">{row.momo_network}</p></div> },
+    { key: 'momo_number', label: 'Verified destination', render: (row) => <div><p className="font-semibold">{row.momo_account_name || 'Name not verified'}</p><p className="text-xs text-slate-500">{row.momo_number} · {row.momo_network}</p></div> },
     { key: 'requested_at', label: 'Requested', render: (row) => dateTimeOrDash(row.requested_at) },
     { key: 'status', label: 'Status', render: (row) => <StatusPill status={row.status} /> },
     {

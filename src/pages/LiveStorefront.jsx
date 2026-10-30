@@ -61,6 +61,7 @@ export function pathToStorefrontPage(pathname) {
     home: 'home',
     shop: 'shop',
     catalog: 'shop',
+    wishlist: 'wishlist',
     cart: 'cart',
     checkout: 'cart',
     about: 'about',
@@ -78,6 +79,8 @@ export function storefrontPageToPath(page, id = null) {
       return id != null ? `/product/${encodeURIComponent(String(id))}` : '/shop';
     case 'track':
       return id != null ? `/track/${encodeURIComponent(String(id))}` : '/track';
+    case 'wishlist':
+      return '/wishlist';
     case 'shop':
       return '/shop';
     case 'cart':
@@ -487,11 +490,13 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
               : next === 'checkout' ? '/checkout'
               : next === 'cart' ? '/cart'
               : next === 'shop' ? '/shop'
+              : next === 'wishlist' ? '/wishlist'
               : next === 'about' ? '/about'
               : next === 'contact' ? '/contact'
               : '/';
           navigate(target);
         }}
+        wishlistEnabled
         products={displayProducts}
         cart={cart}
         productId={productId}

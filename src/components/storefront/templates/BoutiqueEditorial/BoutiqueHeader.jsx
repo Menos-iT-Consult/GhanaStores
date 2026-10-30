@@ -6,6 +6,7 @@
 import SafeImage from '../../../SafeImage.jsx';
 import { IconLogo, IconCart } from '../../../icons.jsx';
 import { Search } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { NAV_LINKS } from '../../navigation.js';
 
 export default function BoutiqueHeader({ t, active, onNavigate, ctx }) {
@@ -45,6 +46,10 @@ export default function BoutiqueHeader({ t, active, onNavigate, ctx }) {
             );
           })}
           <span className="flex items-center gap-1.5 pl-2">
+            <button type="button" onClick={() => onNavigate('wishlist')} aria-label={`Open wishlist${ctx.wishlistCount ? `, ${ctx.wishlistCount} saved` : ''}`} className="relative rounded-full p-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
+              <Heart size={15} aria-hidden="true" />
+              {ctx.wishlistCount > 0 && <span className="absolute -right-0.5 -top-0.5 text-[9px] font-bold text-white">{ctx.wishlistCount}</span>}
+            </button>
             <button type="button" onClick={() => onNavigate('shop')} aria-label="Search products" className="rounded-full p-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
               <Search size={15} aria-hidden="true" />
             </button>

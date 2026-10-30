@@ -16,10 +16,12 @@ const SHOP_LINKS = [
   { label: 'All Products', page: 'shop' },
   { label: 'New Arrivals', page: 'shop' },
   { label: 'Best Sellers', page: 'shop' },
+  { label: 'Wishlist', page: 'wishlist' },
 ];
 const COMPANY_LINKS = [
   { label: 'About Us', page: 'about' },
   { label: 'Contact', page: 'contact' },
+  { label: 'Track Order', page: 'track' },
   { label: 'Delivery & Returns', page: null },
 ];
 

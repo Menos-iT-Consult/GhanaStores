@@ -5,6 +5,8 @@
 export const NAV_LINKS = [
   { key: 'home', label: 'Home' },
   { key: 'shop', label: 'Shop' },
+  { key: 'wishlist', label: 'Wishlist' },
+  { key: 'track', label: 'Track Order' },
   { key: 'about', label: 'About Us' },
   { key: 'contact', label: 'Contact' },
 ];

@@ -2,7 +2,7 @@
  * components/storefront/pages/TrackBody.jsx
  * Customer-facing order tracking.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../../api.js';
 import { Package, Search, Truck, CheckCircle2, XCircle } from 'lucide-react';
 
@@ -22,12 +22,15 @@ export default function TrackBody({ t, onNavigate, ctx, orderNumber }) {
 
   async function lookup(value) {
     const n = String(value ?? number).trim();
-    if (!n) return;
+    if (!n || !phone.trim()) {
+      setError('Enter both your order number and checkout phone number.');
+      return;
+    }
     setBusy(true);
     setError('');
     setData(null);
     try {
-      const query = phone.trim() ? `?phone=${encodeURIComponent(phone.trim())}` : '';
+      const query = `?phone=${encodeURIComponent(phone.trim())}`;
       const result = await api.get(`/api/public/orders/${encodeURIComponent(n)}${query}`);
       setData(result);
       setNumber(n);
@@ -37,11 +40,6 @@ export default function TrackBody({ t, onNavigate, ctx, orderNumber }) {
       setBusy(false);
     }
   }
-
-  useEffect(() => {
-    if (initial) lookup(initial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial]);
 
   const order = data?.order || null;
   const items = Array.isArray(data?.items) ? data.items : [];
@@ -61,7 +59,7 @@ export default function TrackBody({ t, onNavigate, ctx, orderNumber }) {
     <section className="p-5" aria-label="Track your order">
       <h1 className="text-lg font-extrabold">Track Your Order</h1>
       <p className="mt-1 text-[11px] opacity-70">
-        Enter your order number to see its current status.
+        Enter your order number and the phone number used at checkout to see its status.
       </p>
 
       <form
@@ -81,11 +79,12 @@ export default function TrackBody({ t, onNavigate, ctx, orderNumber }) {
           />
         </label>
         <label className="flex-1 text-[10px] font-bold uppercase tracking-wide opacity-60">
-          Phone (optional)
+          Phone used at checkout
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            required
             placeholder="0244 123 456"
             aria-label="Phone number"
             className="mt-1 w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none"

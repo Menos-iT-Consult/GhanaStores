@@ -6,6 +6,7 @@
 import SafeImage from '../../../SafeImage.jsx';
 import GlassCard from '../../templates/shared/GlassCard.jsx';
 import { PriceTag, QtyStepper } from '../../templates/shared/fragments.jsx';
+import WishlistButton from '../../WishlistButton.jsx';
 
 /**
  * @param {object} props
@@ -31,7 +32,8 @@ export default function ExpressList({ t, products, onNavigate, ctx }) {
                 {p.description ? <span className="mt-0.5 line-clamp-1 block text-[10px] text-white/55">{p.description}</span> : null}
                 <span className="mt-1 block"><PriceTag value={p.price} /></span>
               </button>
-              <span className="shrink-0">
+              <span className="flex shrink-0 items-center gap-1">
+                <WishlistButton product={p} ctx={ctx} className="h-8 w-8" />
                 {qty > 0 ? (
                   <QtyStepper
                     small

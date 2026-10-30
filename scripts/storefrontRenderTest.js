@@ -33,9 +33,10 @@ const { default: Storefront } = await vite.ssrLoadModule('/src/components/storef
 const { DEFAULT_CUSTOM_THEME_CONFIG } = await vite.ssrLoadModule('/src/theme/config.js');
 const { matchesSearch, filterProducts, sortProducts, categoriesOf } = await vite.ssrLoadModule('/src/components/storefront/catalog.js');
 const { toDisplayProduct } = await vite.ssrLoadModule('/src/components/storefront/mappers.js');
+const { pathToStorefrontPage, storefrontPageToPath } = await vite.ssrLoadModule('/src/pages/LiveStorefront.jsx');
 await vite.close();
 
-const PAGES = ['home', 'shop', 'product', 'cart', 'track', 'about', 'contact'];
+const PAGES = ['home', 'shop', 'product', 'cart', 'wishlist', 'track', 'about', 'contact'];
 const WIDTHS = [
   [375, 'mobile'],
   [768, 'tablet'],
@@ -64,17 +65,33 @@ for (const page of PAGES) {
 {
   let ok = true;
   let err = '';
+  let html = '';
   try {
-    renderToString(React.createElement(Storefront, {
+    html = renderToString(React.createElement(Storefront, {
       config: DEFAULT_CUSTOM_THEME_CONFIG,
       page: 'shop',
       viewportWidth: 1024,
+      wishlistEnabled: true,
       products: [toDisplayProduct({ id: 1, name: 'Real Kente', price: 120, category: 'Cloth', stock: 3 })],
       cart: [{ id: 1, name: 'Real Kente', price: 120, quantity: 2 }],
     }));
   } catch (e) { ok = false; err = String(e.message).split('\n')[0]; }
   log('the shop page renders with a real catalog', ok, err);
+  log('live product cards expose the cookie-backed wishlist control',
+    html.includes('Add Real Kente to wishlist'));
+
+  const previewHtml = renderToString(React.createElement(Storefront, {
+    config: DEFAULT_CUSTOM_THEME_CONFIG,
+    page: 'shop',
+    viewportWidth: 1024,
+    products: [toDisplayProduct({ id: 2, name: 'Demo Kente', price: 90, category: 'Cloth', stock: 3 })],
+  }));
+  log('demo catalogs do not expose wishlist controls',
+    !previewHtml.includes('Add Demo Kente to wishlist'));
 }
+
+log('wishlist route resolves to its storefront page', pathToStorefrontPage('/wishlist').page === 'wishlist');
+log('wishlist navigation produces a direct URL', storefrontPageToPath('wishlist') === '/wishlist');
 
 {
   let ok = true;
@@ -90,6 +107,24 @@ for (const page of PAGES) {
   } catch (e) { ok = false; err = String(e.message).split('\n')[0]; }
   log('an empty live cart renders the empty state', ok, err);
 }
+
+  {
+    const liveProducts = [
+      toDisplayProduct({ id: 1, name: 'Saved Kente', price: 120, stock: 3 }),
+    ];
+    let html = '';
+    let err = '';
+    try {
+      html = renderToString(React.createElement(Storefront, {
+        config: DEFAULT_CUSTOM_THEME_CONFIG,
+        page: 'wishlist',
+        viewportWidth: 375,
+        wishlistEnabled: true,
+        products: liveProducts,
+      }));
+    } catch (e) { err = String(e.message).split('\n')[0]; }
+    log('live wishlist page renders safely without browser cookie APIs during SSR', Boolean(html), err);
+  }
 
 /* ---------- 3. The catalog query rules ---------- */
 {

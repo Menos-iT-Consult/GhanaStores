@@ -13,6 +13,7 @@ import Stars from '../Stars.jsx';
 import StepperIcon from '../StepperIcon.jsx';
 import TrustStrip from '../TrustStrip.jsx';
 import { DEMO_CATALOG } from '../data.js';
+import WishlistButton from '../WishlistButton.jsx';
 
 /**
  * @param {object} props
@@ -100,6 +101,7 @@ export default function ProductBody({ t, onNavigate, ctx }) {
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
+            <WishlistButton product={p} ctx={ctx} />
             {pp.quantity_stepper && (
               <span className="flex items-center rounded-lg border" style={{ borderColor: 'rgba(148,163,184,.5)' }}>
                 <button type="button" aria-label="Decrease quantity" onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-2 py-1.5"><StepperIcon d="M6 9l6 6 6-6" /></button>

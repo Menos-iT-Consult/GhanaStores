@@ -16,10 +16,12 @@ import { resolveTemplate } from './storefrontTypes.js';
 import { useStorefrontData } from './useStorefrontData.js';
 import { useMediaQuery } from './useMediaQuery.js';
 import StorefrontFooter from '../StorefrontFooter.jsx';
+import { useWishlist } from '../useWishlist.js';
 import ShopBody from '../pages/ShopBody.jsx';
 import ProductBody from '../pages/ProductBody.jsx';
 import CartBody from '../pages/CartBody.jsx';
 import TrackBody from '../pages/TrackBody.jsx';
+import WishlistBody from '../pages/WishlistBody.jsx';
 import AboutBody from '../pages/AboutBody.jsx';
 import ContactBody from '../pages/ContactBody.jsx';
 import TrustStrip from '../TrustStrip.jsx';
@@ -44,6 +46,7 @@ const PAGE_BODIES = {
   product: ProductBody,
   cart: CartBody,
   track: TrackBody,
+  wishlist: WishlistBody,
   about: AboutBody,
   contact: ContactBody,
 };
@@ -63,7 +66,7 @@ export function BoutiqueHome({ t, onNavigate, ctx }) {
           </div>
           <button type="button" onClick={() => onNavigate('shop')} className="text-[11px] font-bold uppercase tracking-widest underline underline-offset-4 opacity-70 hover:opacity-100">{hc.view_all_label || 'View all'}</button>
         </div>
-        <MasonryGrid t={t} products={ctx.products.slice(0, 8)} onQuickView={(p) => setQuickId(p.id)} />
+        <MasonryGrid t={t} products={ctx.products.slice(0, 8)} onQuickView={(p) => setQuickId(p.id)} ctx={ctx} />
       </section>
       <div className="mx-auto max-w-6xl px-5 pb-8"><TrustStrip t={t} /></div>
       <QuickViewDrawer t={t} product={quick} ctx={ctx} onClose={() => setQuickId(null)} />
@@ -182,7 +185,7 @@ function CuratedThemeHome({ t, onNavigate, ctx, config }) {
                 </button>
               </div>
               {grid === MasonryGrid
-                ? <MasonryGrid t={t} products={products} onQuickView={(product) => setQuickId(product.id)} />
+                ? <MasonryGrid t={t} products={products} onQuickView={(product) => setQuickId(product.id)} ctx={ctx} />
                 : grid === ExpressList
                   ? <ExpressList t={t} products={products} onNavigate={onNavigate} ctx={ctx} />
                   : <DenseProductGrid t={t} products={products} onNavigate={onNavigate} ctx={ctx} columns={config.layout.product_grid_columns} />}
@@ -237,6 +240,7 @@ export default function StorefrontRenderer({
   onRemove = null,
   checkout = null,
   storeSlug = null,
+  wishlistEnabled = false,
   orderNumber = null,
   className = '',
   rootStyle = {},
@@ -252,6 +256,15 @@ export default function StorefrontRenderer({
   const d = t.device;
 
   const ctx = useStorefrontData({ products, cart, productId, onAddToCart, onSetQty, onRemove, checkout, storeSlug });
+  const wishlist = useWishlist(wishlistEnabled && ctx.isLive);
+  const storefrontCtx = {
+    ...ctx,
+    wishlistEnabled: Boolean(wishlistEnabled && ctx.isLive),
+    wishlistCount: wishlist.ids.length,
+    isWishlisted: wishlist.isSaved,
+    toggleWishlist: wishlist.toggle,
+    removeFromWishlist: wishlist.remove,
+  };
   const nav = onNavigate || (() => {});
   const scoped = scopeCss(config.advanced?.custom_css);
 
@@ -266,24 +279,24 @@ export default function StorefrontRenderer({
   const renderStorefront = () => (
     <>
       {!(page === 'home' && design.profile) && (template === 'catalog_grid'
-        ? <Header t={t} active={page} onNavigate={nav} ctx={ctx} onShopShortcut={setShopShortcut} />
-        : <Header t={t} active={page} onNavigate={nav} ctx={ctx} />)}
+        ? <Header t={t} active={page} onNavigate={nav} ctx={storefrontCtx} onShopShortcut={setShopShortcut} />
+        : <Header t={t} active={page} onNavigate={nav} ctx={storefrontCtx} />)}
       <main style={{ minHeight: '60%' }}>
         {page === 'home' && design.profile
-          ? <RegisteredCuratedThemeHome t={t} onNavigate={nav} ctx={ctx} config={config} />
+          ? <RegisteredCuratedThemeHome t={t} onNavigate={nav} ctx={storefrontCtx} config={config} />
           : null}
         {page === 'home' && !design.profile && template === 'boutique_editorial'
-          ? <BoutiqueHome t={t} onNavigate={nav} ctx={ctx} />
+          ? <BoutiqueHome t={t} onNavigate={nav} ctx={storefrontCtx} />
           : null}
         {page === 'home' && !design.profile && template === 'catalog_grid'
-          ? <CatalogHome t={t} onNavigate={nav} ctx={ctx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} />
+          ? <CatalogHome t={t} onNavigate={nav} ctx={storefrontCtx} shopShortcut={shopShortcut} setShopShortcut={setShopShortcut} />
           : null}
         {page === 'home' && !design.profile && template === 'flash_express'
-          ? <FlashHome t={t} onNavigate={nav} ctx={ctx} />
+          ? <FlashHome t={t} onNavigate={nav} ctx={storefrontCtx} />
           : null}
         {page !== 'home' ? (() => {
           const Body = PAGE_BODIES[page] || ShopBody;
-          return <Body t={t} onNavigate={nav} ctx={ctx} orderNumber={orderNumber} />;
+          return <Body t={t} onNavigate={nav} ctx={storefrontCtx} orderNumber={orderNumber} />;
         })() : null}
       </main>
       <StorefrontFooter t={t} onNavigate={nav} />

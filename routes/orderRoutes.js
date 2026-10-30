@@ -752,15 +752,18 @@ router.get('/public/orders/:orderNumber', async (req, res, next) => {
     const orderNumber = String(req.params.orderNumber || '').trim();
     if (!orderNumber) return res.status(400).json({ error: 'Order number is required.' });
     const phone = String(req.query.phone || req.query.customer_phone || '').trim();
+    const normalizedPhone = normalizeGhPhone(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ error: 'Enter the Ghana phone number used at checkout.' });
+    }
     const orderRes = await query(
       `SELECT o.id, o.order_number, o.status, o.payment_status, o.payment_method, o.total_amount, o.created_at, o.updated_at, o.customer_phone, s.name AS store_name FROM orders o JOIN stores s ON s.id = o.store_id WHERE o.order_number = $1 LIMIT 1`,
       [orderNumber],
     );
     const order = orderRes.rows[0];
     if (!order) return res.status(404).json({ error: 'Order not found.' });
-    if (phone) {
-      const norm = (v) => String(v || '').replace(/\\D/g, '');
-      if (norm(phone) && norm(phone) !== norm(order.customer_phone)) return res.status(404).json({ error: 'Order not found.' });
+    if (normalizedPhone !== normalizeGhPhone(order.customer_phone)) {
+      return res.status(404).json({ error: 'Order not found.' });
     }
     const itemsRes = await query(
       `SELECT product_name, variant_label, quantity, unit_price, line_total FROM order_items WHERE order_id = $1 ORDER BY id ASC`,

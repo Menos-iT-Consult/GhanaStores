@@ -62,7 +62,7 @@ export default function SellerPayouts() {
 
   const balance = data?.balance || {};
   const payout = data?.payout || {};
-  const canRequest = payout.managedMode && payout.momoNumber
+  const canRequest = payout.managedMode && payout.momoNumber && payout.momoAccountName && payout.momoVerifiedAt
     && Number(balance.availableGhs || 0) >= Number(payout.minimumGhs || Infinity);
 
   return (
@@ -103,6 +103,11 @@ export default function SellerPayouts() {
               ? `${payout.momoNetwork} · ${payout.momoNumber}`
               : 'Add a Mobile Money destination in Payment Settings.'}
           </p>
+          {payout.momoAccountName && (
+            <p className="mt-1 text-xs text-emerald-700">
+              Verified account name: <strong>{payout.momoAccountName}</strong>
+            </p>
+          )}
           <p className="mt-2 text-xs text-slate-500">Minimum request: {ghs(payout.minimumGhs)}. Requests are manually reviewed and transferred.</p>
           <form onSubmit={requestPayout} className="mt-4 space-y-3">
             <label htmlFor="managed-payout-amount" className="block text-xs font-bold uppercase tracking-wide text-slate-500">Amount (GHS)</label>
@@ -142,6 +147,7 @@ export default function SellerPayouts() {
                     <p className="mt-0.5 text-xs text-slate-500">
                       {request.momo_network} · {request.momo_number} · {new Date(request.requested_at).toLocaleDateString('en-GB')}
                     </p>
+                    {request.momo_account_name && <p className="mt-0.5 text-xs text-slate-500">Verified for {request.momo_account_name}</p>}
                     {request.transfer_reference && <p className="mt-1 text-xs text-slate-500">Transfer ref: {request.transfer_reference}</p>}
                     {request.admin_note && <p className="mt-1 text-xs text-slate-500">{request.admin_note}</p>}
                   </div>

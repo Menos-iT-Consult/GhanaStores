@@ -87,7 +87,8 @@ router.get('/managed-payouts', requireAdmin, async (req, res, next) => {
       paged({
         countSql: `SELECT COUNT(*)::int AS total ${from} ${where}`,
         rowsSql: `SELECT pr.id, pr.store_id, s.name AS store_name, s.email AS store_email,
-                         pr.amount_ghs, pr.momo_number, pr.momo_network, pr.status,
+                         pr.amount_ghs, pr.momo_number, pr.momo_network,
+                         pr.momo_account_name, pr.status,
                          pr.transfer_reference, pr.admin_note, pr.requested_at, pr.processed_at
                     ${from} ${where}
                    ORDER BY ${plan.orderBy} NULLS LAST

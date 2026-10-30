@@ -142,6 +142,7 @@ export async function initPaystackCheckout({ amountGhs, email, reference, callba
 
 const MOMO_NETWORK_ALIASES = {
   MTN: ['MTN', 'MTN MOBILE MONEY', 'MTN MOMO'],
+  TELECEL: ['VODAFONE', 'VODAFONE CASH', 'TELECEL', 'TELECEL CASH'],
   VODAFONE: ['VODAFONE', 'VODAFONE CASH', 'TELECEL', 'TELECEL CASH'],
   AT: ['AIRTELTIGO', 'AIRTEL TIGO', 'AIRTELTIGO MONEY', 'AT MONEY'],
 };

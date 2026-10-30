@@ -45,7 +45,8 @@ export async function getManagedPaymentPolicy(runQuery = query) {
 
 export async function getManagedStoreProfile(storeId, runQuery = query) {
   const { rows } = await runQuery(
-    `SELECT use_managed_payments, payout_momo_number, payout_momo_network
+    `SELECT use_managed_payments, payout_momo_number, payout_momo_network,
+            payout_momo_account_name, payout_momo_verified_at
        FROM stores WHERE id = $1 LIMIT 1`,
     [storeId],
   );

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import SafeImage from '../../../SafeImage.jsx';
 import GlassCard from '../../templates/shared/GlassCard.jsx';
 import { StockBadge, SkuTag, Stars, PriceTag, QtyStepper } from '../../templates/shared/fragments.jsx';
+import WishlistButton from '../../WishlistButton.jsx';
 
 /**
  * @param {object} props
@@ -25,10 +26,13 @@ export default function DenseProductGrid({ t, products, onNavigate, ctx, columns
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Product grid">
       {products.map((p) => (
         <GlassCard key={p.id} className="flex flex-col" tint="rgba(148,163,184,.14)">
-          <button type="button" onClick={() => onNavigate('product', p.id)} className="relative block aspect-[4/3] w-full overflow-hidden" aria-label={`View ${p.name}`}>
-            <SafeImage src={p.img} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
-            <span className="absolute left-1.5 top-1.5 flex gap-1"><StockBadge p={p} sale={Number(p.id) % 4 === 0} /></span>
-          </button>
+          <div className="relative">
+            <button type="button" onClick={() => onNavigate('product', p.id)} className="relative block aspect-[4/3] w-full overflow-hidden" aria-label={`View ${p.name}`}>
+              <SafeImage src={p.img} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
+              <span className="absolute left-1.5 top-1.5 flex gap-1"><StockBadge p={p} sale={Number(p.id) % 4 === 0} /></span>
+            </button>
+            <WishlistButton product={p} ctx={ctx} className="absolute right-2 top-2 h-8 w-8" />
+          </div>
           <div className="flex flex-1 flex-col gap-1.5 p-2.5">
             <SkuTag id={p.id} />
             <button type="button" onClick={() => onNavigate('product', p.id)} className="truncate text-left text-xs font-bold text-white hover:underline">

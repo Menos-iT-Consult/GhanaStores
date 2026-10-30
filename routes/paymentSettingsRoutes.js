@@ -27,6 +27,7 @@ import { normalizeGhPhone } from '../utils/helpers.js';
 import {
   getManagedPaymentPolicy, getManagedStoreProfile, normalizeMomoNetwork,
 } from '../services/managedPaymentSettings.js';
+import { resolvePaystackMomoAccountName } from '../services/paystackPlatform.js';
 
 const router = Router();
 
@@ -80,6 +81,8 @@ router.get('/', requireSeller, async (req, res, next) => {
       paymentMode: storeProfile?.use_managed_payments === false ? 'BYOK' : 'MANAGED',
       payoutMomoNumber: storeProfile?.payout_momo_number || '',
       payoutMomoNetwork: storeProfile?.payout_momo_network || '',
+      payoutMomoAccountName: storeProfile?.payout_momo_account_name || '',
+      payoutMomoVerifiedAt: storeProfile?.payout_momo_verified_at || null,
       managedPaymentsAvailable: managedPolicy.enabled && managedPolicy.paystackReady,
       storageConfigured: encryptionConfigured(),
     });
@@ -188,6 +191,8 @@ router.put('/', requireSeller, async (req, res, next) => {
 
     let payoutMomoNumber = currentProfile?.payout_momo_number || null;
     let payoutMomoNetwork = currentProfile?.payout_momo_network || null;
+    let payoutMomoAccountName = currentProfile?.payout_momo_account_name || null;
+    let payoutMomoVerifiedAt = currentProfile?.payout_momo_verified_at || null;
     if (paymentMode === 'MANAGED') {
       const submittedNumber = req.body?.payoutMomoNumber ?? payoutMomoNumber;
       const submittedNetwork = req.body?.payoutMomoNetwork ?? payoutMomoNetwork;
@@ -197,6 +202,16 @@ router.put('/', requireSeller, async (req, res, next) => {
         return res.status(400).json({
           error: 'Enter a valid Ghana Mobile Money number and select MTN, Telecel or AT before enabling managed payments.',
         });
+      }
+      const destinationChanged = payoutMomoNumber !== currentProfile?.payout_momo_number
+        || payoutMomoNetwork !== currentProfile?.payout_momo_network;
+      if (destinationChanged || !payoutMomoAccountName || !payoutMomoVerifiedAt) {
+        const verification = await resolvePaystackMomoAccountName({
+          network: payoutMomoNetwork,
+          phone: payoutMomoNumber,
+        });
+        payoutMomoAccountName = verification.accountName;
+        payoutMomoVerifiedAt = new Date();
       }
     }
 
@@ -222,13 +237,17 @@ router.put('/', requireSeller, async (req, res, next) => {
         `UPDATE stores
             SET use_managed_payments = $2,
                 payout_momo_number = $3,
-                payout_momo_network = $4
+            payout_momo_network = $4,
+            payout_momo_account_name = $5,
+            payout_momo_verified_at = $6
           WHERE id = $1`,
         [
           req.store.id,
           paymentMode === 'MANAGED',
           payoutMomoNumber,
           payoutMomoNetwork,
+          payoutMomoAccountName,
+          payoutMomoVerifiedAt,
         ],
       );
     });
@@ -248,6 +267,8 @@ router.put('/', requireSeller, async (req, res, next) => {
       paymentMode,
       payoutMomoNumber: profile?.payout_momo_number || '',
       payoutMomoNetwork: profile?.payout_momo_network || '',
+      payoutMomoAccountName: profile?.payout_momo_account_name || '',
+      payoutMomoVerifiedAt: profile?.payout_momo_verified_at || null,
       managedPaymentsAvailable: policy.enabled && policy.paystackReady,
     });
   } catch (err) { next(err); }

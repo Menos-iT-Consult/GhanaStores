@@ -30,7 +30,7 @@ router.get('/seller/payouts', requireSeller, async (req, res, next) => {
         [storeId],
       ),
       query(
-        `SELECT id, amount_ghs, momo_number, momo_network, status, transfer_reference,
+        `SELECT id, amount_ghs, momo_number, momo_network, momo_account_name, status, transfer_reference,
                 admin_note, requested_at, processed_at
            FROM store_payout_requests
           WHERE store_id = $1
@@ -51,7 +51,8 @@ router.get('/seller/payouts', requireSeller, async (req, res, next) => {
       ),
       getManagedPaymentPolicy(),
       query(
-        `SELECT use_managed_payments, payout_momo_number, payout_momo_network
+        `SELECT use_managed_payments, payout_momo_number, payout_momo_network,
+                payout_momo_account_name, payout_momo_verified_at
            FROM stores WHERE id = $1`,
         [storeId],
       ),
@@ -73,6 +74,8 @@ router.get('/seller/payouts', requireSeller, async (req, res, next) => {
         minimumGhs: policy.minimumPayoutGhs,
         momoNumber: store.payout_momo_number || '',
         momoNetwork: store.payout_momo_network || '',
+        momoAccountName: store.payout_momo_account_name || '',
+        momoVerifiedAt: store.payout_momo_verified_at || null,
         managedMode: store.use_managed_payments !== false,
       },
     });
@@ -94,7 +97,8 @@ router.post('/seller/payouts', requireSeller, async (req, res, next) => {
 
     const result = await withTransaction(async ({ query: txQuery }) => {
       const { rows: stores } = await txQuery(
-        `SELECT use_managed_payments, payout_momo_number, payout_momo_network
+        `SELECT use_managed_payments, payout_momo_number, payout_momo_network,
+                payout_momo_account_name, payout_momo_verified_at
            FROM stores WHERE id = $1 FOR UPDATE`,
         [req.auth.sub],
       );
@@ -103,8 +107,9 @@ router.post('/seller/payouts', requireSeller, async (req, res, next) => {
       if (store.use_managed_payments === false) {
         return { error: 'Switch to DiDwa Managed Payments before requesting a managed payout.', statusCode: 409 };
       }
-      if (!normalizeGhPhone(store.payout_momo_number) || !store.payout_momo_network) {
-        return { error: 'Save a valid Mobile Money payout destination in Payment Settings first.', statusCode: 409 };
+      if (!normalizeGhPhone(store.payout_momo_number) || !store.payout_momo_network
+          || !store.payout_momo_account_name || !store.payout_momo_verified_at) {
+        return { error: 'Verify and save your Mobile Money account name in Payment Settings first.', statusCode: 409 };
       }
 
       await txQuery(
@@ -133,10 +138,16 @@ router.post('/seller/payouts', requireSeller, async (req, res, next) => {
 
       const { rows: requests } = await txQuery(
         `INSERT INTO store_payout_requests
-           (store_id, amount_ghs, momo_number, momo_network)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, amount_ghs, momo_number, momo_network, status, requested_at`,
-        [req.auth.sub, roundGhs(amount), store.payout_momo_number, store.payout_momo_network],
+           (store_id, amount_ghs, momo_number, momo_network, momo_account_name)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, amount_ghs, momo_number, momo_network, momo_account_name, status, requested_at`,
+        [
+          req.auth.sub,
+          roundGhs(amount),
+          store.payout_momo_number,
+          store.payout_momo_network,
+          store.payout_momo_account_name,
+        ],
       );
       return { request: requests[0], availableGhs: roundGhs(availableGhs - amount) };
     });
