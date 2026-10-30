@@ -8,7 +8,7 @@
  * the result. There is no pagination: the storefront API returns the whole
  * catalog, so a page-number strip would have been decoration that led nowhere.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight, Search, X } from 'lucide-react';
 import ProductCard from '../ProductCard.jsx';
 import { SORT_OPTIONS, categoriesOf, filterProducts, sortProducts } from '../catalog.js';
@@ -19,12 +19,15 @@ import { SORT_OPTIONS, categoriesOf, filterProducts, sortProducts } from '../cat
  * @param {Function} props.onNavigate Page navigation callback.
  * @param {object} props.ctx Preview context (products).
  */
-export default function ShopBody({ t, onNavigate, ctx }) {
+export default function ShopBody({ t, onNavigate, ctx, initialCategory = null }) {
   const { c, gridColumns } = t;
-  const [cat, setCat] = useState('All');
+  const [cat, setCat] = useState(initialCategory || 'All');
   const [sort, setSort] = useState('featured');
   const [term, setTerm] = useState('');
   const cats = categoriesOf(ctx.products);
+  useEffect(() => {
+    setCat(initialCategory && cats.includes(initialCategory) ? initialCategory : 'All');
+  }, [initialCategory, ctx.products]);
   const list = sortProducts(filterProducts(ctx.products, { category: cat, term }), sort);
   const hasQuery = term.trim().length > 0;
   const total = ctx.products.length;

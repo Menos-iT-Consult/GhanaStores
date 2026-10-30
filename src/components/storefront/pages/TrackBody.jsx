@@ -16,24 +16,29 @@ export default function TrackBody({ t, onNavigate, ctx, orderNumber }) {
   const initial = String(orderNumber || ctx?.orderNumber || ctx?.trackingNumber || fromLocation || '').trim();
   const [number, setNumber] = useState(initial);
   const [phone, setPhone] = useState('');
+  const [lookupBy, setLookupBy] = useState(initial ? 'order' : 'phone');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
 
-  async function lookup(value) {
-    const n = String(value ?? number).trim();
-    if (!n || !phone.trim()) {
-      setError('Enter both your order number and checkout phone number.');
+  async function lookup() {
+    const value = String(lookupBy === 'order' ? number : phone).trim();
+    if (!value) {
+      setError(lookupBy === 'order' ? 'Enter your order number.' : 'Enter the phone number used at checkout.');
+      return;
+    }
+    if (lookupBy === 'phone' && !ctx?.storeSlug) {
+      setError('Phone lookup is available on a live store. Use your order number in this preview.');
       return;
     }
     setBusy(true);
     setError('');
     setData(null);
     try {
-      const query = `?phone=${encodeURIComponent(phone.trim())}`;
-      const result = await api.get(`/api/public/orders/${encodeURIComponent(n)}${query}`);
+      const result = lookupBy === 'order'
+        ? await api.get(`/api/public/orders/${encodeURIComponent(value)}`)
+        : await api.get(`/api/public/orders/track?phone=${encodeURIComponent(value)}&slug=${encodeURIComponent(ctx.storeSlug)}`);
       setData(result);
-      setNumber(n);
     } catch (err) {
       setError(err?.message || 'Could not find that order.');
     } finally {
@@ -59,46 +64,60 @@ export default function TrackBody({ t, onNavigate, ctx, orderNumber }) {
     <section className="p-5" aria-label="Track your order">
       <h1 className="text-lg font-extrabold">Track Your Order</h1>
       <p className="mt-1 text-[11px] opacity-70">
-        Enter your order number and the phone number used at checkout to see its status.
+        Find your order by its order number, or find your latest order with the phone number used at checkout.
       </p>
 
       <form
         onSubmit={(e) => { e.preventDefault(); lookup(); }}
-        className={`mt-4 flex flex-col gap-2 ${compact ? '' : 'sm:flex-row sm:items-end'}`}
+        className="mt-4 space-y-3"
       >
-        <label className="flex-1 text-[10px] font-bold uppercase tracking-wide opacity-60">
-          Order number
-          <input
-            type="text"
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            placeholder="GS-240101-1234"
-            aria-label="Order number"
-            className="mt-1 w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none"
-            style={{ borderColor: 'rgba(148,163,184,.5)' }}
-          />
-        </label>
-        <label className="flex-1 text-[10px] font-bold uppercase tracking-wide opacity-60">
-          Phone used at checkout
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
-            placeholder="0244 123 456"
-            aria-label="Phone number"
-            className="mt-1 w-full rounded-md border bg-white px-2 py-1.5 text-[11px] outline-none"
-            style={{ borderColor: 'rgba(148,163,184,.5)' }}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={busy || !number.trim()}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-white transition disabled:opacity-40"
-          style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}
-        >
-          <Search size={12} aria-hidden="true" /> {busy ? 'Looking up...' : 'Track'}
-        </button>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Choose tracking method">
+          <button
+            type="button"
+            aria-pressed={lookupBy === 'order'}
+            onClick={() => { setLookupBy('order'); setError(''); setData(null); }}
+            className="rounded-full border px-3 py-1.5 text-[11px] font-bold"
+            style={lookupBy === 'order'
+              ? { background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }
+              : { background: 'var(--surface)', borderColor: 'rgba(148,163,184,.5)', color: 'var(--text)' }}
+          >
+            Order ID / number
+          </button>
+          <button
+            type="button"
+            aria-pressed={lookupBy === 'phone'}
+            onClick={() => { setLookupBy('phone'); setError(''); setData(null); }}
+            className="rounded-full border px-3 py-1.5 text-[11px] font-bold"
+            style={lookupBy === 'phone'
+              ? { background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }
+              : { background: 'var(--surface)', borderColor: 'rgba(148,163,184,.5)', color: 'var(--text)' }}
+          >
+            Phone number
+          </button>
+        </div>
+        <div className={`flex flex-col gap-2 ${compact ? '' : 'sm:flex-row sm:items-end'}`}>
+          <label className="flex-1 text-[10px] font-bold uppercase tracking-wide opacity-70">
+            {lookupBy === 'order' ? 'Order number' : 'Phone used at checkout'}
+            <input
+              type={lookupBy === 'order' ? 'text' : 'tel'}
+              value={lookupBy === 'order' ? number : phone}
+              onChange={(e) => lookupBy === 'order' ? setNumber(e.target.value) : setPhone(e.target.value)}
+              placeholder={lookupBy === 'order' ? 'GS-240101-1234' : '0244 123 456'}
+              aria-label={lookupBy === 'order' ? 'Order number' : 'Phone number'}
+              autoComplete={lookupBy === 'order' ? 'off' : 'tel'}
+              className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2"
+              style={{ borderColor: 'rgba(148,163,184,.5)' }}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy || !(lookupBy === 'order' ? number.trim() : phone.trim())}
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-white transition disabled:opacity-40"
+            style={{ background: 'var(--primary)', borderRadius: 'var(--radius)' }}
+          >
+            <Search size={12} aria-hidden="true" /> {busy ? 'Looking up...' : 'Track'}
+          </button>
+        </div>
       </form>
 
       {error ? (

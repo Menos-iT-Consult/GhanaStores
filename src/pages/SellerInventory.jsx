@@ -20,7 +20,7 @@ export default function SellerInventory() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', category: 'General', price: '' });
+  const [form, setForm] = useState({ name: '', description: '', category: '', price: '' });
   /* The image is uploaded BEFORE the product exists: /confirm returns a staged
      key, and it rides along with the create call. */
   const [pendingImage, setPendingImage] = useState(null);
@@ -45,6 +45,10 @@ export default function SellerInventory() {
     if (!q) return products;
     return products.filter((p) => `${p.name} ${p.category}`.toLowerCase().includes(q));
   }, [products, search]);
+  const categories = useMemo(
+    () => [...new Set(products.map((product) => String(product.category || '').trim()).filter(Boolean))],
+    [products],
+  );
 
   function setVariant(idx, patch) {
     setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
@@ -58,6 +62,7 @@ export default function SellerInventory() {
     try {
       await api.post('/api/inventory/products', {
         ...form,
+        category: form.category.trim(),
         imageKey: pendingImage?.key || undefined,
         imageUrl: pendingImage?.rawUrl || undefined,
         price: Number(form.price),
@@ -74,7 +79,7 @@ export default function SellerInventory() {
       });
       setFeedback({ ok: true, msg: `${form.name} added to your catalog.` });
       setShowForm(false);
-      setForm({ name: '', description: '', category: 'General', price: '' });
+      setForm({ name: '', description: '', category: '', price: '' });
       setPendingImage(null);
       setVariants([{ ...EMPTY_VARIANT }]);
       await load();
@@ -145,8 +150,16 @@ export default function SellerInventory() {
           <div className="grid gap-3 md:grid-cols-4">
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Product name" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
-            <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-              placeholder="Category" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
+            <label className="text-xs font-bold text-slate-600">
+              Category
+              <input required list="inventory-product-categories" value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                placeholder="e.g. Clothing" aria-label="Product category"
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
+            </label>
+            <datalist id="inventory-product-categories">
+              {categories.map((category) => <option key={category} value={category} />)}
+            </datalist>
             <input required type="number" min="0" step="0.01" value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
               placeholder="Base price (GHS)" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
@@ -263,7 +276,3 @@ export default function SellerInventory() {
     </div>
   );
 }
-
-
-
-

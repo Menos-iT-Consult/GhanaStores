@@ -37,7 +37,7 @@ export default function DualCardHero({ t, onNavigate, ctx, variant }) {
         </div>
       </GlassCard>
       <GlassCard className={`${stack ? '' : 'col-span-2'} p-4`}>
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-white/50">Trending deals</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-white/75">Trending deals</p>
         <ul className="mt-2 space-y-2">
           {trending.map((p, i) => (
             <li key={p.id}>

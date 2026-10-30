@@ -160,6 +160,10 @@ export async function createProductForStore(storeId, b = {}) {
     if (!b.name || b.price === undefined || b.price === null || b.price === '') {
       throw Object.assign(new Error('Product name and base price are required.'), { status: 400 });
     }
+    const category = String(b.category || '').trim();
+    if (!category) {
+      throw Object.assign(new Error('Product category is required.'), { status: 400 });
+    }
     const price = money(b.price);
     if (!Number.isFinite(price) || price < 0) {
       throw Object.assign(new Error('Base price must be a non-negative amount.'), { status: 400 });
@@ -173,7 +177,7 @@ export async function createProductForStore(storeId, b = {}) {
       const prod = await t.query(
         `INSERT INTO products (store_id, name, description, category, image_url, image_key, price)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name`,
-        [storeId, String(b.name).trim(), b.description || '', b.category || 'General',
+        [storeId, String(b.name).trim(), b.description || '', category,
           b.imageUrl || null, b.imageKey || null, price],
       );
       const productId = prod.rows[0].id;
@@ -583,4 +587,3 @@ export async function recordLowStockAlerts(storeId, candidates) {
 }
 
 export default router;
-

@@ -26,7 +26,7 @@ import { useEffect, useState } from 'react';
 import { Menu, Loader2, Check } from 'lucide-react';
 import { IconStore } from '../components/icons.jsx';
 import { navigate, usePathname } from '../router.js';
-import { uploadApi } from '../api.js';
+import { getCachedStore, uploadApi } from '../api.js';
 import MainSidebar from './dashboard/MainSidebar.jsx';
 import CustomizerSidebar from './dashboard/customizer/CustomizerSidebar.jsx';
 import { useThemeDraft } from './dashboard/useThemeDraft.js';
@@ -42,7 +42,7 @@ export default function DashboardLayout({ children }) {
   /* WordPress-style collapse of the customizer control rail (lg+ only). */
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const route = usePathname();
-  const [store, setStore] = useState(null);
+  const [store, setStore] = useState(getCachedStore);
 
   const {
     customTheme, setCustomTheme, isPublishing, publishSuccess,

@@ -48,7 +48,12 @@ the shared catalog source used by the API and database seeder. Five themes are
 curated for each retail category. Their IDs are selected from the existing
 stable-ID catalog; a deterministic map keeps retired IDs compatible. The
 curated designs define distinct header, hero, product presentation, typography,
-and section order, while shared accessible components own commerce behavior.
+and section order, with an additional theme-ID-scoped art direction for all 25
+individual designs in `src/components/storefront/templates/themeCompositions.css`.
+The generated `Theme01.jsx`–`Theme25.jsx` files are compatibility wrappers; the
+live storefront and theme-market preview use the catalog-driven renderer.
+Shared accessible components continue to own commerce behavior, and the
+individual visual treatments use storefront container queries for narrow layouts.
 
 `npm run test:theme-catalog` validates the catalog and server-rendered previews
 without connecting to a database. `npm run test:theme-migration` validates the
@@ -199,7 +204,7 @@ public/                       manifest.webmanifest, sw.js, favicon.svg
 | 3 | Instant payouts | `routes/payoutRoutes.js`, `paymentRouter.js`, `mtnMomoService.js`, `hubtelService.js` | `available_balance` vs `pending_balance`, `SELECT ... FOR UPDATE` locking, MTN-first disbursement under GHS 5,000 with one Hubtel retry on failure, `provider`/`fallback_used` recorded per payout, admin review above |
 | 4 | Offline POS & COD | `routes/posRoutes.js`, `SellerPOS.jsx`, `POSCart.jsx` | Cash/MoMo register sales (MoMo collections are MTN-first with Hubtel fallback), atomic stock decrement, Rider Transit Balance with one-click reconciliation |
 | 5 | WhatsApp & PDF invoices | `routes/whatsappInvoiceRoutes.js`, `pdfService.js` | Cart-to-`wa.me` structured payload, stock reservation, cancel-restock, PDFKit receipts with QR verification tokens |
-| 6 | Variants & low-stock SMS | `routes/inventoryRoutes.js`, `SellerInventory.jsx` | Multi-option variants (size/colour/SKU), custom thresholds, alert latch prevents duplicate SMS, re-arms after restock |
+| 6 | Variants & low-stock SMS | `routes/inventoryRoutes.js`, `SellerInventory.jsx` | Required product category with existing-category suggestions, multi-option variants (size/colour/SKU), custom thresholds, alert latch prevents duplicate SMS, re-arms after restock |
 | 7 | Domains & SSL | `routes/domainRoutes.js` | Host-header tenant resolution (`custom_domain` or `subdomain_slug`), CNAME instructions, Caddy on-demand TLS `/api/domains/caddy-ask` |
 | 8 | Affiliate portal | `routes/affiliateApiRoutes.js`, `src/pages/affiliate/` | Reserved `affiliate.<PLATFORM_DOMAIN>` host, affiliate-only sign-in/signup, referral dashboard and cookie-based attribution |
 
@@ -224,6 +229,8 @@ GET    /api/orders/:id/receipt        PDF receipt (seller JWT or ?token= HMAC sh
 GET    /api/inventory/products        Catalog with variants
 PATCH  /api/inventory/variants/:id/stock  Adjust stock (delta or absolute)
 GET    /api/inventory/low-stock       Below-threshold report
+GET    /api/public/orders/:orderIdOrNumber  Track by order ID or order number
+GET    /api/public/orders/track?phone=&slug=  Track latest store order by checkout phone
 GET    /api/domains/my                Subdomain, custom domain, DNS + Caddyfile
 PUT    /api/domains/my                Attach/remove custom domain
 GET    /api/domains/caddy-ask?domain= On-demand TLS gate for Caddy

@@ -51,6 +51,9 @@ log('all theme IDs are unique', ids.size === presets.length, `${ids.size} unique
 log('all display names are unique', names.size === presets.length, `${names.size} unique names`);
 log('all themes have unique composition identities', compositions.size === presets.length, `${compositions.size} unique compositions`);
 log('all themes have distinct visual layout recipes', visualRecipes.size === presets.length, `${visualRecipes.size} unique recipes`);
+log('every theme has its own theme-ID-scoped art direction',
+  presets.every(({ id }) => compositionCssSource.includes(`[data-gs-theme="${id}"]`)),
+  `${presets.filter(({ id }) => compositionCssSource.includes(`[data-gs-theme="${id}"]`)).length} theme-specific styles`);
 log('all authored header styles have matching storefront CSS',
   [...new Set(presets.map(({ config }) => config.design?.header))]
     .every((style) => compositionCssSource.includes(`[data-gs-theme-header="${style}"]`)));

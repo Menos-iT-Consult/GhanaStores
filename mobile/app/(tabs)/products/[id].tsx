@@ -108,12 +108,13 @@ export default function ProductEditorScreen() {
     mutationFn: async () => {
       const priceNum = Number(price);
       if (!name.trim()) throw new Error('Product name is required.');
+      if (!category.trim()) throw new Error('Product category is required.');
       if (!Number.isFinite(priceNum) || priceNum < 0) throw new Error('Enter a valid price.');
       if (isNew) {
         const stock = Math.max(0, parseInt(openingStock, 10) || 0);
         return endpoints.createProduct({
           name: name.trim(),
-          category: category.trim() || 'General',
+          category: category.trim(),
           description: description.trim(),
           price: priceNum,
           isActive,
@@ -183,7 +184,7 @@ export default function ProductEditorScreen() {
         <Card mode="elevated" style={styles.card}>
           <View style={styles.formBody}>
             <TextInput mode="outlined" label="Name *" value={name} onChangeText={setName} style={styles.input} />
-            <TextInput mode="outlined" label="Category" value={category} onChangeText={setCategory} placeholder="e.g. Beverages" style={styles.input} />
+            <TextInput mode="outlined" label={isNew ? 'Category *' : 'Category'} value={category} onChangeText={setCategory} placeholder="e.g. Beverages" style={styles.input} />
             <TextInput mode="outlined" label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={3} style={styles.input} />
             <TextInput mode="outlined" label="Price (GHS) *" value={price} onChangeText={setPrice} keyboardType="decimal-pad" style={styles.input} />
             {isNew ? (

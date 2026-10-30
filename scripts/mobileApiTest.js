@@ -255,6 +255,8 @@ test('v1.1 wraps the shared engines instead of duplicating logic', () => {
   assert.ok(analytics.includes('export async function getTopProducts'));
   const inventory = read('routes/inventoryRoutes.js');
   assert.ok(inventory.includes('export async function createProductForStore'));
+  assert.ok(inventory.includes("Product category is required."));
+  assert.ok(inventory.includes('const category = String(b.category || \'\').trim()'));
   assert.ok(inventory.includes('export async function updateProductForStore'));
   assert.ok(inventory.includes('export async function adjustVariantStockHandler'));
   // PWA keeps its own thin wrapper over the extracted handler.

@@ -154,9 +154,14 @@ console.log('\nDiDwa responsive behaviour -> index.html + src/index.css + src/li
     + read('src/layouts/dashboard/customizer/CustomizerSidebar.jsx')
     + read('src/layouts/dashboard/constants.js');
   const drawer = shell + sidebarAndRail;
+  const sidebar = read('src/layouts/dashboard/MainSidebar.jsx');
   const dash = shell;
   const admin = read('src/layouts/AdminLayout.jsx');
   log('the dashboard drawer still collapses below md', /md:translate-x-0/.test(drawer));
+  log('the sidebar loads the cached store for its storefront link',
+    /useState\(getCachedStore\)/.test(shell)
+    && /getCachedStore/.test(shell)
+    && /href=\{storefrontUrl\(store\)\}/.test(sidebar));
   log('the dashboard keeps a mobile header', /md:hidden/.test(dash));
   log('the dashboard drawer is capped for narrow screens', /max-w-\[92vw\]/.test(drawer));
   log('the admin content is width-capped and pads on desktop', /max-w-\[1500px\]/.test(admin) && /lg:px-8/.test(admin));

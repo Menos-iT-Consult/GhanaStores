@@ -52,6 +52,9 @@ export function pathToStorefrontPage(pathname) {
     if (segments[1]) return { page: 'product', productId: segments[1], orderNumber: null };
     return { page: 'shop', productId: null, orderNumber: null };
   }
+  if (head === 'shop' && segments[1] === 'category' && segments[2]) {
+    return { page: 'shop', productId: null, orderNumber: null, category: segments[2] };
+  }
   if (head === 'track' || head === 'tracking' || head === 'order' || head === 'orders') {
     if (segments[1]) return { page: 'track', productId: null, orderNumber: segments[1] };
     return { page: 'track', productId: null, orderNumber: null };
@@ -82,7 +85,9 @@ export function storefrontPageToPath(page, id = null) {
     case 'wishlist':
       return '/wishlist';
     case 'shop':
-      return '/shop';
+      return id != null && String(id).trim()
+        ? `/shop/category/${encodeURIComponent(String(id).trim())}`
+        : '/shop';
     case 'cart':
       return '/cart';
     case 'checkout':
@@ -474,7 +479,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
         noindex={!canonical}
       />
       <StorefrontRouter
-        config={config}
+        config={{ ...config, shopCategory: routeInfo.category || null }}
         // The storefront lays itself out from its OWN width, not the window: it
         // also renders inside the fixed 375/768/1024 device frames in the theme
         // customizer, where a media query would report the host window instead.
@@ -489,7 +494,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
               ? (id != null ? `/track/${encodeURIComponent(String(id))}` : '/track')
               : next === 'checkout' ? '/checkout'
               : next === 'cart' ? '/cart'
-              : next === 'shop' ? '/shop'
+              : next === 'shop' ? storefrontPageToPath('shop', id)
               : next === 'wishlist' ? '/wishlist'
               : next === 'about' ? '/about'
               : next === 'contact' ? '/contact'

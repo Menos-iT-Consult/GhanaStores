@@ -117,7 +117,7 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
                   <button
                     key={name}
                     type="button"
-                    onClick={() => onNavigate('shop')}
+                    onClick={() => onNavigate('shop', name)}
                     className="rounded-full border px-4 py-2 text-xs font-bold"
                     style={{ borderColor: 'var(--accent)', color: 'var(--text)' }}
                   >

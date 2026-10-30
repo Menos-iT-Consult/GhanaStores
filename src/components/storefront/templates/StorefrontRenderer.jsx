@@ -296,7 +296,15 @@ export default function StorefrontRenderer({
           : null}
         {page !== 'home' ? (() => {
           const Body = PAGE_BODIES[page] || ShopBody;
-          return <Body t={t} onNavigate={nav} ctx={storefrontCtx} orderNumber={orderNumber} />;
+          return (
+            <Body
+              t={t}
+              onNavigate={nav}
+              ctx={storefrontCtx}
+              orderNumber={orderNumber}
+              initialCategory={page === 'shop' ? config.shopCategory || null : null}
+            />
+          );
         })() : null}
       </main>
       <StorefrontFooter t={t} onNavigate={nav} />

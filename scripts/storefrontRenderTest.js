@@ -15,6 +15,7 @@
 import { createServer } from 'vite';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 
 let pass = 0;
 let fail = 0;
@@ -34,6 +35,7 @@ const { DEFAULT_CUSTOM_THEME_CONFIG } = await vite.ssrLoadModule('/src/theme/con
 const { matchesSearch, filterProducts, sortProducts, categoriesOf } = await vite.ssrLoadModule('/src/components/storefront/catalog.js');
 const { toDisplayProduct } = await vite.ssrLoadModule('/src/components/storefront/mappers.js');
 const { pathToStorefrontPage, storefrontPageToPath } = await vite.ssrLoadModule('/src/pages/LiveStorefront.jsx');
+const { default: GlassCard } = await vite.ssrLoadModule('/src/components/storefront/templates/shared/GlassCard.jsx');
 await vite.close();
 
 const PAGES = ['home', 'shop', 'product', 'cart', 'wishlist', 'track', 'about', 'contact'];
@@ -92,6 +94,46 @@ for (const page of PAGES) {
 
 log('wishlist route resolves to its storefront page', pathToStorefrontPage('/wishlist').page === 'wishlist');
 log('wishlist navigation produces a direct URL', storefrontPageToPath('wishlist') === '/wishlist');
+log('category storefront URLs resolve to the shop with a decoded category',
+  pathToStorefrontPage('/shop/category/Beauty%20Care').category === 'Beauty Care');
+log('category navigation creates a direct category URL',
+  storefrontPageToPath('shop', 'Beauty Care') === '/shop/category/Beauty%20Care');
+const inventorySource = readFileSync('src/pages/SellerInventory.jsx', 'utf8');
+log('new product creation requires a category and suggests existing categories',
+  inventorySource.includes('input required list="inventory-product-categories"')
+  && inventorySource.includes('categories.map((category)'));
+
+{
+  const html = renderToString(React.createElement(GlassCard, null, React.createElement('span', null, 'Readable glass copy')));
+  log('glass cards use an opaque dark surface for readable text',
+    html.includes('rgba(9,13,22,.94)') && html.includes('color:#E2E8F0'));
+}
+
+{
+  const categoryConfig = { ...DEFAULT_CUSTOM_THEME_CONFIG, shopCategory: 'Beauty' };
+  const html = renderToString(React.createElement(Storefront, {
+    config: categoryConfig,
+    page: 'shop',
+    viewportWidth: 1024,
+    products: [
+      toDisplayProduct({ id: 11, name: 'Shea Butter', price: 45, category: 'Beauty' }),
+      toDisplayProduct({ id: 12, name: 'Kente Scarf', price: 90, category: 'Clothing' }),
+    ],
+  }));
+  log('category route preselects and filters the shop catalog',
+    html.includes('Beauty<!-- -->') && html.includes('Shea Butter') && !html.includes('Kente Scarf'));
+}
+
+{
+  const html = renderToString(React.createElement(Storefront, {
+    config: DEFAULT_CUSTOM_THEME_CONFIG,
+    page: 'track',
+    viewportWidth: 375,
+    storeSlug: 'demo-store',
+  }));
+  log('order tracking offers independent order-number and phone lookup modes',
+    html.includes('Order ID / number') && html.includes('Phone number') && !html.includes('Enter both'));
+}
 
 {
   let ok = true;

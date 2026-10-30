@@ -805,3 +805,558 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Theme-specific art direction. Commerce components stay shared; each curated
+   profile gets its own palette treatment, image framing, and product rhythm. */
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] {
+  margin: clamp(1rem, 3vw, 2.5rem) auto 0;
+  max-width: 88rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+[data-gs-profile="editorial-split"] [data-gs-home-section="categories"] button {
+  border-radius: 0.2rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.7rem, 4vw, 2.8rem);
+}
+
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="hero"] {
+  min-height: 34rem;
+}
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  width: min(100% - 2rem, 54rem);
+  margin: 0 auto 2rem;
+  border-left: 4px solid var(--accent);
+}
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="products-grid"] {
+  max-width: 84rem;
+}
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="products-grid"] .columns-2 > :nth-child(3n + 1) {
+  transform: translateY(-1rem);
+}
+
+[data-gs-profile="bold-type"] [data-gs-home-section="hero"] {
+  min-height: 31rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, #111), var(--primary));
+}
+[data-gs-profile="bold-type"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  max-width: 8ch;
+  font-size: clamp(3.5rem, 11vw, 8rem);
+  line-height: 0.88;
+}
+[data-gs-profile="bold-type"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0 !important;
+  border-bottom: 4px solid var(--accent) !important;
+}
+
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] {
+  margin: clamp(1rem, 5vw, 4rem) auto;
+  max-width: 78rem;
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg));
+}
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  box-shadow: 12px 12px 0 color-mix(in srgb, var(--accent) 22%, transparent);
+}
+[data-gs-profile="artisan-journal"] [data-gs-home-section="categories"] {
+  border-block: 1px solid var(--gs-card-border);
+}
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] h2 {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="hero"] {
+  min-height: 32rem;
+  border-block: 0.5rem solid var(--accent);
+  background: linear-gradient(115deg, color-mix(in srgb, var(--primary) 88%, #111), var(--primary));
+}
+[data-gs-profile="street-poster"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  max-width: 7ch;
+  font-size: clamp(3.25rem, 10vw, 7rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+[data-gs-profile="street-poster"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0 !important;
+  box-shadow: 6px 6px 0 color-mix(in srgb, var(--accent) 42%, transparent) !important;
+}
+
+[data-gs-profile="editorial-split"]:is([data-gs-page="home"]),
+[data-gs-profile="magazine-mosaic"]:is([data-gs-page="home"]),
+[data-gs-profile="bold-type"]:is([data-gs-page="home"]),
+[data-gs-profile="artisan-journal"]:is([data-gs-page="home"]),
+[data-gs-profile="street-poster"]:is([data-gs-page="home"]) {
+  --gs-section-space: 2.75rem;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] [data-gs-hero-copy],
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="hero"] [data-gs-hero-copy],
+[data-gs-profile="bold-type"] [data-gs-home-section="hero"] [data-gs-hero-copy],
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] [data-gs-hero-copy],
+[data-gs-profile="street-poster"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  position: relative;
+  z-index: 1;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] .grid > *,
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="products-grid"] .columns-2 > *,
+[data-gs-profile="bold-type"] [data-gs-home-section="products-grid"] .grid > *,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] .columns-2 > *,
+[data-gs-profile="street-poster"] [data-gs-home-section="products-grid"] .grid > * {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] .grid > *:hover,
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="products-grid"] .columns-2 > *:hover,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] .columns-2 > *:hover {
+  transform: translateY(-4px);
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] [data-gs-hero-copy] p,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] [data-gs-hero-copy] p {
+  max-width: 34rem;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] [data-gs-hero-media],
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] [data-gs-hero-media] {
+  overflow: hidden;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] img,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] img {
+  transition: transform 500ms ease;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"]:hover img,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"]:hover img {
+  transform: scale(1.025);
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="categories"],
+[data-gs-profile="artisan-journal"] [data-gs-home-section="categories"] {
+  max-width: 78rem;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] .columns-2,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] .columns-2 {
+  column-gap: 2rem !important;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] .columns-2 > *,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  break-inside: avoid;
+}
+
+[data-gs-profile="bold-type"] [data-gs-home-section="hero"] [data-gs-hero-copy] p {
+  max-width: 28rem;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="hero"] [data-gs-hero-copy] p {
+  max-width: 24rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="categories"] button {
+  border-radius: 0 !important;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+[data-gs-profile="bold-type"] [data-gs-home-section="categories"] button {
+  border-width: 2px;
+  border-radius: 0;
+  font-weight: 900;
+}
+
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] .columns-2 img {
+  aspect-ratio: 4 / 5;
+}
+
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="products-grid"] .columns-2 img {
+  aspect-ratio: auto;
+  min-height: 16rem;
+}
+
+[data-gs-profile="bold-type"] [data-gs-home-section="products-grid"] h2,
+[data-gs-profile="street-poster"] [data-gs-home-section="products-grid"] h2 {
+  letter-spacing: -0.06em;
+  text-transform: uppercase;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="social-proof"],
+[data-gs-profile="artisan-journal"] [data-gs-home-section="social-proof"] {
+  border-block: 1px solid var(--gs-card-border);
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="cta-banner"],
+[data-gs-profile="bold-type"] [data-gs-home-section="cta-banner"] {
+  border-block: 0.35rem solid var(--accent);
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="cta-banner"] button,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="cta-banner"] button {
+  border-radius: 0.25rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="urgency"],
+[data-gs-profile="artisan-journal"] [data-gs-home-section="urgency"] {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="urgency"],
+[data-gs-profile="bold-type"] [data-gs-home-section="urgency"] {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] > div:first-child,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] > div:first-child {
+  align-items: baseline;
+  border-bottom: 1px solid var(--gs-card-border);
+  padding-bottom: 1rem;
+}
+
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="categories"] button {
+  border-radius: 999px;
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+[data-gs-profile="bold-type"] [data-gs-home-section="products-grid"] .grid > * img,
+[data-gs-profile="street-poster"] [data-gs-home-section="products-grid"] .grid > * img {
+  aspect-ratio: 1 / 1;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="products-grid"] .grid > *,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent) !important;
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="products-grid"] .grid > * {
+  background: rgba(9,13,22,.96) !important;
+  color: #E2E8F0 !important;
+}
+
+[data-gs-profile="bold-type"] [data-gs-home-section="products-grid"] .grid > * {
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--primary) 35%, transparent) !important;
+}
+
+[data-gs-profile="editorial-split"] [data-gs-home-section="hero"] [data-gs-hero-copy] button,
+[data-gs-profile="artisan-journal"] [data-gs-home-section="hero"] [data-gs-hero-copy] button,
+[data-gs-profile="magazine-mosaic"] [data-gs-home-section="hero"] [data-gs-hero-copy] button {
+  border-radius: 0.2rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-gs-profile="street-poster"] [data-gs-home-section="hero"] [data-gs-hero-copy] button,
+[data-gs-profile="bold-type"] [data-gs-home-section="hero"] [data-gs-hero-copy] button {
+  border-radius: 0;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+/* Individual art direction for each selectable storefront theme. */
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 24px 55px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0.3rem !important;
+}
+
+[data-gs-theme="fashion-golden_hour-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  border-left: 5px solid var(--accent);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+}
+[data-gs-theme="fashion-golden_hour-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .columns-2 > :nth-child(3n + 1) {
+  margin-top: 2rem;
+}
+
+[data-gs-theme="fashion-jade_district-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  max-width: 7ch;
+  font-size: clamp(3.5rem, 11vw, 8rem);
+  text-transform: uppercase;
+}
+[data-gs-theme="fashion-jade_district-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0 !important;
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent) 45%, transparent) !important;
+}
+
+[data-gs-theme="fashion-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] {
+  max-width: 78rem;
+  margin: 2.5rem auto;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+[data-gs-theme="fashion-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  border-bottom: 1px solid var(--gs-card-border);
+  padding-bottom: 1rem;
+}
+
+[data-gs-theme="fashion-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  border-block: 0.45rem solid var(--accent);
+}
+[data-gs-theme="fashion-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  font-size: clamp(3rem, 10vw, 7rem);
+  letter-spacing: -0.08em;
+  text-transform: uppercase;
+}
+[data-gs-theme="fashion-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0 !important;
+}
+
+[data-gs-theme="electronics-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--primary) 75%, #06111b), #07131d);
+}
+[data-gs-theme="electronics-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent) !important;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 12%, transparent) !important;
+}
+[data-gs-theme="electronics-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="categories"] button {
+  border-radius: 0.35rem;
+  text-transform: uppercase;
+}
+
+[data-gs-theme="electronics-golden_hour-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] {
+  padding: clamp(1rem, 3vw, 2rem);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 12%, var(--bg)), var(--bg));
+}
+[data-gs-theme="electronics-golden_hour-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .grid > * {
+  border-top: 4px solid var(--accent) !important;
+  border-radius: 0.65rem !important;
+}
+
+[data-gs-theme="electronics-azure_mist-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  border-bottom: 1px solid var(--gs-card-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--bg)), var(--bg));
+}
+[data-gs-theme="electronics-azure_mist-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0.2rem !important;
+  box-shadow: none !important;
+}
+[data-gs-theme="electronics-azure_mist-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid img {
+  aspect-ratio: 1 / 1;
+}
+
+[data-gs-theme="electronics-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 10px 10px 0 color-mix(in srgb, var(--primary) 20%, transparent);
+}
+[data-gs-theme="electronics-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border: 1px solid var(--gs-card-border) !important;
+  border-radius: 1rem !important;
+}
+
+[data-gs-theme="electronics-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+  border-bottom: 4px solid var(--accent);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--primary) 15%, var(--bg)), var(--bg));
+}
+[data-gs-theme="electronics-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li > * {
+  border-radius: 1.25rem !important;
+  background: color-mix(in srgb, var(--primary) 20%, var(--bg)) !important;
+}
+
+[data-gs-theme="beauty-midnight_noir-compact_nohero_card-rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 50%;
+}
+[data-gs-theme="beauty-midnight_noir-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  border-radius: 1.5rem;
+}
+
+[data-gs-theme="beauty-jade_district-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  background: radial-gradient(ellipse at 50% 0, color-mix(in srgb, var(--accent) 23%, var(--bg)), var(--bg) 70%);
+}
+[data-gs-theme="beauty-jade_district-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 1.5rem !important;
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--primary) 16%, transparent) !important;
+}
+
+[data-gs-theme="beauty-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] {
+  margin: 2rem auto;
+  max-width: 76rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  outline-offset: 6px;
+}
+[data-gs-theme="beauty-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+[data-gs-theme="beauty-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="hero"] {
+  min-height: 13rem;
+  border-left: 6px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+[data-gs-theme="beauty-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="categories"] button {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+}
+[data-gs-theme="beauty-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li > * {
+  border-radius: 1.25rem !important;
+}
+
+[data-gs-theme="beauty-coral_blush-compact_nohero_card-rounded"] [data-gs-home-section="hero"] {
+  min-height: 31rem;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 84%, #301524), var(--primary));
+}
+[data-gs-theme="beauty-coral_blush-compact_nohero_card-rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 46rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 2rem;
+  backdrop-filter: blur(14px);
+}
+[data-gs-theme="beauty-coral_blush-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  border-radius: 1.5rem;
+}
+
+[data-gs-theme="marketplace-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+  border-top: 4px solid var(--accent);
+  border-bottom: 4px solid var(--accent);
+}
+[data-gs-theme="marketplace-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="categories"] button {
+  border-radius: 0.5rem;
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--accent) 30%, transparent);
+}
+[data-gs-theme="marketplace-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li > * {
+  border-radius: 0.35rem !important;
+}
+
+[data-gs-theme="marketplace-golden_hour-compact_nohero_card-rounded"] [data-gs-home-section="hero"] {
+  margin: 1.5rem auto;
+  max-width: 78rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  background: repeating-linear-gradient(45deg, transparent 0 18px, color-mix(in srgb, var(--accent) 5%, transparent) 18px 20px);
+}
+[data-gs-theme="marketplace-golden_hour-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0.35rem !important;
+  box-shadow: 0 7px 0 color-mix(in srgb, var(--primary) 16%, transparent) !important;
+}
+
+[data-gs-theme="marketplace-jade_district-compact_nohero_card-rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  border-left: 5px solid var(--accent);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+}
+[data-gs-theme="marketplace-jade_district-compact_nohero_card-rounded"] [data-gs-home-section="categories"] {
+  border-block: 1px solid var(--gs-card-border);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+[data-gs-theme="marketplace-jade_district-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 1.25rem !important;
+}
+
+[data-gs-theme="marketplace-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  min-height: 22rem;
+  border: 2px solid var(--accent);
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 13%, var(--bg)), var(--bg));
+}
+[data-gs-theme="marketplace-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .columns-2 > * {
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+  border-radius: 0.4rem;
+}
+[data-gs-theme="marketplace-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="categories"] button {
+  border-radius: 0.4rem;
+}
+
+[data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+  min-height: min(78vh, 40rem);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--primary) 78%, #13251b), var(--primary));
+}
+[data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] .columns-2 > :nth-child(even) {
+  margin-top: 2.5rem;
+}
+[data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="categories"] button {
+  border-radius: 999px;
+  padding-inline: 1.25rem;
+}
+
+[data-gs-theme="groceries-midnight_noir-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] {
+  min-height: min(78vh, 42rem);
+  border-bottom: 6px solid var(--accent);
+}
+[data-gs-theme="groceries-midnight_noir-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 1.25rem !important;
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+
+[data-gs-theme="groceries-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+  margin: 1rem;
+  border: 2px solid var(--accent);
+  outline: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  outline-offset: 5px;
+}
+[data-gs-theme="groceries-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0.3rem !important;
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+
+[data-gs-theme="groceries-golden_hour-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+  min-height: 11rem;
+  border-block: 4px solid var(--accent);
+  background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--accent) 40%, var(--primary)));
+}
+[data-gs-theme="groceries-golden_hour-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li > * {
+  border-radius: 1.25rem !important;
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+
+[data-gs-theme="groceries-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="hero"] {
+  min-height: 10rem;
+  border-left: 0.5rem solid var(--accent);
+  text-align: left;
+  background: color-mix(in srgb, var(--primary) 9%, var(--bg));
+}
+[data-gs-theme="groceries-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li > * {
+  border-radius: 0.65rem !important;
+  background: rgba(9,13,22,.96) !important;
+  color: #E2E8F0 !important;
+}
+
+[data-gs-theme="groceries-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+  border-radius: 2rem;
+  background: radial-gradient(ellipse at 80% 0, color-mix(in srgb, var(--accent) 32%, var(--bg)), var(--bg) 68%);
+}
+[data-gs-theme="groceries-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li > * {
+  border-radius: 1.5rem !important;
+  background: rgba(9,13,22,.96) !important;
+  color: #E2E8F0 !important;
+}
+[data-gs-theme="groceries-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="categories"] button {
+  border-radius: 999px;
+}
+
+@container storefront (max-width: 640px) {
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"],
+  [data-gs-theme="fashion-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"],
+  [data-gs-theme="marketplace-golden_hour-compact_nohero_card-rounded"] [data-gs-home-section="hero"],
+  [data-gs-theme="groceries-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] {
+    margin-inline: 0.75rem;
+  }
+
+  [data-gs-theme="beauty-midnight_noir-compact_nohero_card-rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+    padding: 1rem;
+    border-radius: 1.5rem;
+  }
+
+  [data-gs-theme="fashion-golden_hour-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .columns-2 > :nth-child(3n + 1),
+  [data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] .columns-2 > :nth-child(even) {
+    margin-top: 0;
+  }
+}

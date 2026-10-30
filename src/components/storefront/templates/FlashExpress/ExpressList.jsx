@@ -29,7 +29,7 @@ export default function ExpressList({ t, products, onNavigate, ctx }) {
               </button>
               <button type="button" onClick={() => onNavigate('product', p.id)} className="min-w-0 flex-1 text-left">
                 <span className="block truncate text-xs font-bold text-white">{p.name}</span>
-                {p.description ? <span className="mt-0.5 line-clamp-1 block text-[10px] text-white/55">{p.description}</span> : null}
+                {p.description ? <span className="mt-0.5 line-clamp-1 block text-[10px] text-white/75">{p.description}</span> : null}
                 <span className="mt-1 block"><PriceTag value={p.price} /></span>
               </button>
               <span className="flex shrink-0 items-center gap-1">

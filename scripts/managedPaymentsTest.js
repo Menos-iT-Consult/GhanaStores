@@ -112,10 +112,14 @@ await test('payout requests reserve balance and manual payout processing is ledg
   assert.match(paymentSettings, /resolvePaystackMomoAccountName/);
   assert.match(paystack, /TELECEL: \['VODAFONE', 'VODAFONE CASH', 'TELECEL', 'TELECEL CASH'\]/);
 });
-await test('public order tracking requires the checkout phone number', () => {
+await test('public order tracking accepts an order number or a store-scoped checkout phone', () => {
+  assert.match(checkout, /router\.get\('\/public\/orders\/track'/);
   assert.match(checkout, /normalizeGhPhone\(phone\)/);
-  assert.match(checkout, /Enter the Ghana phone number used at checkout/);
-  assert.match(checkout, /normalizedPhone !== normalizeGhPhone\(order\.customer_phone\)/);
+  assert.match(checkout, /WHERE o\.store_id = \$1/);
+  assert.match(checkout, /RIGHT\(regexp_replace\(o\.customer_phone, '\[\^0-9\]', '', 'g'\), 9\)/);
+  assert.match(checkout, /router\.get\('\/public\/orders\/:orderIdOrNumber'/);
+  assert.match(checkout, /o\.order_number = \$1 OR o\.id::text = \$1/);
+  assert.doesNotMatch(checkout, /Enter the Ghana phone number used at checkout/);
 });
 
 console.log(`\n${pass} managed payment assertions passed`);
