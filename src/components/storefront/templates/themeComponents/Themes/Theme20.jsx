@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-coral_blush-wide_nohero_list-extra_rounded";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "marketplace-coral_blush-wide_nohero_list-extra_rounded";
+const THEME_CATEGORY = "marketplace";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme20({
 }
 
 Theme20.displayName = 'Theme20';
-Theme20.themeId = "fashion-coral_blush-wide_nohero_list-extra_rounded";
-Theme20.themeName = "Everyday Ghana";
-Theme20.category = "fashion";
+Theme20.themeId = "marketplace-coral_blush-wide_nohero_list-extra_rounded";
+Theme20.themeName = "The Daily Market";
+Theme20.category = "marketplace";

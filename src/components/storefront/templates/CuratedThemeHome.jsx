@@ -29,28 +29,45 @@ const HEADER_BY_STYLE = {
   floating: BoutiqueHeader,
 };
 
-const HERO_BY_CATEGORY = {
-  fashion: EditorialHero,
-  beauty: EditorialHero,
-  electronics: DualCardHero,
-  marketplace: DualCardHero,
-  groceries: DealTimerHero,
+const HERO_BY_STYLE = {
+  split: EditorialHero,
+  split_reverse: EditorialHero,
+  full_bleed: EditorialHero,
+  centered: EditorialHero,
+  editorial: EditorialHero,
+  compact: DealTimerHero,
+  framed: EditorialHero,
+  dual: DualCardHero,
+  banner: DealTimerHero,
+  typographic: EditorialHero,
+  dark: EditorialHero,
+  search_first: DualCardHero,
+  story: EditorialHero,
 };
 
-const GRID_BY_CATEGORY = {
-  fashion: MasonryGrid,
-  beauty: MasonryGrid,
-  electronics: DenseProductGrid,
-  marketplace: DenseProductGrid,
-  groceries: ExpressList,
-};
+const MASONRY_PRESENTATIONS = new Set(['asymmetric', 'masonry', 'gallery', 'editorial_cards']);
+const LIST_PRESENTATIONS = new Set(['list', 'produce']);
 
-function ProductPresentation({ design, category, t, products, onNavigate, ctx, onQuickView }) {
-  if (design.productPresentation === 'asymmetric' || design.productPresentation === 'masonry'
-    || design.productPresentation === 'gallery' || design.productPresentation === 'editorial_cards') {
-    return <MasonryGrid t={t} products={products} onQuickView={onQuickView} />;
+export function CuratedThemeHeader({ t, active, onNavigate, ctx, config }) {
+  const design = config.theme_design || config.design || {};
+  const category = config.theme_category || config.category || 'marketplace';
+  const Header = HEADER_BY_STYLE[design.header] || ({
+    fashion: BoutiqueHeader,
+    beauty: BoutiqueHeader,
+    groceries: TickerHeader,
+  }[category] || DenseHeader);
+  return (
+    <div data-gs-theme-header={design.header || ''} className="contents">
+      <Header t={t} active={active} onNavigate={onNavigate} ctx={ctx} />
+    </div>
+  );
+}
+
+function ProductPresentation({ design, t, products, onNavigate, ctx, onQuickView }) {
+  if (MASONRY_PRESENTATIONS.has(design.productPresentation)) {
+    return <MasonryGrid t={t} products={products} onQuickView={onQuickView} ctx={ctx} />;
   }
-  if (design.productPresentation === 'list' || design.productPresentation === 'produce') {
+  if (LIST_PRESENTATIONS.has(design.productPresentation)) {
     return <ExpressList t={t} products={products} onNavigate={onNavigate} ctx={ctx} />;
   }
   return (
@@ -68,13 +85,7 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
   const design = config.theme_design || config.design || {};
   const category = config.theme_category || config.category || 'marketplace';
   const homeContent = config.home_content || {};
-  const Header = HEADER_BY_STYLE[design.header] || ({
-    fashion: BoutiqueHeader,
-    beauty: BoutiqueHeader,
-    groceries: TickerHeader,
-  }[category] || DenseHeader);
-  const Hero = HERO_BY_CATEGORY[category] || DualCardHero;
-  const productsRenderer = GRID_BY_CATEGORY[category] || DenseProductGrid;
+  const Hero = HERO_BY_STYLE[design.hero] || (category === 'groceries' ? DealTimerHero : DualCardHero);
   const products = sortProducts(
     filterProducts(ctx.products, { category: 'All', term: '' }),
     'featured',
@@ -88,12 +99,12 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
 
   return (
     <>
-      <Header t={t} active="home" onNavigate={onNavigate} ctx={ctx} />
+      <CuratedThemeHeader t={t} active="home" onNavigate={onNavigate} ctx={ctx} config={config} />
       {sections.map((section) => {
         if (section === 'hero') {
           return (
-            <div key={section} data-gs-home-section="hero">
-              <Hero t={t} onNavigate={onNavigate} ctx={ctx} />
+            <div key={section} data-gs-home-section="hero" data-gs-theme-hero={design.hero || ''}>
+              <Hero t={t} onNavigate={onNavigate} ctx={ctx} variant={design.hero} />
             </div>
           );
         }
@@ -119,7 +130,12 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
         }
         if (section === 'products-grid') {
           return (
-            <section key={section} data-gs-home-section="products-grid" className="mx-auto max-w-6xl px-4 py-8">
+            <section
+              key={section}
+              data-gs-home-section="products-grid"
+              data-gs-product-style={design.productPresentation || ''}
+              className="mx-auto max-w-6xl px-4 py-8"
+            >
               <div className="mb-5 flex items-end justify-between gap-3">
                 <h2 className="text-xl font-extrabold">{homeContent.featured_heading || 'Featured products'}</h2>
                 <button type="button" onClick={() => onNavigate('shop')} className="text-xs font-bold underline underline-offset-4">
@@ -128,14 +144,13 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
               </div>
               <ProductPresentation
                 design={design}
-                category={category}
                 t={t}
                 products={products}
                 onNavigate={onNavigate}
                 ctx={ctx}
                 onQuickView={(product) => setQuickId(product.id)}
               />
-              {productsRenderer === MasonryGrid && (
+              {MASONRY_PRESENTATIONS.has(design.productPresentation) && (
                 <QuickViewDrawer t={t} product={quickProduct} ctx={ctx} onClose={() => setQuickId(null)} />
               )}
             </section>

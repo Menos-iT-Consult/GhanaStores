@@ -1,7 +1,7 @@
 /**
  * DiDwa - Storefront Theme API Routes (Module: theme architecture).
  *
- *  GET /api/themes                      catalog of all seeded theme templates
+ *  GET /api/themes                      curated catalog available for selection
  *  GET /api/store/theme/public/:slug    active theme config for a customer storefront (no auth)
  *  PUT /api/store/theme                 seller activates + customizes their store theme
  */
@@ -30,25 +30,15 @@ function mergeConfig(base, override) {
 }
 
 /* ----------------------------- Catalog (seller browsing) ------------------- */
-// GET /api/themes - curated catalog overlaid on legacy database rows.
+// GET /api/themes - only the curated catalog is available for new selections.
 router.get('/themes', async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, name, category, config, created_at
          FROM theme_templates
-        /* Sort on the numeric suffix, not the name. Names run "Theme 01" to
-           "Theme 100", and a lexical sort puts "Theme 100" before "Theme 11"
-           because '1' = '1' then '0' < '1'.
-           The CASE is load-bearing: regexp_replace returns its INPUT UNCHANGED
-           when the pattern does not match, so a NULLIF guard on it does nothing
-           and a hand-inserted name like "Handmade" aborts the whole query with
-           "invalid input syntax for type integer". CASE yields real NULL, which
-           NULLS LAST then sorts after the numbered rows within its category. */
-        ORDER BY category ASC,
-                 CASE WHEN name ~ '^Theme [0-9]+$'
-                      THEN regexp_replace(name, '^Theme ([0-9]+)$', '\\1')::int
-                 END ASC NULLS LAST,
-                 name ASC`,
+        WHERE id = ANY($1::text[])
+        ORDER BY category ASC, name ASC`,
+      [CURATED_THEMES.map((theme) => theme.id)],
     );
     const storedById = new Map(rows.map((row) => [row.id, row]));
     const themes = CURATED_THEMES.map((theme) => ({
@@ -58,16 +48,6 @@ router.get('/themes', async (req, res, next) => {
       config: theme.config,
       createdAt: storedById.get(theme.id)?.created_at || null,
     }));
-    for (const row of rows) {
-      if (CURATED_THEME_BY_ID.has(row.id)) continue;
-      themes.push({
-        id: row.id,
-        name: row.name,
-        category: row.category,
-        config: row.config,
-        createdAt: row.created_at,
-      });
-    }
     res.json({ themes });
   } catch (err) {
     next(err);
@@ -142,6 +122,9 @@ router.put('/store/theme', requireSeller, async (req, res, next) => {
     const storeId = req.auth.sub;
 
     if (active_theme_id !== undefined && active_theme_id !== null) {
+      if (!CURATED_THEME_BY_ID.has(active_theme_id)) {
+        return res.status(400).json({ error: 'This theme is no longer available for new selections.' });
+      }
       const exists = await query('SELECT 1 FROM theme_templates WHERE id = $1', [active_theme_id]);
       if (!exists.rowCount) {
         return res.status(400).json({ error: `theme_templates id not found: ${active_theme_id}` });

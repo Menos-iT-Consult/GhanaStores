@@ -1,7 +1,6 @@
 /**
  * scripts/gen-theme-registry.js
- * Generates themeComponents/themeRegistry.js mapping all 100 theme IDs to
- * their dedicated component modules.
+ * Generates themeComponents/themeRegistry.js for all curated theme IDs.
  * Run: node scripts/gen-theme-registry.js
  */
 import { writeFileSync } from 'fs';

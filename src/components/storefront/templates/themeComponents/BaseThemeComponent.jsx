@@ -1,13 +1,13 @@
 /**
  * components/storefront/templates/themeComponents/BaseThemeComponent.jsx
- * Shared rendering engine for per-theme components. Each of the 100 themes
+ * Shared rendering engine for per-theme components. Each curated theme
  * renders a unique composition driven by its config signature:
  *   - category   -> header / hero / grid archetype
  *   - palette    -> color CSS class + bg/text tones
  *   - layout     -> grid columns, hero presence, card style
  *   - borderRadius -> corner radius tokens
  *
- * Wrappers (Theme01..Theme100) load their catalog design and merge active
+ * Wrappers load their catalog design and merge active
  * merchant tokens before delegating here. Shared commerce building blocks keep
  * behavior consistent while CuratedThemeHome applies each theme composition.
  *
@@ -196,7 +196,7 @@ export function ThemeHome({ t, onNavigate, ctx, config, shopShortcut, setShopSho
 }
 
 /**
- * BaseThemeComponent - single entry point used by every Theme01..Theme100
+ * BaseThemeComponent - shared entry point used by curated theme wrappers
  * wrapper. Renders the full storefront (header + page body + footer) scoped
  * to the theme's own config.
  */

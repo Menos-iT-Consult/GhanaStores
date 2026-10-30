@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-golden_hour-spacious_hero_minimal-subtle";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "electronics-midnight_noir-dense_hero_bordered-crisp";
+const THEME_CATEGORY = "electronics";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme06({
 }
 
 Theme06.displayName = 'Theme06';
-Theme06.themeId = "fashion-golden_hour-spacious_hero_minimal-subtle";
-Theme06.themeName = "Thread & Loom";
-Theme06.category = "fashion";
+Theme06.themeId = "electronics-midnight_noir-dense_hero_bordered-crisp";
+Theme06.themeName = "Circuit Lab";
+Theme06.category = "electronics";

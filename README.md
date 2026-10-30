@@ -10,7 +10,7 @@ via MTN, Telecel/Vodafone or AT Money.
 
 - `db/schema.sql` is the single canonical schema and the only SQL file in the repository.
 - `npm run db:reset` is destructive and refuses to run unless `RESET_DATABASE=yes` is set.
-- Apply the schema to a new Neon database, then run `npm run db:migrate` to seed the 100 theme templates.
+- Apply the schema to a new Neon database, then run `npm run db:migrate` to seed the 25 curated theme templates.
 
 ## Tech Stack
 
@@ -33,7 +33,7 @@ cp .env.example .env   # then edit values (see below)
 # Fresh database (destructive):
 RESET_DATABASE=yes npm run db:reset
 npm run db:init        # optional: applies db/schema.sql and records its checksum (the app also self-applies)
-npm run db:migrate     # add/seed the 100 theme templates
+npm run db:migrate     # add/seed the 25 curated theme templates
 npm run db:seed        # optional demo store + catalog + orders
 node server.js         # API on http://localhost:4000
 npm run dev            # seller PWA on http://localhost:5173
@@ -43,23 +43,29 @@ Demo login after seeding: `demo@didwa.com` / `didwa1`
 
 ## Storefront Theme Catalog
 
-The 100 storefront themes are defined in `scripts/themeCatalog.js`, the shared
-catalog source used by the API and database seeder. Each theme keeps its
-existing stable ID for saved stores, and has a distinct name, description,
-retail category, searchable tags, and composition identity. Theme profiles
-define header, hero, product presentation, typography, and section order; shared
-accessible storefront components continue to own commerce behavior.
+The 25 selectable storefront themes are defined in `scripts/themeCatalog.js`,
+the shared catalog source used by the API and database seeder. Five themes are
+curated for each retail category. Their IDs are selected from the existing
+stable-ID catalog; a deterministic map keeps retired IDs compatible. The
+curated designs define distinct header, hero, product presentation, typography,
+and section order, while shared accessible components own commerce behavior.
 
 `npm run test:theme-catalog` validates the catalog and server-rendered previews
-without connecting to a database. `node scripts/gen-theme-data.js` regenerates
-the checked-in frontend catalog. The wrapper generator only creates missing
-legacy wrappers and never deletes or overwrites existing theme components.
+without connecting to a database. `npm run test:theme-migration` validates the
+legacy assignment plan without connecting to a database.
+`node scripts/gen-theme-data.js` regenerates the checked-in frontend catalog; the
+wrapper and registry generators update only generated files.
 
-The API overlays curated names/configurations on the existing database rows,
-so existing active theme IDs and merchant overrides continue to work without
-rewriting production rows. `npm run db:migrate` is a database-writing command;
-do not run it against a live database without an independently reviewed and
-approved operational change.
+The theme market and activation API expose only the 25 curated designs.
+Existing stores keep rendering their saved theme until an assignment
+migration is approved. Retired database template rows are retained for
+compatibility. Run `npm run themes:migrate-assignments` for a read-only dry
+run; applying changes requires both `--apply` and
+`--confirm-theme-assignment-migration`:
+`npm run themes:migrate-assignments -- --apply --confirm-theme-assignment-migration`.
+It leaves merchant customizer overrides untouched and refuses to apply if it
+encounters unknown theme IDs. Do not run any database-writing command against
+production without an independently reviewed and approved operational change.
 
 ## Environment Variables (.env)
 

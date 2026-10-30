@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import SafeImage from '../../../SafeImage.jsx';
 import { IconLogo, IconCart } from '../../../icons.jsx';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, Menu, X } from 'lucide-react';
 import { NAV_LINKS } from '../../navigation.js';
 import { categoriesOf } from '../../catalog.js';
 
@@ -15,6 +15,8 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
   const { c, compact } = t;
   const [term, setTerm] = useState('');
   const [cat, setCat] = useState('All');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const mobileMenu = Boolean(c.theme_design?.mobileMenu);
   const cats = categoriesOf(ctx.products);
   const submit = (e) => {
     e?.preventDefault?.();
@@ -59,6 +61,18 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
             className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold text-white outline-none placeholder:text-white/40"
           />
         </form>
+        {mobileMenu && compact ? (
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={menuOpen ? 'Close store navigation' : 'Open store navigation'}
+            aria-expanded={menuOpen}
+            aria-controls="dense-store-navigation"
+            className="shrink-0 rounded-lg p-2 text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            {menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => onNavigate('cart')}
@@ -72,14 +86,22 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
           ) : null}
         </button>
       </div>
-      <nav className={`mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-3 pb-1.5 ${compact ? 'px-2' : 'px-4'}`} aria-label="Storefront pages">
+      <nav
+        id="dense-store-navigation"
+        className={`mx-auto max-w-6xl gap-1 px-3 pb-1.5 ${compact ? 'px-2' : 'px-4'} ${
+          mobileMenu && compact
+            ? menuOpen ? 'flex flex-col items-stretch' : 'hidden'
+            : 'flex items-center overflow-x-auto'
+        }`}
+        aria-label="Storefront pages"
+      >
         {NAV_LINKS.map(({ key, label }) => {
           const on = active === key;
           return (
             <button
               key={key}
               type="button"
-              onClick={() => onNavigate(key)}
+              onClick={() => { onNavigate(key); setMenuOpen(false); }}
               aria-current={on ? 'page' : undefined}
               className="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-bold transition"
               style={on ? { background: 'var(--primary)', color: '#fff' } : { color: 'rgba(255,255,255,.7)' }}

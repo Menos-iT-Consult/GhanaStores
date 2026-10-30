@@ -4,9 +4,10 @@
  * #090D16 slate at ~75% + backdrop-blur + 1px slate border.
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
-export default function GlassCard({ children, className = '', style = {}, tint = null }) {
+export default function GlassCard({ children, className = '', style = {}, tint = null, heroLayout }) {
   return (
     <div
+      data-gs-hero-layout={heroLayout}
       className={`overflow-hidden ${className}`}
       style={{
         background: 'rgba(9,13,22,.78)',

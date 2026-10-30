@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-azure_mist-dense_hero_bordered-crisp";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "beauty-azure_mist-spacious_hero_minimal-subtle";
+const THEME_CATEGORY = "beauty";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme13({
 }
 
 Theme13.displayName = 'Theme13';
-Theme13.themeId = "fashion-azure_mist-dense_hero_bordered-crisp";
-Theme13.themeName = "Market Day Style";
-Theme13.category = "fashion";
+Theme13.themeId = "beauty-azure_mist-spacious_hero_minimal-subtle";
+Theme13.themeName = "Botanical Muse";
+Theme13.category = "beauty";

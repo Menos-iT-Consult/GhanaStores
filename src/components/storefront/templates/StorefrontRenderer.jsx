@@ -39,7 +39,7 @@ import DealTimerHero from './FlashExpress/DealTimerHero.jsx';
 import ExpressList from './FlashExpress/ExpressList.jsx';
 import StickyCheckoutBar from './FlashExpress/StickyCheckoutBar.jsx';
 import './themeCompositions.css';
-import RegisteredCuratedThemeHome from './CuratedThemeHome.jsx';
+import RegisteredCuratedThemeHome, { CuratedThemeHeader } from './CuratedThemeHome.jsx';
 
 const PAGE_BODIES = {
   shop: ShopBody,
@@ -272,15 +272,15 @@ export default function StorefrontRenderer({
    * generated per-theme wrapper modules here made a theme-specific render
    * failure capable of taking down the entire live shop. */
   const template = resolveTemplate(config);
-  const Header = HEADERS[template] || DenseHeader;
+  const design = config.theme_design || {};
+  const Header = design.profile ? CuratedThemeHeader : (HEADERS[template] || DenseHeader);
   const dark = template !== 'catalog_grid';
   const [shopShortcut, setShopShortcut] = useState(null);
-  const design = config.theme_design || {};
   const renderStorefront = () => (
     <>
       {!(page === 'home' && design.profile) && (template === 'catalog_grid'
-        ? <Header t={t} active={page} onNavigate={nav} ctx={storefrontCtx} onShopShortcut={setShopShortcut} />
-        : <Header t={t} active={page} onNavigate={nav} ctx={storefrontCtx} />)}
+        ? <Header t={t} active={page} onNavigate={nav} ctx={storefrontCtx} config={config} onShopShortcut={setShopShortcut} />
+        : <Header t={t} active={page} onNavigate={nav} ctx={storefrontCtx} config={config} />)}
       <main style={{ minHeight: '60%' }}>
         {page === 'home' && design.profile
           ? <RegisteredCuratedThemeHome t={t} onNavigate={nav} ctx={storefrontCtx} config={config} />

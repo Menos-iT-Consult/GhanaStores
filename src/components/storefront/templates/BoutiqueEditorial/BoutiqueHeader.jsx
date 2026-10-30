@@ -5,16 +5,31 @@
  */
 import SafeImage from '../../../SafeImage.jsx';
 import { IconLogo, IconCart } from '../../../icons.jsx';
-import { Search } from 'lucide-react';
+import { Menu, Search, X } from 'lucide-react';
 import { Heart } from 'lucide-react';
 import { NAV_LINKS } from '../../navigation.js';
+import { useState } from 'react';
 
 export default function BoutiqueHeader({ t, active, onNavigate, ctx }) {
   const { c, compact } = t;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const mobileMenu = Boolean(c.theme_design?.mobileMenu);
   return (
     <div className="absolute inset-x-0 top-0 z-20">
       <div style={{ background: 'rgba(9,13,22,.45)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.12)' }}>
-        <header className={`mx-auto flex max-w-6xl flex-col items-center gap-1.5 px-5 ${compact ? 'py-2.5' : 'py-4'}`}>
+        <header className={`relative mx-auto flex max-w-6xl flex-col items-center gap-1.5 px-5 ${compact ? 'py-2.5' : 'py-4'}`}>
+          {mobileMenu && compact ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label={menuOpen ? 'Close store navigation' : 'Open store navigation'}
+              aria-expanded={menuOpen}
+              aria-controls="boutique-store-navigation"
+              className="absolute right-4 top-3 rounded-lg p-2 text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              {menuOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+            </button>
+          ) : null}
           <button type="button" onClick={() => onNavigate('home')} className="flex flex-col items-center gap-1.5" aria-label="Store home">
             {c.branding.logo_url ? (
               <SafeImage src={c.branding.logo_url} alt="" className="h-12 w-12 rounded-full object-cover ring-1 ring-white/30" />
@@ -29,14 +44,22 @@ export default function BoutiqueHeader({ t, active, onNavigate, ctx }) {
             </span>
           </button>
         </header>
-        <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-1 px-3 pb-2.5" aria-label="Storefront pages">
+        <nav
+          id="boutique-store-navigation"
+          className={`mx-auto max-w-6xl items-center justify-center gap-1 px-3 pb-2.5 ${
+            mobileMenu && compact
+              ? menuOpen ? 'flex flex-col' : 'hidden'
+              : 'flex flex-wrap'
+          }`}
+          aria-label="Storefront pages"
+        >
           {NAV_LINKS.map(({ key, label }) => {
             const on = active === key;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => onNavigate(key)}
+                onClick={() => { onNavigate(key); setMenuOpen(false); }}
                 aria-current={on ? 'page' : undefined}
                 className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] transition"
                 style={on ? { background: 'rgba(255,255,255,.92)', color: '#090D16' } : { color: 'rgba(255,255,255,.75)' }}

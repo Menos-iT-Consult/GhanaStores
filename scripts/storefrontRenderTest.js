@@ -196,6 +196,38 @@ log('wishlist navigation produces a direct URL', storefrontPageToPath('wishlist'
   log('the merchant heading reaches the storefront', html.includes('Bestsellers this week'));
   log('the trust badge copy is merchant-owned', html.includes('Verified Seller'));
 
+  const heroVariants = [
+    { category: 'fashion', hero: 'split', title: 'Made for your moment' },
+    { category: 'marketplace', hero: 'dual', title: 'Find something special' },
+    { category: 'groceries', hero: 'compact', title: 'Fresh from our market' },
+  ];
+  for (const variant of heroVariants) {
+    const heroHtml = renderToString(React.createElement(Storefront, {
+      config: normalizeCustomThemeConfig({
+        theme_category: variant.category,
+        theme_design: {
+          profile: `hero-test-${variant.category}`,
+          header: 'minimal',
+          hero: variant.hero,
+          productPresentation: 'dense',
+          sectionOrder: ['hero'],
+        },
+        home_content: {
+          hero_eyebrow: 'A store of our own',
+          hero_title: variant.title,
+          hero_description: 'Thoughtfully selected for our customers.',
+          hero_image_url: 'https://cdn.example.test/storefront-hero.jpg',
+          hero_button_label: 'Explore the collection',
+        },
+      }),
+      page: 'home',
+      viewportWidth: 1024,
+    }));
+    log(`${variant.category} theme renders merchant-authored hero copy`, heroHtml.includes(variant.title));
+    log(`${variant.category} theme renders the merchant hero image and action`,
+      heroHtml.includes('https://cdn.example.test/storefront-hero.jpg') && heroHtml.includes('Explore the collection'));
+  }
+
   const socialConfig = normalizeCustomThemeConfig({
     social: {
       instagram: 'https://instagram.com/merchant',

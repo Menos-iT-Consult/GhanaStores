@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-jade_district-compact_nohero_card-rounded";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "beauty-midnight_noir-compact_nohero_card-rounded";
+const THEME_CATEGORY = "beauty";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme11({
 }
 
 Theme11.displayName = 'Theme11';
-Theme11.themeId = "fashion-jade_district-compact_nohero_card-rounded";
-Theme11.themeName = "Golden Stitch";
-Theme11.category = "fashion";
+Theme11.themeId = "beauty-midnight_noir-compact_nohero_card-rounded";
+Theme11.themeName = "The Beauty Bar";
+Theme11.category = "beauty";

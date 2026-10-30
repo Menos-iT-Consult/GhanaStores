@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "electronics-midnight_noir-wide_nohero_list-extra_rounded";
-const THEME_CATEGORY = "electronics";
+const THEME_ID = "groceries-azure_mist-compact_nohero_card-rounded";
+const THEME_CATEGORY = "groceries";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme24({
 }
 
 Theme24.displayName = 'Theme24';
-Theme24.themeId = "electronics-midnight_noir-wide_nohero_list-extra_rounded";
-Theme24.themeName = "Signal House";
-Theme24.category = "electronics";
+Theme24.themeId = "groceries-azure_mist-compact_nohero_card-rounded";
+Theme24.themeName = "Accra Pantry";
+Theme24.category = "groceries";

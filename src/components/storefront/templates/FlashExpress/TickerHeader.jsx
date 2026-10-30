@@ -4,12 +4,16 @@
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis
  * (the spec's rocket emoji ships as a Lucide Rocket icon + text).
  */
-import { Rocket, MapPin, Heart, PackageSearch } from 'lucide-react';
+import { Rocket, MapPin, Heart, PackageSearch, Menu, X } from 'lucide-react';
+import { useState } from 'react';
 import SafeImage from '../../../SafeImage.jsx';
 import { IconLogo, IconCart } from '../../../icons.jsx';
+import { NAV_LINKS } from '../../navigation.js';
 
 export default function TickerHeader({ t, active, onNavigate, ctx }) {
   const { c, compact } = t;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const mobileMenu = Boolean(c.theme_design?.mobileMenu);
   const ticker = c.header?.announcement_text || 'Order now for same-day delivery';
   return (
     <div className="sticky top-0 z-20">
@@ -33,6 +37,18 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
             </span>
           </button>
           <span className="flex-1" />
+          {mobileMenu && compact ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label={menuOpen ? 'Close store navigation' : 'Open store navigation'}
+              aria-expanded={menuOpen}
+              aria-controls="ticker-store-navigation"
+              className="relative shrink-0 rounded-lg p-2 text-white/80 transition hover:bg-white/10"
+            >
+              {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => onNavigate('wishlist')}
@@ -64,6 +80,32 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
           </button>
         </div>
       </div>
+      {mobileMenu ? (
+        <nav
+          id="ticker-store-navigation"
+          className={`mx-auto max-w-6xl gap-1 px-3 pb-2 ${mobileMenu && compact
+            ? menuOpen ? 'flex flex-col items-stretch' : 'hidden'
+            : 'flex items-center overflow-x-auto'
+          }`}
+          aria-label="Storefront pages"
+        >
+          {NAV_LINKS.map(({ key, label }) => {
+            const on = active === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { onNavigate(key); setMenuOpen(false); }}
+                aria-current={on ? 'page' : undefined}
+                className="shrink-0 rounded-md px-2.5 py-2 text-[11px] font-bold transition"
+                style={on ? { background: 'var(--primary)', color: '#fff' } : { color: 'rgba(255,255,255,.7)' }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
     </div>
   );
 }

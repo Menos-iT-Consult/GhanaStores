@@ -35,7 +35,49 @@ export const BORDER_RADII = [
   { key: 'extra_rounded', label: 'Extra Rounded', rem: '1.5rem' },
 ];
 
-export const TOTAL_PRESETS = RETAIL_CATEGORIES.length * PALETTES.length * LAYOUTS.length;
+export const LEGACY_THEME_COUNT = RETAIL_CATEGORIES.length * PALETTES.length * LAYOUTS.length;
+
+export const CURATED_THEME_SELECTIONS = {
+  fashion: [0, 4, 9, 13, 16],
+  electronics: [0, 5, 12, 16, 19],
+  beauty: [2, 8, 13, 14, 18],
+  marketplace: [3, 6, 10, 16, 19],
+  groceries: [1, 3, 7, 14, 19],
+};
+
+const CURATED_DESIGN_OVERRIDES = {
+  electronics: {
+    0: { label: 'Precision Circuit Catalog', header: 'catalog' },
+    16: { label: 'Dual-Panel Tech Showcase', hero: 'dual', productPresentation: 'wide_cards' },
+  },
+  beauty: {
+    13: { label: 'Framed Botanical Journal', hero: 'framed' },
+  },
+  marketplace: {
+    16: { label: 'Market Search Gallery', header: 'catalog', hero: 'search_first', productPresentation: 'gallery' },
+    19: { label: 'Neighborhood Campaign Market', header: 'editorial', hero: 'full_bleed', productPresentation: 'asymmetric' },
+  },
+  groceries: {
+    3: { label: 'Framed Market Stand', header: 'catalog', hero: 'framed', productPresentation: 'catalog' },
+    14: { label: 'Fresh Counter List', header: 'ticker', hero: 'banner', productPresentation: 'list' },
+    19: { label: 'Pantry Finder', header: 'catalog', hero: 'centered', productPresentation: 'produce' },
+  },
+};
+
+const CURATED_MOBILE_MENU_IDS = new Set([
+  'fashion-midnight_noir-dense_hero_bordered-crisp',
+  'fashion-azure_mist-spacious_hero_minimal-subtle',
+  'electronics-midnight_noir-dense_hero_bordered-crisp',
+  'electronics-azure_mist-dense_hero_bordered-crisp',
+  'electronics-coral_blush-wide_nohero_list-extra_rounded',
+  'beauty-jade_district-dense_hero_bordered-crisp',
+  'marketplace-midnight_noir-wide_nohero_list-extra_rounded',
+  'marketplace-coral_blush-dense_hero_bordered-crisp',
+  'groceries-midnight_noir-spacious_hero_minimal-subtle',
+  'groceries-golden_hour-wide_nohero_list-extra_rounded',
+]);
+
+export const TOTAL_PRESETS = RETAIL_CATEGORIES.length * 5;
 
 export const CONVERSION_TUNING = {
   fashion: { freeShippingThresholdGHS: 80, ctaText: 'Shop Now', urgency: 'Trending' },
@@ -151,7 +193,7 @@ function buildConfig(category, palette, layout, border, design, ordinal, themeNa
   };
 }
 
-export function buildPresets() {
+export function buildLegacyPresets() {
   const presets = [];
   let globalIndex = 0;
   for (let ci = 0; ci < RETAIL_CATEGORIES.length; ci++) {
@@ -172,4 +214,72 @@ export function buildPresets() {
     }
   }
   return presets;
+}
+
+export function buildPresets() {
+  const selectedIds = new Set();
+  for (let categoryIndex = 0; categoryIndex < RETAIL_CATEGORIES.length; categoryIndex++) {
+    const category = RETAIL_CATEGORIES[categoryIndex];
+    for (const localIndex of CURATED_THEME_SELECTIONS[category.key] || []) {
+      const palette = PALETTES[Math.floor(localIndex / LAYOUTS.length)];
+      const layout = LAYOUTS[localIndex % LAYOUTS.length];
+      const border = BORDER_RADII[(categoryIndex * PALETTES.length * LAYOUTS.length + localIndex) % BORDER_RADII.length];
+      selectedIds.add(`${category.key}-${palette.key}-${layout.key}-${border.key}`);
+    }
+  }
+  return buildLegacyPresets()
+    .filter((theme) => selectedIds.has(theme.id))
+    .map((theme) => {
+      const localIndex = (theme.config.design.ordinal - 1) % (PALETTES.length * LAYOUTS.length);
+      const override = CURATED_DESIGN_OVERRIDES[theme.category]?.[localIndex];
+      const design = override ? {
+        ...theme.config.design,
+        ...override,
+        name: `${theme.name} · ${override.label}`,
+        description: `${theme.name} is a ${override.label.toLowerCase()} storefront for ${RETAIL_CATEGORIES.find((category) => category.key === theme.category).label.toLowerCase()}, with a ${override.hero || theme.config.design.hero} opening and ${(override.productPresentation || theme.config.design.productPresentation).replaceAll('_', ' ')} product presentation.`,
+        tags: [theme.category, override.label.toLowerCase(), (override.productPresentation || theme.config.design.productPresentation).replaceAll('_', ' ')],
+      } : theme.config.design;
+      return {
+        ...theme,
+        config: {
+          ...theme.config,
+          design: {
+            ...design,
+            mobileMenu: CURATED_MOBILE_MENU_IDS.has(theme.id),
+          },
+        },
+      };
+    });
+}
+
+function themeMatchScore(source, candidate) {
+  const sourceLayout = source.config.layout;
+  const candidateLayout = candidate.config.layout;
+  let score = source.category === candidate.category ? 1000 : 0;
+  if (source.config.design.profile === candidate.config.design.profile) score += 100;
+  if (sourceLayout.gridColumns === candidateLayout.gridColumns) score += 12;
+  if (sourceLayout.heroBanner === candidateLayout.heroBanner) score += 8;
+  if (sourceLayout.cardStyle === candidateLayout.cardStyle) score += 6;
+  if (source.config.palette.key === candidate.config.palette.key) score += 20;
+  if (source.config.borderRadius.name === candidate.config.borderRadius.name) score += 2;
+  return score;
+}
+
+/**
+ * Stable mapping for every generated legacy ID. Retired IDs map to the closest
+ * curated theme in the same retail category; selected IDs map to themselves.
+ */
+export function buildThemeIdMigrationMap() {
+  const legacyThemes = buildLegacyPresets();
+  const curatedThemes = buildPresets();
+  return Object.fromEntries(legacyThemes.map((legacyTheme) => {
+    if (curatedThemes.some((theme) => theme.id === legacyTheme.id)) {
+      return [legacyTheme.id, legacyTheme.id];
+    }
+    const candidates = curatedThemes
+      .filter((theme) => theme.category === legacyTheme.category)
+      .sort((a, b) => themeMatchScore(legacyTheme, b) - themeMatchScore(legacyTheme, a)
+        || a.id.localeCompare(b.id));
+    return [legacyTheme.id, candidates[0].id];
+  }));
 }

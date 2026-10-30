@@ -1,11 +1,18 @@
 /**
  * scripts/gen-theme-wrappers.js
- * Generates catalog-connected per-theme components (Theme01.jsx .. Theme100.jsx).
+ * Generates catalog-connected per-theme components for the curated catalog.
  * Existing generated wrappers are refreshed from the catalog; files without
  * the generated marker are treated as bespoke and are never overwritten.
  * Run: node scripts/gen-theme-wrappers.js
  */
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
+import {
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+} from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
 
@@ -17,6 +24,11 @@ function componentName(index) {
   return `Theme${String(index).padStart(2, '0')}`;
 }
 
+function isGeneratedWrapper(content) {
+  return content.includes('AUTO-GENERATED THEME WRAPPER')
+    || content.includes('Auto-generated - DO NOT EDIT BY HAND.');
+}
+
 export function generateThemeWrappers(themeData, outDir) {
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
@@ -26,8 +38,7 @@ export function generateThemeWrappers(themeData, outDir) {
     const outputPath = join(outDir, `${name}.jsx`);
     if (existsSync(outputPath)) {
       const current = readFileSync(outputPath, 'utf8');
-      if (!current.includes('AUTO-GENERATED THEME WRAPPER')
-        && !current.includes('Auto-generated - DO NOT EDIT BY HAND.')) continue;
+      if (!isGeneratedWrapper(current)) continue;
     }
     const content = `/**
  * components/storefront/templates/themeComponents/Themes/${name}.jsx
@@ -109,10 +120,22 @@ ${name}.category = ${JSON.stringify(theme.category)};
 `;
     writeFileSync(outputPath, content);
   }
+
+  let removed = 0;
+  for (const filename of readdirSync(outDir)) {
+    const match = /^Theme(\d+)\.jsx$/.exec(filename);
+    if (!match || Number(match[1]) <= themeData.length) continue;
+    const outputPath = join(outDir, filename);
+    if (isGeneratedWrapper(readFileSync(outputPath, 'utf8'))) {
+      unlinkSync(outputPath);
+      removed += 1;
+    }
+  }
+  return removed;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const { THEME_DATA } = await import(DATA_PATH.href);
-  generateThemeWrappers(THEME_DATA, OUT_DIR);
-  console.log(`Generated ${THEME_DATA.length} catalog-connected theme components in ${OUT_DIR}/.`);
+  const removed = generateThemeWrappers(THEME_DATA, OUT_DIR);
+  console.log(`Generated ${THEME_DATA.length} catalog-connected theme components in ${OUT_DIR}/. Removed ${removed} retired generated wrappers.`);
 }

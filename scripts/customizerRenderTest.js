@@ -63,6 +63,7 @@ const checks = [
   ['renders the publish button', html.includes('Publish')],
   ['renders the back button', html.includes('Back to dashboard')],
   ['renders section content, not just a shell', html.includes('identity') || html.includes('Site Identity')],
+  ['shows individual hero copy and image controls', html.includes('Hero headline') && html.includes('Upload hero image')],
 ];
 let failed = 0;
 for (const [label, ok] of checks) {

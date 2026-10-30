@@ -62,6 +62,13 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
   /* Preserved when the catalog template is translated into seller tokens so
      live shops, marketplace previews, and the customizer share one design. */
   theme_design: {},
+  theme_defaults: {
+    hero_eyebrow: '',
+    hero_title: '',
+    hero_description: '',
+    hero_image_url: '',
+    hero_button_label: '',
+  },
   theme_id: '',
   theme_category: '',
   header: {
@@ -114,6 +121,10 @@ export const DEFAULT_CUSTOM_THEME_CONFIG = {
     feature_bullets: ['Hand-woven authentic weave', 'Colourfast natural dyes'],
   },
   home_content: {
+    hero_eyebrow: '',
+    hero_title: '',
+    hero_description: '',
+    hero_image_url: '',
     hero_button_label: 'Shop Now',
     featured_heading: 'Featured products',
     view_all_label: 'View all',
@@ -248,6 +259,20 @@ export function seedConfigFromTheme(themeConfig) {
     },
     colors: { primary: pal.primary || '', background: pal.background || '', text: pal.textPrimary || '', accent: pal.accent || '' },
     layout: { border_radius: c.borderRadius?.base || '', product_grid_columns: Number(c.layout?.gridColumns) || undefined },
+    home_content: {
+      hero_eyebrow: c.hero?.eyebrow || '',
+      hero_title: c.hero?.title || '',
+      hero_description: c.hero?.subtitle || '',
+      hero_image_url: c.hero?.imageUrl || c.hero?.image_url || '',
+      hero_button_label: c.home_content?.hero_button_label || c.hero?.callToAction || '',
+    },
+    theme_defaults: {
+      hero_eyebrow: c.hero?.eyebrow || '',
+      hero_title: c.hero?.title || '',
+      hero_description: c.hero?.subtitle || '',
+      hero_image_url: c.hero?.imageUrl || c.hero?.image_url || '',
+      hero_button_label: c.home_content?.hero_button_label || c.hero?.callToAction || '',
+    },
     theme_design: c.design || {},
     theme_id: c.themeId || '',
     theme_category: c.category || '',

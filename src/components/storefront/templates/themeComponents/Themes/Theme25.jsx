@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "electronics-golden_hour-dense_hero_bordered-crisp";
-const THEME_CATEGORY = "electronics";
+const THEME_ID = "groceries-coral_blush-wide_nohero_list-extra_rounded";
+const THEME_CATEGORY = "groceries";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme25({
 }
 
 Theme25.displayName = 'Theme25';
-Theme25.themeId = "electronics-golden_hour-dense_hero_bordered-crisp";
-Theme25.themeName = "Pixel Market";
-Theme25.category = "electronics";
+Theme25.themeId = "groceries-coral_blush-wide_nohero_list-extra_rounded";
+Theme25.themeName = "The Provision Room";
+Theme25.category = "groceries";

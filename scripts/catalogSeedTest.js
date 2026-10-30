@@ -81,14 +81,14 @@ console.log('\nDiDwa catalog seeding -> db/applySchema.js + db/migrate.js + db/d
 {
   const client = fakeClient({ themeCount: 0 });
   const result = await applySchemaIfMissing(client, { quiet: true });
-  log('current schema + empty catalog seeds the catalog', result.themesSeeded === 100, `seeded=${result.themesSeeded}`);
+  log('current schema + empty catalog seeds the catalog', result.themesSeeded === 25, `seeded=${result.themesSeeded}`);
   log('the apply itself is still a no-op', result.applied === false && result.reason === 'already-current');
   log('upserts carry id/name/category/config',
-    client.upserts.length === 100
+    client.upserts.length === 25
     && client.upserts.every((p) => Array.isArray(p) && p.length === 4
       && typeof p[0] === 'string' && typeof p[1] === 'string'
       && typeof p[2] === 'string' && p[3] && typeof p[3] === 'object'));
-  log('one upsert per preset', client.calls.filter((c) => c.includes('INSERT INTO theme_templates')).length === 100);
+  log('one upsert per curated preset', client.calls.filter((c) => c.includes('INSERT INTO theme_templates')).length === 25);
   log('the advisory lock is taken', client.calls.some((c) => c.includes('pg_advisory_xact_lock')));
   log('the transaction commits', client.calls.some((c) => c.trim() === 'COMMIT'));
   log('sample preset id looks like a slug',
@@ -116,7 +116,7 @@ console.log('\nDiDwa catalog seeding -> db/applySchema.js + db/migrate.js + db/d
 
 /* The TLD catalogue: the whole catalogue in ONE statement, counted honestly. */
 {
-  const client = fakeClient({ themeCount: 100, domainCount: 0 });
+  const client = fakeClient({ themeCount: 25, domainCount: 0 });
   const result = await applySchemaIfMissing(client, { quiet: true });
   const batch = client.calls.filter((c) => c.includes('INSERT INTO domain_pricing'));
   log('a fresh TLD catalogue is seeded', result.domainsSeeded === CATALOGUE_SIZE,
@@ -158,7 +158,7 @@ console.log('\nDiDwa catalog seeding -> db/applySchema.js + db/migrate.js + db/d
   try { result = await applySchemaIfMissing(client, { quiet: true }); } catch (err) { threw = err; }
   log('a failing TLD catalogue does not break the apply', threw === null && result?.applied === false);
   log('a failing TLD catalogue reports zero seeded', result?.domainsSeeded === 0);
-  log('themes still seed when the TLD catalogue fails', result?.themesSeeded === 100,
+  log('curated themes still seed when the TLD catalogue fails', result?.themesSeeded === 25,
     `themes=${result?.themesSeeded}`);
 }
 
@@ -190,7 +190,7 @@ console.log('\nDiDwa catalog seeding -> db/applySchema.js + db/migrate.js + db/d
 {
   const { buildPresets, seedThemeCatalog } = await import('../db/migrate.js');
   const presets = buildPresets();
-  log('100 presets are generated', presets.length === 100, `got ${presets.length}`);
+  log('25 curated presets are generated', presets.length === 25, `got ${presets.length}`);
   log('preset ids are unique', new Set(presets.map((p) => p.id)).size === presets.length);
   log('every preset has a name and category', presets.every((p) => p.name && p.category));
   log('every preset has a config object', presets.every((p) => p.config && typeof p.config === 'object'));
@@ -203,7 +203,7 @@ console.log('\nDiDwa catalog seeding -> db/applySchema.js + db/migrate.js + db/d
   const calls = [];
   const result = await seedThemeCatalog(async (sql) => {
     calls.push(String(sql));
-    if (String(sql).includes('FROM theme_templates')) return { rows: [{ n: 42 }] };
+    if (String(sql).includes('FROM theme_templates')) return { rows: [{ n: 25 }] };
     return { rows: [] };
   });
   log('seeder short-circuits on a populated catalog',

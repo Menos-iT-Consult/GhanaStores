@@ -1,7 +1,7 @@
 /**
  * DiDwa - Seller image uploader.
  *
- * One component for both product photos and the store logo. The three-step
+ * One component for product photos, store logos, and staged storefront heroes. The three-step
  * exchange (presign -> PUT to R2 -> confirm) is hidden behind a single
  * onUploaded callback, so a caller only deals with "here is the file, tell me
  * when it is stored".
@@ -57,7 +57,7 @@ export default function ImageUploader({
       const signed = await uploadApi.presign(kind, file);
       await putToSignedUrl(signed.uploadUrl, file, setProgress);
       // The server re-checks size and type against what actually landed, then
-      // attaches the key to the product (or the store, for a logo).
+      // attaches the key to the product/store or stages it for a later publish.
       const saved = await uploadApi.confirm(kind, signed.key, productId);
       setDone(true);
       onUploaded?.(saved);

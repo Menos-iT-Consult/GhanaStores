@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-coral_blush-dense_hero_bordered-crisp";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "marketplace-golden_hour-compact_nohero_card-rounded";
+const THEME_CATEGORY = "marketplace";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme17({
 }
 
 Theme17.displayName = 'Theme17';
-Theme17.themeId = "fashion-coral_blush-dense_hero_bordered-crisp";
-Theme17.themeName = "Woven Stories";
-Theme17.category = "fashion";
+Theme17.themeId = "marketplace-golden_hour-compact_nohero_card-rounded";
+Theme17.themeName = "The Local Edit";
+Theme17.category = "marketplace";

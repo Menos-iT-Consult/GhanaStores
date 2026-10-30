@@ -22,7 +22,7 @@
 import { createServer } from 'vite';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -186,6 +186,10 @@ console.log('\nDiDwa theme market + customizer publishing -> src/theme/preview.j
   try {
     const bespoke = 'export default function Theme01() { return null; }\n';
     writeFileSync(join(outDir, 'Theme01.jsx'), bespoke);
+    const retiredGenerated = '/** AUTO-GENERATED THEME WRAPPER */\n';
+    writeFileSync(join(outDir, 'Theme99.jsx'), retiredGenerated);
+    const retiredBespoke = 'export default function Theme98() { return null; }\n';
+    writeFileSync(join(outDir, 'Theme98.jsx'), retiredBespoke);
     generateThemeWrappers([
       { id: 'bespoke-theme-01', name: 'Bespoke Theme 01', category: 'fashion' },
       { id: 'legacy-theme-02', name: 'Legacy Theme 02', category: 'beauty' },
@@ -199,9 +203,14 @@ console.log('\nDiDwa theme market + customizer publishing -> src/theme/preview.j
       'generator fills a missing legacy wrapper',
       readFileSync(join(outDir, 'Theme02.jsx'), 'utf8').includes('legacy-theme-02'),
     );
+    log(
+      'generator prunes only obsolete generated wrappers',
+      !existsSync(join(outDir, 'Theme99.jsx'))
+      && readFileSync(join(outDir, 'Theme98.jsx'), 'utf8') === retiredBespoke,
+    );
     generateThemeWrappers([{ id: 'changed-id', name: 'Changed', category: 'fashion' }], outDir);
     log(
-      're-running generator does not overwrite existing components',
+      're-running generator preserves bespoke components',
       readFileSync(join(outDir, 'Theme01.jsx'), 'utf8') === bespoke,
     );
   } finally {

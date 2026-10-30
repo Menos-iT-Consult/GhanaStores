@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-jade_district-wide_nohero_list-extra_rounded";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "beauty-jade_district-dense_hero_bordered-crisp";
+const THEME_CATEGORY = "beauty";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme12({
 }
 
 Theme12.displayName = 'Theme12';
-Theme12.themeId = "fashion-jade_district-wide_nohero_list-extra_rounded";
-Theme12.themeName = "Heritage Wear";
-Theme12.category = "fashion";
+Theme12.themeId = "beauty-jade_district-dense_hero_bordered-crisp";
+Theme12.themeName = "Radiant Roots";
+Theme12.category = "beauty";

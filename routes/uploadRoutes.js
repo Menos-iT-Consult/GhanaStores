@@ -4,8 +4,8 @@
  *   POST   /api/uploads/presign  validate the request, generate a store-scoped
  *                               key and return a short-lived signed PUT URL
  *   POST   /api/uploads/confirm  verify what actually reached R2, then persist it
- *                               onto the product (imageKey + imageUrl) or the
- *                               store (logo)
+ *                               onto the product (imageKey + imageUrl) or store
+ *                               (logo), or stages a store hero image for publish
  *   GET    /api/uploads/logo     current logo + whether uploads are available
  *   DELETE /api/uploads/logo     clear the logo
  *
@@ -101,7 +101,14 @@ export async function confirmHandler(req, res, next) {
     }
 
     const rawUrl = buildDeliveryUrl(key);
-    const deliveryUrl = buildDeliveryUrl(key, kind === 'logo' ? RENDITIONS.logo : RENDITIONS.productCard);
+    const deliveryUrl = buildDeliveryUrl(
+      key,
+      kind === 'logo'
+        ? RENDITIONS.logo
+        : kind === 'hero'
+          ? RENDITIONS.hero
+          : RENDITIONS.productCard,
+    );
 
     if (kind === 'logo') {
       /* logo_url holds the R2 KEY (like products.image_key) so a delivery URL
@@ -127,9 +134,15 @@ export async function confirmHandler(req, res, next) {
       });
     }
 
+    /* A hero image is staged until the seller publishes it in theme config.
+       Unpublished objects are removed by the bucket lifecycle rule. */
+    const productId = kind === 'hero' ? '' : String(req.body?.productId || '').trim();
+    if (kind === 'hero') {
+      return res.json({ kind, key, url: deliveryUrl, rawUrl, staged: true });
+    }
+
     /* Product photo. The WHERE clause is also the ownership check - a product
        belonging to another store updates zero rows. */
-    const productId = String(req.body?.productId || '').trim();
     if (!productId) {
       /* Staged: the seller picked the image BEFORE the product existed (the
          catalog form uploads first, then creates). The object is verified and

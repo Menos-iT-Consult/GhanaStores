@@ -8,7 +8,7 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-midnight_noir-spacious_hero_minimal-subtle";
+const THEME_ID = "fashion-golden_hour-dense_hero_bordered-crisp";
 const THEME_CATEGORY = "fashion";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
@@ -72,6 +72,6 @@ export default function Theme02({
 }
 
 Theme02.displayName = 'Theme02';
-Theme02.themeId = "fashion-midnight_noir-spacious_hero_minimal-subtle";
-Theme02.themeName = "Kente House";
+Theme02.themeId = "fashion-golden_hour-dense_hero_bordered-crisp";
+Theme02.themeName = "Nkrumah Street";
 Theme02.category = "fashion";

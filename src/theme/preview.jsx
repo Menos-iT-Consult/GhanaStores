@@ -46,7 +46,12 @@ export function ThemePreview({ config, theme, className = '' }) {
       page="home"
       viewportWidth={CANVAS_W}
       className={`w-full overflow-hidden ${className}`}
-      rootStyle={{ height: 'auto', minHeight: 0 }}
+      rootStyle={{
+        height: 'auto',
+        minHeight: 0,
+        containerType: 'inline-size',
+        containerName: 'storefront',
+      }}
     />
   );
 }

@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-coral_blush-spacious_hero_minimal-subtle";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "marketplace-jade_district-compact_nohero_card-rounded";
+const THEME_CATEGORY = "marketplace";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme18({
 }
 
 Theme18.displayName = 'Theme18';
-Theme18.themeId = "fashion-coral_blush-spacious_hero_minimal-subtle";
-Theme18.themeName = "The Style Quarter";
-Theme18.category = "fashion";
+Theme18.themeId = "marketplace-jade_district-compact_nohero_card-rounded";
+Theme18.themeName = "The Trading Post";
+Theme18.category = "marketplace";

@@ -816,7 +816,7 @@ export const FEATURE_CARDS = [
   { Icon: Wallet, title: 'Instant MoMo payouts', body: 'Cash out to MTN, Telecel/Vodafone or AT Money the moment an order settles.' },
   { Icon: Package, title: 'Inventory that thinks', body: 'Multi-variant stock tracking with automatic low-stock SMS reminders.' },
   { Icon: MessageCircle, title: 'WhatsApp commerce', body: 'Customers order straight from chat; receipts and fulfilment in one tap.' },
-  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with 100 theme templates and live editing.' },
+  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with 25 curated themes and live editing.' },
   { Icon: BarChart3, title: 'Insights that pay', body: 'Best sellers, loyalty points, cash flow and payout readiness without spreadsheets.' },
   { Icon: BellRing, title: 'Seller app & push alerts', body: 'Run the shop from your phone - push notifications and Android home-screen widgets keep you posted.' },
   { Icon: CreditCard, title: 'Pay your way', body: 'Buyers pay by Mobile Money, card or cash on delivery - you choose Paystack or Hubtel as your gateway.' },

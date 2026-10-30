@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-golden_hour-wide_nohero_list-extra_rounded";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "electronics-azure_mist-dense_hero_bordered-crisp";
+const THEME_CATEGORY = "electronics";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme08({
 }
 
 Theme08.displayName = 'Theme08';
-Theme08.themeId = "fashion-golden_hour-wide_nohero_list-extra_rounded";
-Theme08.themeName = "Coastal Wardrobe";
-Theme08.category = "fashion";
+Theme08.themeId = "electronics-azure_mist-dense_hero_bordered-crisp";
+Theme08.themeName = "Tech Junction";
+Theme08.category = "electronics";

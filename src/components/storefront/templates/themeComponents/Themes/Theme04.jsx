@@ -8,7 +8,7 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-midnight_noir-wide_nohero_list-extra_rounded";
+const THEME_ID = "fashion-azure_mist-spacious_hero_minimal-subtle";
 const THEME_CATEGORY = "fashion";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
@@ -72,6 +72,6 @@ export default function Theme04({
 }
 
 Theme04.displayName = 'Theme04';
-Theme04.themeId = "fashion-midnight_noir-wide_nohero_list-extra_rounded";
-Theme04.themeName = "Sunday Best";
+Theme04.themeId = "fashion-azure_mist-spacious_hero_minimal-subtle";
+Theme04.themeName = "The Tailor Room";
 Theme04.category = "fashion";

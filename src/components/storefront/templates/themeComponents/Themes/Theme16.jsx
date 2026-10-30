@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-azure_mist-wide_nohero_list-extra_rounded";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "marketplace-midnight_noir-wide_nohero_list-extra_rounded";
+const THEME_CATEGORY = "marketplace";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme16({
 }
 
 Theme16.displayName = 'Theme16';
-Theme16.themeId = "fashion-azure_mist-wide_nohero_list-extra_rounded";
-Theme16.themeName = "New Look Accra";
-Theme16.category = "fashion";
+Theme16.themeId = "marketplace-midnight_noir-wide_nohero_list-extra_rounded";
+Theme16.themeName = "The Makers Yard";
+Theme16.category = "marketplace";

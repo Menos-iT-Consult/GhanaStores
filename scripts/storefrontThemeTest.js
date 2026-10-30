@@ -46,7 +46,12 @@ const TEMPLATE_CONFIG = {
   layout: { gridColumns: 4 },
   borderRadius: { base: '0px' },
   typography: { font_family: "'Playfair Display', serif", headingWeight: 700, bodySize: 16 },
-  hero: { subtitle: 'Luxury Ghanaian streetwear' },
+  hero: {
+    eyebrow: 'Made in Ghana',
+    title: 'Wear your story',
+    subtitle: 'Luxury Ghanaian streetwear',
+    callToAction: 'Shop the collection',
+  },
   seo: { defaultTitle: 'Midnight Noir' },
 };
 const TENANT = { name: "Kwame's Fashion", whatsappNumber: '+233201234567' };
@@ -68,6 +73,10 @@ console.log('\nDiDwa storefront theme resolution -> src/pages/LiveStorefront.jsx
   log('the template background reaches the storefront', cfg.colors.background === '#FFFFFF');
   log('the template grid columns reach the storefront', cfg.layout.product_grid_columns === 4);
   log('the template tagline reaches the storefront', cfg.branding.tagline === 'Luxury Ghanaian streetwear');
+  log('the theme-specific hero headline reaches the storefront', cfg.home_content.hero_title === 'Wear your story');
+  log('the theme-specific hero description reaches the storefront', cfg.home_content.hero_description === 'Luxury Ghanaian streetwear');
+  log('the theme-specific hero copy is retained as a fallback', cfg.theme_defaults.hero_title === 'Wear your story');
+  log('the theme-specific hero button reaches the storefront', cfg.home_content.hero_button_label === 'Shop the collection');
   log('the template font reaches the storefront', String(cfg.typography.font_family).includes('Playfair'));
   log('the curated composition reaches the live storefront', cfg.theme_design.composition === 'editorial-split');
   log('theme identity reaches live storefront tokens', cfg.theme_id === TEMPLATE_CONFIG.themeId && cfg.theme_category === 'fashion');
@@ -83,12 +92,25 @@ console.log('\nDiDwa storefront theme resolution -> src/pages/LiveStorefront.jsx
 /* ---------- Seller overrides outrank the template ---------- */
 {
   const cfg = resolveStorefrontTheme(
-    { ...RESOLVED, overrides: { colors: { primary: '#FF0055' }, layout: { product_grid_columns: 2 } } },
+    {
+      ...RESOLVED,
+      overrides: {
+        colors: { primary: '#FF0055' },
+        layout: { product_grid_columns: 2 },
+        home_content: {
+          hero_title: 'Kwame’s new collection',
+          hero_image_url: 'https://cdn.example.test/store-hero.jpg',
+        },
+      },
+    },
     TENANT,
   );
   log('a seller colour override beats the template', cfg.colors.primary === '#FF0055', `primary=${cfg.colors.primary}`);
   log('an overridden token leaves the rest of the template intact', cfg.colors.accent === '#FFD700' && cfg.layout.border_radius === '0px');
   log('a seller grid override beats the template', cfg.layout.product_grid_columns === 2);
+  log('a seller can personalize the storefront hero headline', cfg.home_content.hero_title === 'Kwame’s new collection');
+  log('a seller can personalize the storefront hero image', cfg.home_content.hero_image_url === 'https://cdn.example.test/store-hero.jpg');
+  log('personalized hero copy keeps the selected theme fallback', cfg.theme_defaults.hero_title === 'Wear your story');
 }
 {
   const cfg = resolveStorefrontTheme({ ...RESOLVED, overrides: { branding: { site_title: 'K. Fashion GH' } } }, TENANT);

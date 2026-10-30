@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-golden_hour-compact_nohero_card-rounded";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "electronics-golden_hour-spacious_hero_minimal-subtle";
+const THEME_CATEGORY = "electronics";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme07({
 }
 
 Theme07.displayName = 'Theme07';
-Theme07.themeId = "fashion-golden_hour-compact_nohero_card-rounded";
-Theme07.themeName = "Studio Adinkra";
-Theme07.category = "fashion";
+Theme07.themeId = "electronics-golden_hour-spacious_hero_minimal-subtle";
+Theme07.themeName = "Accra Audio Co.";
+Theme07.category = "electronics";

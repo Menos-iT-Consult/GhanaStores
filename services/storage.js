@@ -37,7 +37,7 @@ export const ALLOWED_TYPES = {
   'image/avif': 'avif',
 };
 
-export const KINDS = { product: 'products', logo: 'logos' };
+export const KINDS = { product: 'products', logo: 'logos', hero: 'heroes' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -255,6 +255,7 @@ export function buildDeliveryUrl(key, { width, height, quality = 75, fit = 'scal
 export const RENDITIONS = {
   productCard: { width: 640, height: 640 },
   productHero: { width: 1200, height: 1200 },
+  hero: { width: 1600, height: 900, fit: 'cover', quality: 80 },
   logo: { width: 512, height: 512 },
   favicon: { width: 64, height: 64 },
 };

@@ -8,7 +8,7 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-golden_hour-dense_hero_bordered-crisp";
+const THEME_ID = "fashion-coral_blush-dense_hero_bordered-crisp";
 const THEME_CATEGORY = "fashion";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
@@ -72,6 +72,6 @@ export default function Theme05({
 }
 
 Theme05.displayName = 'Theme05';
-Theme05.themeId = "fashion-golden_hour-dense_hero_bordered-crisp";
-Theme05.themeName = "Nkrumah Street";
+Theme05.themeId = "fashion-coral_blush-dense_hero_bordered-crisp";
+Theme05.themeName = "Woven Stories";
 Theme05.category = "fashion";

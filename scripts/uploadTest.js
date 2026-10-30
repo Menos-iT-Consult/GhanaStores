@@ -80,6 +80,8 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
   log('the extension comes from the MIME type', key.endsWith('.png'), key);
   log('logo keys live in their own folder',
     buildObjectKey(STORE_A, 'logo', 'image/jpeg').startsWith(`stores/${STORE_A}/logos/`));
+  log('hero keys live in their own folder',
+    buildObjectKey(STORE_A, 'hero', 'image/jpeg').startsWith(`stores/${STORE_A}/heroes/`));
   log('keys are random, not derived from the filename',
     buildObjectKey(STORE_A, 'product', 'image/png') !== buildObjectKey(STORE_A, 'product', 'image/png'));
   log('a non-UUID store id is rejected',
@@ -100,6 +102,10 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
   log('a product key is not a logo key', isOwnedKey(own, STORE_A, 'logo') === false);
   log('a logo key is not a product key',
     isOwnedKey(buildObjectKey(STORE_A, 'logo', 'image/png'), STORE_A, 'product') === false);
+  log('a store owns its own hero key',
+    isOwnedKey(buildObjectKey(STORE_A, 'hero', 'image/png'), STORE_A, 'hero') === true);
+  log('another store cannot claim a hero key',
+    isOwnedKey(buildObjectKey(STORE_A, 'hero', 'image/png'), STORE_B, 'hero') === false);
 
   for (const [label, hostile] of [
     ['path traversal', `stores/${STORE_A}/products/../../../etc/passwd.png`],
@@ -136,7 +142,7 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
     log(`rejects ${label} with ${status}`, actual === status, `got ${actual || 'no error'}`);
   }
   log('the size limit is 5MB', MAX_UPLOAD_BYTES === 5 * 1024 * 1024);
-  log('both upload kinds are declared', Boolean(KINDS.product && KINDS.logo));
+  log('product, logo, and hero upload kinds are declared', Boolean(KINDS.product && KINDS.logo && KINDS.hero));
 }
 
 /* ---------- Delivery URLs ---------- */
@@ -152,6 +158,9 @@ console.log('\nDiDwa seller media storage -> services/storage.js\n');
     card.includes('width=640') && !card.includes('width:640') && !/:/.test(card.split('/cdn-cgi/image/')[1].split('/')[0]));
   log('the options are comma separated', card.split('/cdn-cgi/image/')[1].split('/')[0].split(',').length === 5);
   log('the hero rendition differs from the card', buildDeliveryUrl(key, RENDITIONS.productHero) !== card);
+  const hero = buildDeliveryUrl(buildObjectKey(STORE_A, 'hero', 'image/jpeg'), RENDITIONS.hero);
+  log('hero images get a wide landscape rendition',
+    hero.includes('width=1600,height=900,fit=cover,quality=80'));
   log('a logo gets its own rendition', buildDeliveryUrl(key, RENDITIONS.logo).includes('width=512'));
   log('the tab icon is small', buildDeliveryUrl(key, RENDITIONS.favicon).includes('width=64'));
   log('a bare key serves the original', buildDeliveryUrl(key) === `https://media.didwaghana.com/${key}`);

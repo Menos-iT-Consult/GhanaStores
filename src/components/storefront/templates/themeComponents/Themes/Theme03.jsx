@@ -8,7 +8,7 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-midnight_noir-compact_nohero_card-rounded";
+const THEME_ID = "fashion-jade_district-spacious_hero_minimal-subtle";
 const THEME_CATEGORY = "fashion";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
@@ -72,6 +72,6 @@ export default function Theme03({
 }
 
 Theme03.displayName = 'Theme03';
-Theme03.themeId = "fashion-midnight_noir-compact_nohero_card-rounded";
-Theme03.themeName = "The Ankara Edit";
+Theme03.themeId = "fashion-jade_district-spacious_hero_minimal-subtle";
+Theme03.themeName = "Osu Collective";
 Theme03.category = "fashion";

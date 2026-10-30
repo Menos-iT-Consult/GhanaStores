@@ -7,7 +7,7 @@
  * 2. Extends `stores` with `active_theme_id` (FK -> theme_templates) and
  *    `custom_theme_config` (JSONB overrides) so each tenant can activate a
  *    theme and layer per-store edits.
- * 3. Seeds the 100 stable-ID themes from scripts/themeCatalog.js.
+ * 3. Seeds the 25 curated themes from scripts/themeCatalog.js.
  *
  * All writes use idempotent `INSERT ... ON CONFLICT (id) DO UPDATE`, so the
  * script is safe to re-run on every deploy.
@@ -20,7 +20,10 @@
  */
 import dotenv from 'dotenv';
 import { pathToFileURL } from 'node:url';
-import { buildPresets as buildCuratedPresets } from '../scripts/themeCatalog.js';
+import {
+  buildPresets as buildCuratedPresets,
+  TOTAL_PRESETS as CURATED_THEME_COUNT,
+} from '../scripts/themeCatalog.js';
 
 dotenv.config();
 
@@ -73,9 +76,8 @@ export const BORDER_RADII = [
   { key: 'extra_rounded', label: 'Extra Rounded', rem: '1.5rem' },
 ];
 
-/** Total matrix: 5 x 5 x 4 = 100 unique presets. */
-export const TOTAL_PRESETS =
-  RETAIL_CATEGORIES.length * PALETTES.length * LAYOUTS.length;
+/** Number of selectable themes in the curated catalog. */
+export const TOTAL_PRESETS = CURATED_THEME_COUNT;
 
 /** Per-category conversion tuning (free-shipping threshold, trust signals). */
 export const CONVERSION_TUNING = {
@@ -194,7 +196,7 @@ function buildConfig(category, palette, layout, border) {
 }
 
 /**
- * Generate the full curated 100-theme catalog (pure - no DB access).
+ * Generate the selectable curated catalog (pure - no DB access).
  * @returns {Array<{id:string,name:string,category:string,config:object}>}
  */
 export function buildPresets() {
@@ -257,7 +259,7 @@ export async function seedThemeCatalog(exec) {
 }
 
 /**
- * Apply the theme architecture migration and seed the 100 preset themes.
+ * Apply the theme architecture migration and seed the curated presets.
  * Idempotent: safe to re-run on every deploy.
  */
 export async function migrate() {
@@ -291,7 +293,7 @@ export async function migrate() {
     }
     console.log('[db:migrate] DDL applied.');
 
-    // ---- 2. Algorithmic 100-preset matrix + idempotent upsert ----
+    // ---- 2. Curated catalog + idempotent upsert ----
     const presets = buildPresets();
     console.log(`[db:migrate] Seeding ${presets.length} theme presets (expected ${TOTAL_PRESETS}) ...`);
 

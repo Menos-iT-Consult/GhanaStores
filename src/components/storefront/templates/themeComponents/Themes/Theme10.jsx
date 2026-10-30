@@ -8,8 +8,8 @@ import BaseThemeComponent from '../BaseThemeComponent.jsx';
 import { THEME_BY_ID } from '../themeData.js';
 import { mergeThemeConfig, normalizeCustomThemeConfig, templateToCustomizerTokens } from '../../../../../theme/config.js';
 
-const THEME_ID = "fashion-jade_district-spacious_hero_minimal-subtle";
-const THEME_CATEGORY = "fashion";
+const THEME_ID = "electronics-coral_blush-wide_nohero_list-extra_rounded";
+const THEME_CATEGORY = "electronics";
 const THEME = THEME_BY_ID[THEME_ID];
 const BASE_CONFIG = THEME ? templateToCustomizerTokens({
   id: THEME.id,
@@ -72,6 +72,6 @@ export default function Theme10({
 }
 
 Theme10.displayName = 'Theme10';
-Theme10.themeId = "fashion-jade_district-spacious_hero_minimal-subtle";
-Theme10.themeName = "Osu Collective";
-Theme10.category = "fashion";
+Theme10.themeId = "electronics-coral_blush-wide_nohero_list-extra_rounded";
+Theme10.themeName = "The Device Room";
+Theme10.category = "electronics";
