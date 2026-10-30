@@ -10,6 +10,51 @@
   transition: box-shadow 180ms ease, background-color 180ms ease;
 }
 
+[data-gs-home-section="categories"] [data-gs-category-grid] {
+  align-items: stretch;
+}
+
+[data-gs-home-section="categories"] [data-gs-category-card] {
+  min-height: 10rem;
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--bg) 72%, transparent);
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+[data-gs-home-section="categories"] [data-gs-category-card] img {
+  z-index: -2;
+}
+
+[data-gs-home-section="categories"] [data-gs-category-shade] {
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(9, 13, 22, 0.02) 20%, rgba(9, 13, 22, 0.78) 100%);
+}
+
+[data-gs-home-section="categories"] [data-gs-category-card]:hover img {
+  transform: scale(1.05);
+}
+
+[data-gs-home-section="categories"][data-gs-category-presentation="masonry"] [data-gs-category-card],
+[data-gs-home-section="categories"][data-gs-category-presentation="editorial_cards"] [data-gs-category-card] {
+  min-height: 13rem;
+}
+
+[data-gs-home-section="categories"][data-gs-category-presentation="gallery"] [data-gs-category-card] {
+  min-height: 12rem;
+  border-radius: 0;
+}
+
+[data-gs-home-section="categories"][data-gs-category-presentation="dense"] [data-gs-category-card],
+[data-gs-home-section="categories"][data-gs-category-presentation="catalog"] [data-gs-category-card],
+[data-gs-home-section="categories"][data-gs-category-presentation="list"] [data-gs-category-card] {
+  min-height: 8rem;
+}
+
+[data-gs-home-section="categories"][data-gs-category-presentation="produce"] [data-gs-category-card] {
+  border-radius: calc(var(--radius) * 1.5);
+  border-bottom: 3px solid var(--accent);
+}
+
 [data-gs-header="editorial"] > header,
 [data-gs-header="heritage"] > header {
   min-height: 5rem;
@@ -766,6 +811,11 @@
 
   [data-gs-page="home"] [data-gs-home-section="categories"] button {
     min-height: 2.5rem;
+  }
+
+  [data-gs-page="home"] [data-gs-home-section="categories"] [data-gs-category-card] {
+    min-height: 8rem;
+    padding: 0.75rem;
   }
 
   [data-gs-page="home"] [data-gs-home-section="products-grid"] {

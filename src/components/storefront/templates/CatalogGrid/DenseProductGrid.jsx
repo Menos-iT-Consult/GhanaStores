@@ -25,7 +25,16 @@ export default function DenseProductGrid({ t, products, onNavigate, ctx, columns
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Product grid">
       {products.map((p) => (
-        <GlassCard key={p.id} className="flex flex-col" tint="rgba(148,163,184,.14)">
+        <GlassCard
+          key={p.id}
+          className="flex flex-col transition duration-300 hover:-translate-y-1"
+          tint="var(--gs-card-border)"
+          style={{
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            boxShadow: 'var(--gs-shadow)',
+          }}
+        >
           <div className="relative">
             <button type="button" onClick={() => onNavigate('product', p.id)} className="relative block aspect-[4/3] w-full overflow-hidden" aria-label={`View ${p.name}`}>
               <SafeImage src={p.img} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
@@ -35,11 +44,11 @@ export default function DenseProductGrid({ t, products, onNavigate, ctx, columns
           </div>
           <div className="flex flex-1 flex-col gap-1.5 p-2.5">
             <SkuTag id={p.id} />
-            <button type="button" onClick={() => onNavigate('product', p.id)} className="truncate text-left text-xs font-bold text-white hover:underline">
+            <button type="button" onClick={() => onNavigate('product', p.id)} className="truncate text-left text-xs font-bold text-[var(--text)] hover:underline">
               {p.name}
             </button>
             <Stars p={p} />
-            <PriceTag value={p.price} />
+            <PriceTag value={p.price} surface />
             <div className="mt-auto flex items-center justify-between gap-1.5 pt-1">
               <QtyStepper
                 small

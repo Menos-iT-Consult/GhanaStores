@@ -23,8 +23,8 @@ export function StockBadge({ p, sale = false }) {
     <span
       className="rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
       style={low
-        ? { background: 'rgba(245,158,11,.18)', color: '#FBBF24', border: '1px solid rgba(245,158,11,.4)' }
-        : { background: 'rgba(16,185,129,.15)', color: '#34D399', border: '1px solid rgba(16,185,129,.4)' }}
+        ? { background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }
+        : { background: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0' }}
     >
       {low ? `Only ${p.stock} left` : 'In Stock'}
     </span>
@@ -53,9 +53,9 @@ export function Stars({ p }) {
 }
 
 /** Price tag. */
-export function PriceTag({ value, large = false }) {
+export function PriceTag({ value, large = false, surface = false }) {
   return (
-    <span className={large ? 'text-lg font-extrabold' : 'text-sm font-extrabold'} style={{ color: 'var(--accent)' }}>
+    <span className={large ? 'text-lg font-extrabold' : 'text-sm font-extrabold'} style={{ color: surface ? 'var(--primary)' : 'var(--accent)' }}>
       {ghs(value)}
     </span>
   );

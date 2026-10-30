@@ -31,7 +31,8 @@ const vite = await createServer({
   logLevel: 'error',
 });
 const { default: Storefront } = await vite.ssrLoadModule('/src/components/storefront/Storefront.jsx');
-const { DEFAULT_CUSTOM_THEME_CONFIG } = await vite.ssrLoadModule('/src/theme/config.js');
+const { DEFAULT_CUSTOM_THEME_CONFIG, templateToCustomizerTokens } = await vite.ssrLoadModule('/src/theme/config.js');
+const { THEME_DATA } = await vite.ssrLoadModule('/src/components/storefront/templates/themeComponents/themeData.js');
 const { matchesSearch, filterProducts, sortProducts, categoriesOf } = await vite.ssrLoadModule('/src/components/storefront/catalog.js');
 const { toDisplayProduct } = await vite.ssrLoadModule('/src/components/storefront/mappers.js');
 const { pathToStorefrontPage, storefrontPageToPath } = await vite.ssrLoadModule('/src/pages/LiveStorefront.jsx');
@@ -102,6 +103,34 @@ const inventorySource = readFileSync('src/pages/SellerInventory.jsx', 'utf8');
 log('new product creation requires a category and suggests existing categories',
   inventorySource.includes('input required list="inventory-product-categories"')
   && inventorySource.includes('categories.map((category)'));
+
+{
+  const theme = THEME_DATA[0];
+  const config = templateToCustomizerTokens({
+    id: theme.id,
+    name: theme.name,
+    category: theme.category,
+    config: theme.config,
+  });
+  const html = renderToString(React.createElement(Storefront, {
+    config,
+    page: 'home',
+    viewportWidth: 1024,
+    products: [
+      toDisplayProduct({ id: 21, name: 'Kente Shirt', price: 180, category: 'Clothing', img: '/kente-shirt.jpg', stock: 8 }),
+      toDisplayProduct({ id: 22, name: 'Leather Tote', price: 220, category: 'Accessories', img: '/leather-tote.jpg', stock: 5 }),
+    ],
+  }));
+  log('curated storefront categories render with product imagery and counts',
+    html.includes('data-gs-category-card=""')
+    && html.includes('src="/kente-shirt.jpg"')
+    && html.includes('Shop Clothing, 1 product')
+    && html.includes('Shop Accessories, 1 product'));
+  log('curated product cards use theme surfaces and high-contrast pricing',
+    html.includes('background:var(--bg)')
+    && html.includes('color:var(--text)')
+    && html.includes('color:var(--primary)'));
+}
 
 {
   const html = renderToString(React.createElement(GlassCard, null, React.createElement('span', null, 'Readable glass copy')));
