@@ -125,6 +125,8 @@ log('every capitalised JSX tag is imported or defined',
 const welcome = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'WelcomePage.jsx'), 'utf8');
 log('the welcome page still renders its trust-badge Check icons',
   /<Check\b/.test(welcome) && /import\s*\{[^}]*\bCheck\b[^}]*\}\s*from\s*'lucide-react'/.test(welcome));
+log('both app-store badges are labeled coming soon',
+  (welcome.match(/>\s*Coming soon\s*<\/span>/g) || []).length === 2);
 
 console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====\n`);
 process.exit(fail === 0 ? 0 : 1);
