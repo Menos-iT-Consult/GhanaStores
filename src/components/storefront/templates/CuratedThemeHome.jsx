@@ -49,6 +49,13 @@ const HERO_BY_STYLE = {
 
 const MASONRY_PRESENTATIONS = new Set(['asymmetric', 'masonry', 'gallery', 'editorial_cards']);
 const LIST_PRESENTATIONS = new Set(['list', 'produce']);
+const CATEGORY_LABELS = {
+  fashion: 'fashion and apparel',
+  electronics: 'electronics',
+  beauty: 'beauty products',
+  marketplace: 'local finds',
+  groceries: 'groceries',
+};
 
 export function CuratedThemeHeader({ t, active, onNavigate, ctx, config }) {
   const design = config.theme_design || config.design || {};
@@ -87,6 +94,8 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
   const design = config.theme_design || config.design || {};
   const category = config.theme_category || config.category || 'marketplace';
   const homeContent = config.home_content || {};
+  const storeName = String(config.branding?.site_title || '').trim();
+  const categoryLabel = CATEGORY_LABELS[category] || 'products';
   const Hero = HERO_BY_STYLE[design.hero] || (category === 'groceries' ? DealTimerHero : DualCardHero);
   const products = sortProducts(
     filterProducts(ctx.products, { category: 'All', term: '' }),
@@ -106,10 +115,25 @@ export default function CuratedThemeHome({ t, onNavigate, ctx, config }) {
   const sections = Array.isArray(design.sectionOrder)
     ? design.sectionOrder
     : ['hero', 'categories', 'products-grid', 'social-proof', 'footer'];
+  const needsPageHeading = !sections.includes('hero') || config.features?.enable_hero_banner === false;
+  const pageHeading = String(
+    storeName ? `Shop ${categoryLabel} at ${storeName}` : `Shop ${categoryLabel}`,
+  ).trim().slice(0, 150) || 'Shop our collection';
 
   return (
     <>
       <CuratedThemeHeader t={t} active="home" onNavigate={onNavigate} ctx={ctx} config={config} />
+      {needsPageHeading && (
+        <section data-gs-home-section="page-heading" className="mx-auto w-full max-w-6xl px-4 py-10">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] opacity-60">{categoryLabel}</p>
+          <h1 className="max-w-4xl text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">
+            {pageHeading}
+          </h1>
+          {config.branding?.tagline && (
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed opacity-75">{config.branding.tagline}</p>
+          )}
+        </section>
+      )}
       {sections.map((section) => {
         if (section === 'hero') {
           return (

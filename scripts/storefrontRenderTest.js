@@ -130,6 +130,22 @@ log('new product creation requires a category and suggests existing categories',
     html.includes('background:var(--bg)')
     && html.includes('color:var(--text)')
     && html.includes('color:var(--primary)'));
+
+  const noHeroConfig = {
+    ...config,
+    features: { ...config.features, enable_hero_banner: false },
+    branding: { ...config.branding, site_title: 'Atelier North', tagline: 'Contemporary Ghanaian fashion.' },
+  };
+  const noHeroHtml = renderToString(React.createElement(Storefront, {
+    config: noHeroConfig,
+    page: 'home',
+    viewportWidth: 1024,
+  }));
+  const heading = noHeroHtml.match(/<h1\b[^>]*>(.*?)<\/h1>/);
+  log('curated home retains one descriptive H1 when the hero is disabled',
+    (noHeroHtml.match(/<h1\b/g) || []).length === 1
+    && heading?.[1]?.includes('Shop fashion and apparel at Atelier North')
+    && heading[1].length <= 150);
 }
 
 {

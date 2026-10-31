@@ -57,7 +57,11 @@ assert.ok(vercel.rewrites.some((rewrite) =>
 const app = read('src/App.jsx');
 assert.match(app, /noindex, nofollow/);
 assert.match(app, /INDEXABLE_PUBLIC_ROUTES\.has\(route\)/);
-assert.match(read('index.html'), /<link rel="canonical" href="https:\/\/didwaghana\.com\/" \/>/);
+const index = read('index.html');
+assert.match(index, /<link rel="canonical" href="https:\/\/didwaghana\.com\/" \/>/);
+assert.match(index, /<div id="root">\s*<main[^>]*>[\s\S]*?<h1\b[^>]*>Online Store Builder in Ghana &amp; POS \| DiDwa<\/h1>/);
+assert.ok(index.indexOf('<h1') < index.indexOf('<script type="module" src="/src/main.jsx"></script>'));
+assert.ok('Online Store Builder in Ghana & POS | DiDwa'.length <= 150);
 assert.match(read('src/lib/seo.js'), /descriptionLength: 138/);
 const softwareSchema = read('src/components/seo/SoftwareApplicationSchema.jsx');
 assert.doesNotMatch(softwareSchema, /aggregateRating|reviewCount|ratingValue/);
