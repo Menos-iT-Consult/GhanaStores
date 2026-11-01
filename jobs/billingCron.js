@@ -71,13 +71,13 @@ export async function runRenewalReminders() {
     `SELECT id, name, phone, email, subdomain_slug, custom_domain, trial_ends_at
        FROM stores
       WHERE status = 'TRIAL'
-        AND trial_ends_at::date - CURRENT_DATE = 11`,
+        AND trial_ends_at::date - CURRENT_DATE = 3`,
   );
   let sent = 0;
   for (const store of rows) {
     notifyEmail(store, 'trial-reminder');
     notifyPush(store, 'Trial ending soon',
-      'Your free trial ends tomorrow. Subscribe to keep your storefront online.', 'plan_trial_reminder');
+      'Your free trial ends in 3 days. Subscribe to keep your storefront online.', 'plan_trial_reminder');
     const res = await sendTrialReminderSms(store);
     if (res?.ok) sent += 1;
   }

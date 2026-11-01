@@ -18,6 +18,7 @@ import { getAffiliateProgramSettings } from '../services/affiliateProgramSetting
 import { platformDomain } from '../middleware/domainMiddleware.js';
 import { normalizeGhPhone } from '../utils/helpers.js';
 import { resolvePaystackMomoAccountName } from '../services/paystackPlatform.js';
+import { dispatchAffiliateNotification } from '../services/affiliateNotifications.js';
 
 const router = Router();
 
@@ -92,6 +93,7 @@ router.post('/signup', async (req, res, next) => {
       phone,
       passwordHash,
     });
+    void dispatchAffiliateNotification(affiliate, 'welcome');
     return res.status(201).json({
       token: issueAffiliateToken(affiliate),
       affiliate,
@@ -153,6 +155,7 @@ router.post('/payout-account/verify', requireAffiliate, async (req, res, next) =
       [req.affiliate.id, network, momoNumber, accountName],
     );
     const affiliate = await findById(req.affiliate.id);
+    void dispatchAffiliateNotification(affiliate, 'payout-account-updated');
     return res.json({
       affiliate,
       verification: { accountName, bankName },
@@ -278,6 +281,9 @@ router.post('/payouts', requireAffiliate, async (req, res, next) => {
       return inserted[0];
     });
 
+    void dispatchAffiliateNotification(req.affiliate, 'payout-requested', {
+      amountGhs: payout.amount_ghs,
+    });
     return res.json({
       success: true,
       payout,

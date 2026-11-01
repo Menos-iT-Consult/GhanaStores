@@ -206,7 +206,7 @@ public/                       manifest.webmanifest, sw.js, favicon.svg
 | 5 | WhatsApp & PDF invoices | `routes/whatsappInvoiceRoutes.js`, `pdfService.js` | Cart-to-`wa.me` structured payload, stock reservation, cancel-restock, PDFKit receipts with QR verification tokens |
 | 6 | Variants & low-stock SMS | `routes/inventoryRoutes.js`, `SellerInventory.jsx` | Required product category with existing-category suggestions, multi-option variants (size/colour/SKU), custom thresholds, alert latch prevents duplicate SMS, re-arms after restock |
 | 7 | Domains & SSL | `routes/domainRoutes.js` | Host-header tenant resolution (`custom_domain` or `subdomain_slug`), CNAME instructions, Caddy on-demand TLS `/api/domains/caddy-ask` |
-| 8 | Affiliate portal | `routes/affiliateApiRoutes.js`, `src/pages/affiliate/` | Reserved `affiliate.<PLATFORM_DOMAIN>` host, affiliate-only sign-in/signup, referral dashboard and cookie-based attribution |
+| 8 | Affiliate portal | `routes/affiliateApiRoutes.js`, `src/pages/affiliate/` | Reserved `affiliate.<PLATFORM_DOMAIN>` host, affiliate-only sign-in/signup, referral dashboard and cookie-based attribution; transactional email/SMS for account, referral, commission and payout events; audited admin payout review |
 
 ## API Surface
 
@@ -215,6 +215,8 @@ POST   /api/billing/register          Register store (trial auto-starts)
 POST   /api/billing/login             Seller login -> JWT
 POST   /api/affiliate/signup          Create an affiliate account
 POST   /api/affiliate/login           Affiliate login -> affiliate-scoped JWT
+GET    /api/admin/affiliate-payouts   Admin list of affiliate payout requests
+PATCH  /api/admin/affiliate-payouts/:id  Admin marks a pending payout paid or rejected
 GET    /api/billing/status            Trial countdown + lifecycle state
 GET    /api/analytics/dashboard       KPIs, monthlyTrend, recentOrders, operations
 GET    /api/pos/loyalty/:phone        Points balance + redeemable GHS value

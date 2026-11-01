@@ -37,6 +37,7 @@ const { matchesSearch, filterProducts, sortProducts, categoriesOf } = await vite
 const { toDisplayProduct } = await vite.ssrLoadModule('/src/components/storefront/mappers.js');
 const { pathToStorefrontPage, storefrontPageToPath } = await vite.ssrLoadModule('/src/pages/LiveStorefront.jsx');
 const { default: GlassCard } = await vite.ssrLoadModule('/src/components/storefront/templates/shared/GlassCard.jsx');
+const { default: StorefrontBootPlaceholder } = await vite.ssrLoadModule('/src/components/StorefrontBootPlaceholder.jsx');
 await vite.close();
 
 const PAGES = ['home', 'shop', 'product', 'cart', 'wishlist', 'track', 'about', 'contact'];
@@ -47,6 +48,14 @@ const WIDTHS = [
 ];
 
 console.log('\nDidwa storefront render -> every page renders at every width\n');
+
+{
+  const html = renderToString(React.createElement(StorefrontBootPlaceholder));
+  log('storefront host resolution shows a visible accessible loading state',
+    html.includes('role="status"')
+    && html.includes('aria-label="Opening storefront"')
+    && html.includes('Getting the shop ready for you'));
+}
 
 /* ---------- 1. Every page renders at every responsive width ---------- */
 for (const page of PAGES) {

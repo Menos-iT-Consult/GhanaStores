@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BadgePercent, RefreshCw, Save, Users, Wallet } from 'lucide-react';
+import { BadgePercent, CheckCircle2, RefreshCw, Save, Users, Wallet, XCircle } from 'lucide-react';
 import { adminApi, ghs } from '../../api.js';
 import {
   Button, DataTable, ErrorBanner, Field, LoadingBlock, PageHeader, Panel, PanelHeader,
@@ -17,23 +17,30 @@ const INITIAL_SETTINGS = {
 export default function AdminAffiliateProgram() {
   const [settings, setSettings] = useState(null);
   const [affiliateData, setAffiliateData] = useState(null);
+  const [payouts, setPayouts] = useState([]);
   const [draft, setDraft] = useState(INITIAL_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [notice, setNotice] = useState('');
+  const [payoutError, setPayoutError] = useState('');
   const [reason, setReason] = useState('');
+  const [transferRefs, setTransferRefs] = useState({});
+  const [payoutNotes, setPayoutNotes] = useState({});
+  const [busyPayoutId, setBusyPayoutId] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const [result, affiliateOverview] = await Promise.all([
+      const [result, affiliateOverview, payoutOverview] = await Promise.all([
         adminApi.get('/api/admin/affiliate-program'),
         adminApi.get('/api/admin/affiliates'),
+        adminApi.get('/api/admin/affiliate-payouts'),
       ]);
       setSettings(result.settings);
       setAffiliateData(affiliateOverview);
+      setPayouts(payoutOverview.payouts || []);
       setDraft(Object.fromEntries(
         Object.entries(result.settings).map(([key, value]) => [key, String(value)]),
       ));
@@ -71,6 +78,25 @@ export default function AdminAffiliateProgram() {
     }
   };
 
+  const processPayout = async (payout, status) => {
+    setBusyPayoutId(payout.id);
+    setPayoutError('');
+    setNotice('');
+    try {
+      await adminApi.patch(`/api/admin/affiliate-payouts/${payout.id}`, {
+        status,
+        transferReference: transferRefs[payout.id] || '',
+        note: payoutNotes[payout.id] || '',
+      });
+      setNotice(status === 'paid' ? 'Affiliate payout marked paid.' : 'Affiliate payout rejected.');
+      await load();
+    } catch (err) {
+      setPayoutError(err.message || 'Affiliate payout could not be updated.');
+    } finally {
+      setBusyPayoutId('');
+    }
+  };
+
   if (loading) return <LoadingBlock label="Loading affiliate program settings..." />;
   if (error && !settings) return <ErrorBanner error={error} onRetry={load} />;
 
@@ -79,6 +105,7 @@ export default function AdminAffiliateProgram() {
       <PageHeader title="Affiliate program" subtitle="Configure the public program terms and operational thresholds" />
       {error && <ErrorBanner error={error} onRetry={load} />}
       {saveError && <ErrorBanner error={saveError} />}
+      {payoutError && <ErrorBanner error={payoutError} />}
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -124,6 +151,87 @@ export default function AdminAffiliateProgram() {
           ]}
           rows={affiliateData?.affiliates || []}
           empty={<p className="text-sm text-slate-500">No affiliate accounts have signed up yet.</p>}
+        />
+      </Panel>
+
+      <Panel>
+        <PanelHeader
+          title="Affiliate payout requests"
+          subtitle="Review the verified destination, complete the transfer, then record its reference or rejection reason."
+          actions={<Button icon={RefreshCw} onClick={load}>Refresh</Button>}
+        />
+        <DataTable
+          columns={[
+            {
+              key: 'affiliate',
+              label: 'Affiliate',
+              render: (row) => (
+                <div>
+                  <p className="font-bold text-charcoal">{row.full_name}</p>
+                  <p className="text-xs text-slate-500">{row.email}</p>
+                </div>
+              ),
+            },
+            { key: 'amount_ghs', label: 'Amount', align: 'right', render: (row) => ghs(row.amount_ghs) },
+            {
+              key: 'destination',
+              label: 'Verified destination',
+              render: (row) => (
+                <div>
+                  <p className="font-semibold">{row.momo_verified_name || 'Name not verified'}</p>
+                  <p className="text-xs text-slate-500">{row.momo_number} · {row.momo_network}</p>
+                </div>
+              ),
+            },
+            { key: 'requested_at', label: 'Requested', render: (row) => dateTimeOrDash(row.requested_at) },
+            {
+              key: 'status',
+              label: 'Status',
+              render: (row) => <span className="font-semibold capitalize">{row.status}</span>,
+            },
+            {
+              key: 'review',
+              label: 'Review',
+              render: (row) => row.status === 'pending' ? (
+                <div className="min-w-[220px] space-y-2">
+                  <input
+                    className={inputClass}
+                    maxLength={120}
+                    value={transferRefs[row.id] || ''}
+                    onChange={(event) => setTransferRefs((current) => ({ ...current, [row.id]: event.target.value }))}
+                    placeholder="Completed transfer reference"
+                    aria-label={`Transfer reference for ${row.full_name}`}
+                  />
+                  <input
+                    className={inputClass}
+                    maxLength={500}
+                    value={payoutNotes[row.id] || ''}
+                    onChange={(event) => setPayoutNotes((current) => ({ ...current, [row.id]: event.target.value }))}
+                    placeholder="Note (required to reject)"
+                    aria-label={`Review note for ${row.full_name}`}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      tone="primary"
+                      icon={CheckCircle2}
+                      busy={busyPayoutId === row.id}
+                      disabled={!transferRefs[row.id]?.trim()}
+                      onClick={() => processPayout(row, 'paid')}
+                    >Mark paid</Button>
+                    <Button
+                      tone="danger"
+                      icon={XCircle}
+                      busy={busyPayoutId === row.id}
+                      disabled={!payoutNotes[row.id]?.trim()}
+                      onClick={() => processPayout(row, 'rejected')}
+                    >Reject</Button>
+                  </div>
+                </div>
+              ) : <p className="max-w-xs whitespace-pre-wrap text-xs text-slate-500">{row.admin_note || '-'}</p>,
+            },
+          ]}
+          rows={payouts}
+          empty={<p className="text-sm text-slate-500">No affiliate payout requests have been submitted.</p>}
         />
       </Panel>
 

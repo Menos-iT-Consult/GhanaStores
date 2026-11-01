@@ -44,6 +44,22 @@ const cronRoute = read('routes/billingCronRoute.js');
 const sms = read('services/smsService.js');
 const vercel = JSON.parse(read('vercel.json'));
 
+/* Day 11 of the 14-day trial means three days remaining. */
+const trialReminderFn = (cron.split('export async function runRenewalReminders')[1] || '')
+  .split('export async function runExpireTrials')[0];
+check(
+  'trial renewal reminder is selected with three days remaining (Day 11)',
+  /trial_ends_at::date\s*-\s*CURRENT_DATE\s*=\s*3/.test(trialReminderFn)
+    && !/trial_ends_at::date\s*-\s*CURRENT_DATE\s*=\s*11/.test(trialReminderFn),
+  'the previous 11-days-remaining predicate fired on Day 3',
+);
+check(
+  'trial renewal push says three days remain',
+  /free trial ends in 3 days/i.test(trialReminderFn)
+    && !/free trial ends tomorrow/i.test(trialReminderFn),
+  'push reminder timing should match the Day 11 SMS/email schedule',
+);
+
 /* 1. The renewal transition exists at all. */
 check(
   'runExpireRenewals() exists - a paying plan must actually lapse',

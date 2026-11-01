@@ -125,6 +125,7 @@ const PAGE_ENDPOINTS = [
   '/api/admin/audit/actions',
   '/api/admin/affiliate-program',
   '/api/admin/affiliates',
+  '/api/admin/affiliate-payouts',
   '/api/admin/platform-settings',
   '/api/admin/managed-payment-settings',
   '/api/admin/managed-payouts',
@@ -176,7 +177,7 @@ for (const endpoint of PAGE_ENDPOINTS) {
 /* Scan for the action NAMES themselves rather than the `action:` key, because
    some are chosen dynamically (`detail.passwordReset ? a : b`, `wasPaid ? refund
    : void`) and a key-shaped scan would silently miss them. */
-const NAMESPACE = '(admin|merchant|order|catalog|payout|managed_payout|managed_payments|domain|theme|billing|affiliate_program|platform)';
+const NAMESPACE = '(admin|merchant|order|catalog|payout|managed_payout|managed_payments|affiliate_payout|domain|theme|billing|affiliate_program|platform)';
 const written = new Set();
 for (const file of AUDITED_SOURCES) {
   const source = fs.readFileSync(path.join(ROOT, file), 'utf8');

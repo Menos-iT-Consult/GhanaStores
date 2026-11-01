@@ -36,6 +36,8 @@ export const ACTION_LABELS = {
   'domain.settings': 'Changed domain search settings',
   'domain.provider_price_refresh': 'Refreshed OpenProvider domain prices',
   'affiliate_program.settings': 'Changed affiliate program settings',
+  'affiliate_payout.paid': 'Recorded a completed affiliate payout',
+  'affiliate_payout.rejected': 'Rejected an affiliate payout request',
   'platform.public_settings': 'Changed platform public contact and social settings',
   'managed_payments.settings': 'Changed managed payment fee or payout policy',
   'managed_payout.paid': 'Recorded a completed managed vendor payout',

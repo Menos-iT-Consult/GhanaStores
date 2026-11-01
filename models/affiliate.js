@@ -3,6 +3,7 @@
 
 import { query } from '../config/database.js';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
+import { notifyAffiliateById } from '../services/affiliateNotifications.js';
 import { randomInt } from 'node:crypto';
 
 const REFERRAL_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -147,6 +148,11 @@ export async function recordCommission({ affiliateId, referralId, transactionRef
      RETURNING id, earned_amount_ghs, earned_at, status`,
     [affiliateId, referralId, transactionRef, planAmountGHS, commissionRatePercent, earned]
   );
+  if (rows[0]) {
+    void notifyAffiliateById(affiliateId, 'commission', {
+      amountGhs: rows[0].earned_amount_ghs,
+    });
+  }
   return rows[0];
 }
 

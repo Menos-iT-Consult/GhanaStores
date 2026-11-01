@@ -9,6 +9,7 @@ import {
 import { navigate } from '../router.js';
 import StorefrontRouter, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
 import StorefrontSplash from '../components/StorefrontSplash.jsx';
+import StorefrontBootPlaceholder from '../components/StorefrontBootPlaceholder.jsx';
 import MetaTags from '../components/seo/MetaTags.jsx';
 import { useContainerTier } from '../lib/responsive.js';
 import { getPlatformDomain } from '../config.js';
@@ -439,13 +440,7 @@ export default function LiveStorefront({ onPlatformHost = null, onStoreNotFound 
      failure (store not found, unreachable host) showing the error rather than an
      eternal splash. */
   if (!splashDone && !message) {
-    /* Hold a neutral background only if NEITHER theme source has answered.
-       Normally the resolve payload already carries the theme, so the splash
-       mounts in the same paint as the logo and this branch is never taken. If
-       it is, painting the default palette here would be the flash this is meant
-       to prevent, so a blank - matching the one App.jsx paints during host
-       resolve - is the correct thing to show. */
-    if (!bootTheme) return <div className="min-h-screen bg-white" aria-hidden="true" />;
+    if (!bootTheme) return <StorefrontBootPlaceholder />;
     return (
       <StorefrontSplash
         /* tenant.logoUrl is the pre-sized rendition from the resolve payload;

@@ -38,6 +38,7 @@ import SellerThemeSelector from './pages/SellerThemeSelector.jsx';
 import DomainManager from './pages/DomainManager.jsx';
 import SellerDeveloperGuide from './pages/SellerDeveloperGuide.jsx';
 import StorefrontFavicon from './components/StorefrontFavicon.jsx';
+import StorefrontBootPlaceholder from './components/StorefrontBootPlaceholder.jsx';
 
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import StoreNotFoundPage from './pages/StoreNotFoundPage.jsx';
@@ -327,11 +328,14 @@ case '/messages': return <SellerMessages />;
       return <AffiliateAccessPage initialMode={route.endsWith('/signup') ? 'signup' : 'login'} />;
     }
     if (route === '/affiliate-program') return <AffiliateProgramPage />;
-    if (route === '/' || route === '/affiliate/dashboard') return <AffiliateDashboardPage />;
+    if (route === '/' || route === '/affiliate/dashboard'
+        || route === '/affiliate/dashboard/referrals' || route === '/affiliate/dashboard/payouts') {
+      return <AffiliateDashboardPage />;
+    }
   }
 
   if (shouldWaitForHostResolution) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Loading DiDwa…</div>;
+    return <StorefrontBootPlaceholder label="Loading DiDwa" />;
   }
 
   /* Public web pages - open to everyone, no dashboard chrome. The index
@@ -346,13 +350,7 @@ case '/messages': return <SellerMessages />;
     /* Wait for the server before mounting the storefront: without this the
        apex renders a storefront for a moment and requests itself as a slug. */
     if (hostState.status === 'pending') {
-      /* Deliberately no splash and no logo here. This request is what RETURNS
-         the seller's logo, so any branded mark painted during this window would
-         be the platform's own - the visitor would see DiDwa and then watch it
-         swap to someone else's shop. A blank background for these few frames is
-         strictly better than showing the wrong brand; the real splash mounts in
-         LiveStorefront once the logo is in hand. */
-      return <div className="min-h-screen bg-white" aria-hidden="true" />;
+      return <StorefrontBootPlaceholder />;
     }
     /* No live store owns this host - mistyped, closed or suspended address.
        Render the branded Store Not Found page, not a bare error string. */
@@ -365,7 +363,7 @@ case '/messages': return <SellerMessages />;
             because this is the point where the store is known to exist, and
             it renders nothing, so it cannot affect layout. */}
         <StorefrontFavicon faviconUrl={hostState.tenant?.faviconUrl} />
-        <Suspense fallback={<div className="min-h-screen bg-white" aria-hidden="true" />}>
+        <Suspense fallback={<StorefrontBootPlaceholder />}>
           <LazyLiveStorefront
             resolvedHost={hostState}
             onPlatformHost={() => setHostIsPlatform(true)}
@@ -398,6 +396,8 @@ case '/messages': return <SellerMessages />;
     case '/affiliate/login': return <AffiliateAccessPage initialMode="login" />;
     case '/affiliate/signup': return <AffiliateAccessPage initialMode="signup" />;
     case '/affiliate/dashboard': return <AffiliateDashboardPage />;
+    case '/affiliate/dashboard/referrals': return <AffiliateDashboardPage />;
+    case '/affiliate/dashboard/payouts': return <AffiliateDashboardPage />;
     case '/terms': return <TermsPage authed={authed} />;
     case '/privacy': return <PrivacyPage authed={authed} />;
     // Public: reachable from the forgot-password email while signed out.

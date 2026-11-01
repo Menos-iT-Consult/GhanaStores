@@ -475,5 +475,96 @@ export function passwordResetTemplate({ store, link, minutes = 60 }) {
   };
 }
 
+const affiliateDashboardUrl = () => `${platformUrl()}/affiliate/dashboard`;
 
+export function affiliateNotificationTemplate(affiliate, event, details = {}) {
+  const firstName = String(affiliate?.full_name || 'there').trim().split(/\s+/)[0] || 'there';
+  const amount = details.amountGhs == null ? '' : `GHS ${Number(details.amountGhs).toFixed(2)}`;
+  let heading;
+  let tone = 'info';
+  let eyebrow = 'Affiliate account';
+  let intro;
+  let introText;
+  let rows = [];
 
+  switch (event) {
+    case 'welcome':
+      heading = 'Welcome to the DiDwa affiliate program';
+      tone = 'success';
+      eyebrow = 'Welcome aboard';
+      intro = `Hello ${esc(firstName)}, your affiliate account is ready. Share your referral code and track your referrals and earnings from your dashboard.`;
+      introText = `Hello ${firstName}, your affiliate account is ready. Share your referral code and track your referrals and earnings from your dashboard.`;
+      rows = [['Referral code', affiliate.referral_code]];
+      break;
+    case 'payout-account-updated':
+      heading = 'Your payout account was updated';
+      eyebrow = 'Account security';
+      intro = `Hello ${esc(firstName)}, the verified Mobile Money payout account on your affiliate profile was updated. If you did not make this change, contact DiDwa support.`;
+      introText = `Hello ${firstName}, the verified Mobile Money payout account on your affiliate profile was updated. If you did not make this change, contact DiDwa support.`;
+      break;
+    case 'referral':
+      heading = 'You have a new referral';
+      tone = 'success';
+      eyebrow = 'Referral activity';
+      intro = `Hello ${esc(firstName)}, ${esc(details.storeName || 'a new store')} has joined DiDwa using your referral code.`;
+      introText = `Hello ${firstName}, ${details.storeName || 'a new store'} has joined DiDwa using your referral code.`;
+      break;
+    case 'commission':
+      heading = 'A commission was recorded';
+      tone = 'success';
+      eyebrow = 'Commission activity';
+      intro = `Hello ${esc(firstName)}, a commission has been recorded for your affiliate account. It is pending payout eligibility.`;
+      introText = `Hello ${firstName}, a commission has been recorded for your affiliate account. It is pending payout eligibility.`;
+      rows = [['Commission', amount]];
+      break;
+    case 'payout-requested':
+      heading = 'Your payout request was received';
+      eyebrow = 'Payout update';
+      intro = `Hello ${esc(firstName)}, your payout request has been received and is pending review.`;
+      introText = `Hello ${firstName}, your payout request has been received and is pending review.`;
+      rows = [['Amount', amount], ['Status', 'Pending review']];
+      break;
+    case 'payout-paid':
+      heading = 'Your payout has been marked paid';
+      tone = 'success';
+      eyebrow = 'Payout update';
+      intro = `Hello ${esc(firstName)}, your affiliate payout has been marked as paid.`;
+      introText = `Hello ${firstName}, your affiliate payout has been marked as paid.`;
+      rows = [['Amount', amount], ['Status', 'Paid']];
+      break;
+    case 'payout-rejected':
+      heading = 'Your payout request was not approved';
+      tone = 'warning';
+      eyebrow = 'Payout update';
+      intro = `Hello ${esc(firstName)}, your affiliate payout request was rejected. Review the note below and contact support if you need help.`;
+      introText = `Hello ${firstName}, your affiliate payout request was rejected. Review the note below and contact support if you need help.`;
+      rows = [['Amount', amount], ['Status', 'Rejected'], ['Note', details.note]];
+      break;
+    default:
+      throw new Error(`Unknown affiliate notification event: ${event}`);
+  }
+
+  const dashboardUrl = affiliateDashboardUrl();
+  const text = [
+    `Hello ${firstName},`,
+    '',
+    introText,
+    ...rows.map(([label, value]) => value ? `${label}: ${value}` : ''),
+    '',
+    `Affiliate dashboard: ${dashboardUrl}`,
+  ].filter(Boolean).join('\n');
+
+  return {
+    subject: heading,
+    text,
+    html: shell({
+      preheader: heading,
+      tone,
+      eyebrow,
+      heading,
+      introHtml: intro,
+      bodyHtml: rows.length ? detailCard(rows) : '',
+      cta: { label: 'Open affiliate dashboard', url: dashboardUrl },
+    }),
+  };
+}

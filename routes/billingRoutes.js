@@ -24,6 +24,7 @@ import { billingCronHandler } from './billingCronRoute.js';
 import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '../services/planCatalog.js';
 import { findByReferralCode } from '../models/affiliate.js';
 import { isValidReferralCode } from '../lib/affiliate.js';
+import { dispatchAffiliateNotification } from '../services/affiliateNotifications.js';
 
 const router = Router();
 
@@ -215,6 +216,11 @@ router.post('/register', async (req, res, next) => {
         }
         throw err;
       }
+    }
+    if (referredAffiliate) {
+      void dispatchAffiliateNotification(referredAffiliate, 'referral', {
+        storeName: store.name,
+      });
     }
     const token = issueStoreToken(store);
 
