@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, BadgePercent, LogOut, RefreshCw } from 'lucide-react';
+import {
+  ArrowRight, BadgePercent, CalendarDays, Clock3, LogOut, RefreshCw, Users, Wallet,
+} from 'lucide-react';
 import {
   affiliateApi, clearAffiliateSession, getAffiliateToken,
 } from '../../api.js';
@@ -50,6 +52,13 @@ export default function AffiliateDashboardPage() {
   const loadDashboard = useCallback(async () => {
     if (!getAffiliateToken()) {
       setNeedsAuth(true);
+      setError('');
+      try {
+        const result = await affiliateApi.get('/api/affiliate/program');
+        setProgram(result.settings);
+      } catch (requestError) {
+        setError(requestError.message || 'Affiliate program details could not be loaded.');
+      }
       setLoading(false);
       return;
     }
@@ -196,22 +205,88 @@ export default function AffiliateDashboardPage() {
 
   if (needsAuth) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-        <section className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
-          <BadgePercent className="mx-auto text-blue-600" size={34} aria-hidden="true" />
-          <h1 className="mt-4 text-3xl font-extrabold text-charcoal">DiDwa Affiliate Dashboard</h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-500">
-            Sign in to view your referrals and earnings, or join the affiliate program to get started.
-          </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <a href="/affiliate/login" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
-              Sign in
-            </a>
-            <a href="/affiliate/signup" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
-              Join the program <ArrowRight size={16} aria-hidden="true" />
-            </a>
-          </div>
-        </section>
+      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-5xl">
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
+            <BadgePercent className="mx-auto text-blue-600" size={34} aria-hidden="true" />
+            <h1 className="mt-4 text-3xl font-extrabold text-charcoal">Earn by referring businesses to DiDwa</h1>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-500 sm:text-base">
+              Share your personal referral link with businesses that could benefit from DiDwa. Your affiliate dashboard lets you track referred stores, commissions, and payout requests.
+            </p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <a href="/affiliate/login" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                Sign in
+              </a>
+              <a href="/affiliate/signup" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
+                Join the program <ArrowRight size={16} aria-hidden="true" />
+              </a>
+            </div>
+          </section>
+
+          <section className="mt-8" aria-labelledby="how-affiliates-earn">
+            <h2 id="how-affiliates-earn" className="mb-4 text-xl font-extrabold text-charcoal">How the affiliate program works</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+            {[
+              {
+                Icon: Users,
+                title: '1. Join the program',
+                body: 'Create an affiliate account to receive your own referral link and code.',
+              },
+              {
+                Icon: BadgePercent,
+                title: '2. Refer a business',
+                body: program
+                  ? `Share your link with a prospective DiDwa merchant. Referrals are attributed for ${program.attributionDays} days.`
+                  : 'Share your link with a prospective DiDwa merchant and referrals will be attributed according to the program terms.',
+              },
+              {
+                Icon: Wallet,
+                title: '3. Track and request earnings',
+                body: 'View referrals and commissions in your dashboard. Request a payout when eligible.',
+              },
+            ].map(({ Icon, title, body }) => (
+              <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <Icon className="text-blue-600" size={21} aria-hidden="true" />
+                <h2 className="mt-3 text-sm font-extrabold text-charcoal">{title}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{body}</p>
+              </article>
+            ))}
+            </div>
+          </section>
+
+          {error && (
+            <p role="alert" className="mx-auto mt-6 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
+              {error}
+            </p>
+          )}
+
+          {program && (
+            <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" aria-labelledby="public-affiliate-terms">
+              <h2 id="public-affiliate-terms" className="text-lg font-extrabold text-charcoal">Current program terms</h2>
+              <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { Icon: BadgePercent, label: 'Commission rate', value: `${program.commissionRatePercent}%` },
+                  { Icon: CalendarDays, label: 'Referral attribution', value: `${program.attributionDays} days` },
+                  { Icon: Wallet, label: 'Minimum payout', value: `GHS ${Number(program.minimumPayoutGhs).toFixed(2)}` },
+                  {
+                    Icon: Clock3,
+                    label: 'Payout processing',
+                    value: `${program.payoutProcessingMinDays}-${program.payoutProcessingMaxDays} business days`,
+                  },
+                ].map(({ Icon, label, value }) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-4 text-center">
+                    <Icon className="mx-auto text-blue-600" size={19} aria-hidden="true" />
+                    <dt className="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</dt>
+                    <dd className="mt-1 text-base font-extrabold text-charcoal">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-4 text-sm leading-relaxed text-slate-500">
+                Payout requests require commissions marked paid, the minimum available balance, and a verified Mobile Money account. Earnings depend on eligible referrals and are not guaranteed.
+              </p>
+            </section>
+          )}
+        </div>
       </main>
     );
   }
