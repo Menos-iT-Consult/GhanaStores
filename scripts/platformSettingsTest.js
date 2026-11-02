@@ -63,19 +63,32 @@ const persisted = await getPlatformPublicSettings(async () => ({
     { setting_key: 'platform_social_facebook_url', setting_value: settings.socialLinks.facebook },
     { setting_key: 'platform_whatsapp_floating_enabled', setting_value: 'false' },
     { setting_key: 'platform_seller_whatsapp_group_url', setting_value: settings.whatsapp.sellerGroupUrl },
+    { setting_key: 'platform_affiliate_whatsapp_group_url', setting_value: settings.whatsapp.affiliateGroupUrl },
   ],
 }));
 assert.equal(persisted.contact.supportEmail, settings.contact.supportEmail);
 assert.equal(persisted.socialLinks.facebook, settings.socialLinks.facebook);
 assert.equal(persisted.whatsapp.floatingEnabled, false);
 assert.equal(persisted.whatsapp.sellerGroupUrl, settings.whatsapp.sellerGroupUrl);
+assert.equal(persisted.whatsapp.affiliateGroupUrl, settings.whatsapp.affiliateGroupUrl);
 
-const [adminRoutes, publicRoutes, adminPage, marketingPage, affiliatePage, sellerPage, schema, spaRoutes, server] = await Promise.all([
+let queriedSettingKeys = [];
+await getPlatformPublicSettings(async (sql, values) => {
+  assert.match(sql, /setting_key = ANY\(\$1::text\[\]\)/);
+  queriedSettingKeys = values[0];
+  return { rows: [] };
+});
+assert.ok(queriedSettingKeys.includes('platform_seller_whatsapp_group_url'));
+assert.ok(queriedSettingKeys.includes('platform_affiliate_whatsapp_group_url'));
+
+const [adminRoutes, publicRoutes, adminPage, marketingPage, affiliatePage, affiliateOverviewPage, sellerLayout, sellerPage, schema, spaRoutes, server] = await Promise.all([
   readFile(new URL('../routes/admin/platformSettings.js', import.meta.url), 'utf8'),
   readFile(new URL('../routes/publicPlatformSettingsRoutes.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/pages/admin/AdminPlatformSettings.jsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/pages/PublicPages.jsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/pages/affiliate/AffiliateDashboardPage.jsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/pages/affiliate/AffiliateOverviewPage.jsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/layouts/DashboardLayout.jsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/pages/SellerAnalytics.jsx', import.meta.url), 'utf8'),
   readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'),
   readFile(new URL('../src/routes.js', import.meta.url), 'utf8'),
@@ -91,8 +104,12 @@ assert.match(adminPage, /\['facebook', 'Facebook'\]/);
 assert.match(adminPage, /Affiliate WhatsApp group invite URL/);
 assert.match(marketingPage, /Chat with DiDwa on WhatsApp/);
 assert.match(marketingPage, /aria-label=\{label\}/);
-assert.match(affiliatePage, /Join the affiliate WhatsApp group/);
-assert.match(sellerPage, /Join the seller WhatsApp group/);
+assert.match(affiliatePage, /audience="Affiliate"/);
+assert.match(affiliatePage, /href=\{platformSettings\?\.whatsapp\?\.affiliateGroupUrl\}/);
+assert.match(sellerLayout, /audience="Seller"/);
+assert.match(sellerLayout, /href=\{platformSettings\?\.whatsapp\?\.sellerGroupUrl\}/);
+assert.doesNotMatch(affiliateOverviewPage, /affiliateGroupUrl|Join the affiliate WhatsApp group/);
+assert.doesNotMatch(sellerPage, /sellerGroupUrl|Join the seller WhatsApp group/);
 assert.match(schema, /platform_whatsapp_floating_enabled/);
 
 console.log('Platform contact and social settings validation passed.');

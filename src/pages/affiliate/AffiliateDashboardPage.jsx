@@ -7,6 +7,7 @@ import {
 } from '../../api.js';
 import { navigate, usePathname } from '../../router.js';
 import { usePlatformPublicSettings } from '../../lib/platformPublicSettings.js';
+import WhatsAppGroupLink from '../../components/WhatsAppGroupLink.jsx';
 import AffiliateOverviewPage from './AffiliateOverviewPage.jsx';
 import AffiliateReferralsPage from './AffiliateReferralsPage.jsx';
 import AffiliatePayoutsPage from './AffiliatePayoutsPage.jsx';
@@ -192,9 +193,6 @@ export default function AffiliateDashboardPage() {
         referralUrl={referralUrl}
         copied={copied}
         onCopy={copyReferralLink}
-        platformSettings={platformSettings}
-        settingsError={settingsError}
-        reloadSettings={reloadSettings}
       />
     );
   }
@@ -207,6 +205,16 @@ export default function AffiliateDashboardPage() {
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-5xl">
+          {(settingsError || platformSettings?.whatsapp?.affiliateGroupUrl) && (
+            <div className="mb-6">
+              <WhatsAppGroupLink
+                href={platformSettings?.whatsapp?.affiliateGroupUrl}
+                audience="Affiliate"
+                error={settingsError}
+                onRetry={() => { void reloadSettings(); }}
+              />
+            </div>
+          )}
           <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
             <BadgePercent className="mx-auto text-blue-600" size={34} aria-hidden="true" />
             <h1 className="mt-4 text-3xl font-extrabold text-charcoal">Earn by referring businesses to DiDwa</h1>
@@ -329,6 +337,14 @@ export default function AffiliateDashboardPage() {
           ))}
         </nav>
 
+        {(settingsError || platformSettings?.whatsapp?.affiliateGroupUrl) && (
+          <WhatsAppGroupLink
+            href={platformSettings?.whatsapp?.affiliateGroupUrl}
+            audience="Affiliate"
+            error={settingsError}
+            onRetry={() => { void reloadSettings(); }}
+          />
+        )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
         {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</p>}
         {page}

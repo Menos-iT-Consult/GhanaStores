@@ -108,12 +108,13 @@ export function validatePlatformPublicSettings(value) {
 }
 
 export async function getPlatformPublicSettings(runQuery = query) {
+  const settingKeys = Object.values(PLATFORM_PUBLIC_SETTING_DEFINITIONS)
+    .map(([settingKey]) => settingKey);
   const { rows } = await runQuery(
     `SELECT setting_key, setting_value
        FROM system_settings
-      WHERE setting_key LIKE 'platform_contact_%'
-         OR setting_key LIKE 'platform_social_%'
-         OR setting_key LIKE 'platform_whatsapp_%'`,
+      WHERE setting_key = ANY($1::text[])`,
+    [settingKeys],
   );
   const values = new Map(rows.map(({ setting_key, setting_value }) => [setting_key, setting_value]));
   const read = (key) => {

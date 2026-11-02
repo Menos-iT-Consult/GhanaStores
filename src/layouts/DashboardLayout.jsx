@@ -27,6 +27,7 @@ import { Menu, Loader2, Check } from 'lucide-react';
 import { IconStore } from '../components/icons.jsx';
 import { navigate, usePathname } from '../router.js';
 import { getCachedStore, uploadApi } from '../api.js';
+import { usePlatformPublicSettings } from '../lib/platformPublicSettings.js';
 import MainSidebar from './dashboard/MainSidebar.jsx';
 import CustomizerSidebar from './dashboard/customizer/CustomizerSidebar.jsx';
 import { useThemeDraft } from './dashboard/useThemeDraft.js';
@@ -34,8 +35,10 @@ import { useUnsavedChanges } from './dashboard/useUnsavedChanges.js';
 import UnsavedChangesDialog from './dashboard/UnsavedChangesDialog.jsx';
 import { CUSTOMIZER_ROUTE } from './dashboard/constants.js';
 import DiDwaAiPanel from '../components/ai/DiDwaAiPanel.jsx';
+import WhatsAppGroupLink from '../components/WhatsAppGroupLink.jsx';
 
 export default function DashboardLayout({ children }) {
+  const { settings: platformSettings, error: settingsError, reload: reloadPlatformSettings } = usePlatformPublicSettings();
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(
     window.location.pathname === CUSTOMIZER_ROUTE,
   );
@@ -211,6 +214,16 @@ export default function DashboardLayout({ children }) {
             </button>
           )}
         </header>
+        {(settingsError || platformSettings?.whatsapp?.sellerGroupUrl) && (
+          <div className="px-4 pt-4 sm:px-6">
+            <WhatsAppGroupLink
+              href={platformSettings?.whatsapp?.sellerGroupUrl}
+              audience="Seller"
+              error={settingsError}
+              onRetry={() => { void reloadPlatformSettings(); }}
+            />
+          </div>
+        )}
         {children}
       </main>
 
