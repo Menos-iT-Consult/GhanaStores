@@ -15,8 +15,6 @@ import {
 } from 'react-native-paper';
 import {
   AI_ACTIONS,
-  AI_SUPPORT_FALLBACK,
-  createAiSupportNotice,
   isSupportedOrderText,
   type DidwaAiActionId,
 } from '../../../../config/didwaAiActions.js';
@@ -116,7 +114,10 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
   const [result, setResult] = React.useState<AiActionResult | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [supportContact, setSupportContact] = React.useState<SupportContact>({});
-  const fallbackText = createAiSupportNotice(supportContact);
+  const supportContactAvailable = Boolean(
+    supportContact.supportEmail || supportContact.supportPhone || supportContact.whatsappNumber,
+  );
+  const fallbackText = 'This action could not be processed. Choose a suggested option and check the required details.';
 
   React.useEffect(() => {
     if (!visible) return undefined;
@@ -173,17 +174,17 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
 
   const submit = () => {
     if (selectedAction === '[PARSE_WHATSAPP_ORDER]') {
-      if (!isSupportedOrderText(orderText)) return setError(fallbackText);
+      if (!isSupportedOrderText(orderText)) return setError('Enter an order message with customer or item details.');
       void runAction(selectedAction, { text: orderText });
     } else if (selectedAction === '[GENERATE_PRODUCT_COPY]') {
-      if (!productId) return setError(fallbackText);
+      if (!productId) return setError('Select a product before generating copy.');
       void runAction(selectedAction, { productId });
     } else if (selectedAction === '[REQUEST_PAYOUT]') {
       const amountGhs = Number(amount);
-      if (!Number.isFinite(amountGhs) || amountGhs <= 0) return setError(fallbackText);
+      if (!Number.isFinite(amountGhs) || amountGhs <= 0) return setError('Enter a valid payout amount.');
       void runAction(selectedAction, { amountGhs });
     } else {
-      setError(fallbackText);
+      setError('Choose a suggested action before continuing.');
     }
   };
 
@@ -209,7 +210,7 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
     }
 
     if (!url) {
-      setError(fallbackText);
+      setError('Support contact details are unavailable.');
       return;
     }
     try {
@@ -438,11 +439,11 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           {renderResult()}
         </ScrollView>
-        <View style={[styles.footer, { borderTopColor: colors.outlineVariant }]}>
-          <Card mode="outlined">
-            <Card.Content>
-              <Text variant="titleSmall">Need help?</Text>
-              <Text variant="bodySmall" style={styles.hint}>Contact DiDwa Support for assistance.</Text>
+        {supportContactAvailable ? (
+          <View style={[styles.footer, { borderTopColor: colors.outlineVariant }]}>
+            <Card mode="outlined">
+              <Card.Content>
+                <Text variant="titleSmall">DiDwa Support</Text>
               {supportContact.supportEmail ? (
                 <Button mode="outlined" icon="email-outline" onPress={() => void openSupportContact('email')}>
                   Email {supportContact.supportEmail}
@@ -458,12 +459,10 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
                   WhatsApp Support
                 </Button>
               ) : null}
-              {!supportContact.supportEmail && !supportContact.supportPhone && !supportContact.whatsappNumber ? (
-                <Text variant="bodySmall" style={styles.hint}>{AI_SUPPORT_FALLBACK}</Text>
-              ) : null}
-            </Card.Content>
-          </Card>
-        </View>
+              </Card.Content>
+            </Card>
+          </View>
+        ) : null}
       </Modal>
     </Portal>
   );

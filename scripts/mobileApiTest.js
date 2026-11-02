@@ -199,6 +199,7 @@ test('push notifications wired into order creation + payment webhooks', () => {
 test('store profile editing and verified account-contact routes are wired', () => {
   const routes = read('routes/siteSettingsRoutes.js');
   const profile = read('mobile/app/settings/profile.tsx');
+  const storeSettings = read('mobile/app/settings/store.tsx');
   const settings = read('mobile/app/settings.tsx');
   assert.ok(routes.includes("router.get('/profile', requireSeller"));
   assert.ok(routes.includes("router.patch('/profile', requireSeller"));
@@ -206,11 +207,51 @@ test('store profile editing and verified account-contact routes are wired', () =
   assert.ok(routes.includes("router.post('/profile/contact/verify', requireSeller"));
   assert.ok(routes.includes("phone_verified = CASE WHEN $2 = 'phone' THEN TRUE"));
   assert.ok(routes.includes('pending_contact_attempts'));
-  assert.ok(profile.includes('requestAccountContactChange'));
-  assert.ok(profile.includes('verifyAccountContactChange'));
+  assert.ok(storeSettings.includes('requestAccountContactChange'));
+  assert.ok(storeSettings.includes('verifyAccountContactChange'));
+  assert.ok(storeSettings.includes('Account recovery contacts'));
+  assert.ok(!profile.includes('Account recovery contacts'));
   assert.ok(profile.includes("confirmUpload({ kind: 'logo'"));
   assert.ok(settings.includes("router.push('/settings/profile')"));
   assert.ok(read('db/schema.sql').includes('ADD COLUMN IF NOT EXISTS store_description'));
+});
+
+test('mobile payment settings support managed payments and managed payouts', () => {
+  const paymentSettings = read('mobile/app/settings/payments.tsx');
+  const endpoints = read('mobile/src/api/endpoints.ts');
+  const types = read('mobile/src/types/index.ts');
+  assert.ok(paymentSettings.includes("paymentMode === 'MANAGED'"));
+  assert.ok(paymentSettings.includes('Mobile Money payout destination'));
+  assert.ok(paymentSettings.includes('Request MoMo payout'));
+  assert.ok(paymentSettings.includes('Platform fees'));
+  assert.ok(endpoints.includes("'/api/payment-settings'"));
+  assert.ok(endpoints.includes("'/api/seller/payouts'"));
+  assert.ok(types.includes('interface ManagedPayoutSummary'));
+});
+
+test('splash animates smoothly and DiDwa AI is available from the bottom navigation', () => {
+  const splash = read('mobile/src/components/DidwaLottieSplash.tsx');
+  const tabs = read('mobile/app/(tabs)/_layout.tsx');
+  const dashboard = read('mobile/app/(tabs)/dashboard/index.tsx');
+  const ai = read('mobile/src/components/ai/DiDwaAiSheet.tsx');
+  const settings = read('mobile/app/settings.tsx');
+  assert.ok(splash.includes('withRepeat'));
+  assert.ok(splash.includes('useReducedMotion'));
+  assert.ok(tabs.includes('accessibilityLabel="Open DiDwa AI"'));
+  assert.ok(tabs.includes('<DiDwaAiSheet'));
+  assert.ok(!dashboard.includes("label: 'DiDwa AI'"));
+  assert.ok(!ai.includes('AI_SUPPORT_FALLBACK'));
+  assert.ok(!settings.includes('<ThemeToggle'));
+});
+
+test('account settings is clearly named and the device status bar has readable contrast', () => {
+  const settings = read('mobile/app/settings.tsx');
+  const accountSettings = read('mobile/app/settings/store.tsx');
+  const layout = read('mobile/app/_layout.tsx');
+  assert.ok(settings.includes('title="Account settings"'));
+  assert.ok(accountSettings.includes('title="Account settings"'));
+  assert.ok(layout.includes("backgroundColor={isDark ? '#0B1120' : '#E8F1FF'}"));
+  assert.ok(layout.includes("<StatusBar"));
 });
 
 /* ----------------------------- v1.1 expansion ------------------------------- */

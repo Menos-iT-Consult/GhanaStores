@@ -12,13 +12,11 @@ import { apiErrorMessage } from '@/api/client';
 import { ErrorState, LoadingState } from '@/components/ScreenState';
 import { PasswordTextInput } from '@/components/PasswordTextInput';
 
-type ContactType = 'email' | 'phone';
-
 export default function StoreProfileScreen() {
   const goBack = useSafeBack('/settings');
   const { colors } = useTheme();
   const qc = useQueryClient();
-  const { updateStoreName, updateStoreContacts } = useAuth();
+  const { updateStoreName } = useAuth();
   const profile = useQuery({ queryKey: ['store-profile'], queryFn: endpoints.getStoreProfile });
   const [name, setName] = useState('');
   const [publicEmail, setPublicEmail] = useState('');
@@ -26,13 +24,6 @@ export default function StoreProfileScreen() {
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
-  const [accountEmail, setAccountEmail] = useState('');
-  const [accountPhone, setAccountPhone] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [pendingType, setPendingType] = useState<ContactType | null>(null);
-  const [pendingValue, setPendingValue] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [contactRequestBusy, setContactRequestBusy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [snack, setSnack] = useState<string | null>(null);
@@ -46,8 +37,6 @@ export default function StoreProfileScreen() {
     setWhatsappNumber(data.whatsappNumber);
     setDescription(data.description);
     setAddress(data.address);
-    setAccountEmail(data.email);
-    setAccountPhone(data.phone);
     setLogoUrl(data.logoUrl);
   }, [profile.data]);
 
@@ -67,49 +56,6 @@ export default function StoreProfileScreen() {
       await qc.invalidateQueries({ queryKey: ['store-profile'] });
     },
     onError: (error) => setSnack(apiErrorMessage(error, 'Could not save your store profile.')),
-  });
-
-  const requestContactChange = async (type: ContactType) => {
-    const value = (type === 'email' ? accountEmail : accountPhone).trim();
-    if (!value) {
-      setSnack(`Enter the new account ${type} first.`);
-      return;
-    }
-    if (!currentPassword) {
-      setSnack('Enter your current password to change account contacts.');
-      return;
-    }
-    setContactRequestBusy(true);
-    try {
-      const result = await endpoints.requestAccountContactChange(type, value, currentPassword);
-      setPendingType(type);
-      setPendingValue(value);
-      setVerificationCode('');
-      setCurrentPassword('');
-      setSnack(result.message);
-    } catch (error) {
-      setSnack(apiErrorMessage(error, `Could not send a code to the new ${type}.`));
-    } finally {
-      setContactRequestBusy(false);
-    }
-  };
-
-  const verifyContactChange = useMutation({
-    mutationFn: () => {
-      if (!pendingType) throw new Error('Choose an account contact to verify.');
-      return endpoints.verifyAccountContactChange(pendingType, verificationCode.trim());
-    },
-    onSuccess: async (result) => {
-      await updateStoreContacts(result.email, result.phone);
-      setAccountEmail(result.email);
-      setAccountPhone(result.phone);
-      setPendingType(null);
-      setPendingValue('');
-      setVerificationCode('');
-      setSnack('Account contact verified and updated.');
-      await qc.invalidateQueries({ queryKey: ['store-profile'] });
-    },
-    onError: (error) => setSnack(apiErrorMessage(error, 'Could not verify that code.')),
   });
 
   const uploadLogo = async () => {
@@ -263,101 +209,6 @@ export default function StoreProfileScreen() {
           Save store profile
         </Button>
 
-        <Card mode="elevated">
-          <View style={styles.cardBody}>
-            <Text variant="titleMedium" style={[styles.heading, { color: colors.onSurface }]}>Account recovery contacts</Text>
-            <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-              A code sent to the new email or phone is required before it becomes your account contact.
-            </Text>
-            <TextInput
-              label="Sign-in email"
-              value={accountEmail}
-              onChangeText={setAccountEmail}
-              mode="outlined"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              style={styles.input}
-            />
-            {!pendingType ? (
-              <TextInput
-                label="Current password"
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                mode="outlined"
-                style={styles.input}
-              />
-            ) : null}
-            <Button
-              mode="outlined"
-              onPress={() => void requestContactChange('email')}
-              loading={contactRequestBusy}
-              disabled={
-                Boolean(pendingType)
-                || contactRequestBusy
-                || accountEmail.trim().toLowerCase() === profile.data.email.toLowerCase()
-              }
-              style={styles.input}
-            >
-              Send code to new email
-            </Button>
-            <TextInput
-              label="Verified account phone"
-              value={accountPhone}
-              onChangeText={setAccountPhone}
-              mode="outlined"
-              keyboardType="phone-pad"
-              style={styles.input}
-            />
-            <Button
-              mode="outlined"
-              onPress={() => void requestContactChange('phone')}
-              loading={contactRequestBusy}
-              disabled={
-                Boolean(pendingType)
-                || contactRequestBusy
-                || accountPhone.trim() === profile.data.phone
-              }
-              style={styles.input}
-            >
-              Send code to new phone
-            </Button>
-            {pendingType ? (
-              <>
-                <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-                  Enter the code sent to {pendingValue}.
-                </Text>
-                <TextInput
-                  label="Six-digit verification code"
-                  value={verificationCode}
-                  onChangeText={setVerificationCode}
-                  mode="outlined"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  style={styles.input}
-                />
-                <Button
-                  mode="contained"
-                  onPress={() => verifyContactChange.mutate()}
-                  loading={verifyContactChange.isPending}
-                  disabled={verifyContactChange.isPending || verificationCode.trim().length !== 6}
-                >
-                  Verify and update {pendingType}
-                </Button>
-                <Button
-                  mode="text"
-                  onPress={() => {
-                    setPendingType(null);
-                    setPendingValue('');
-                    setVerificationCode('');
-                  }}
-                  style={styles.input}
-                >
-                  Cancel verification
-                </Button>
-              </>
-            ) : null}
-          </View>
-        </Card>
         <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
           Storefront address: {profile.data.subdomainSlug}
         </Text>

@@ -5,7 +5,6 @@ import { ActivityIndicator, Appbar, Button, Card, Divider, List, Snackbar, Switc
 import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/lib/useSafeBack';
 import { useAuth } from '@/auth/AuthProvider';
-import { ThemeToggle } from '@/components/glass/ThemeToggle';
 import {
   getPushPermissionStatus,
   getExpoPushToken,
@@ -162,7 +161,6 @@ export default function SettingsScreen() {
         <Appbar.Header mode="small" style={{ backgroundColor: colors.background }}>
           <Appbar.BackAction onPress={goBack} />
           <Appbar.Content title="Settings" />
-          <ThemeToggle />
         </Appbar.Header>
 
         <ScrollView contentContainerStyle={styles.content}>
@@ -189,8 +187,8 @@ export default function SettingsScreen() {
             />
             <Divider />
             <List.Item
-              title="Store settings"
-              description="Store profile, security, and subscription"
+              title="Account settings"
+              description="Account recovery, security, and subscription"
               left={(props) => <List.Icon {...props} icon="cog-outline" color={colors.primary} />}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push('/settings/store')}

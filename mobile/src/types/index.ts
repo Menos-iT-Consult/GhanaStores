@@ -150,6 +150,19 @@ export interface PaymentSettings {
   availableMethods: string[];
 }
 
+export interface PaymentSettingsResponse {
+  settings: PaymentSettings;
+  storageConfigured: boolean;
+  paymentMode: 'MANAGED' | 'BYOK';
+  payoutMomoNumber: string;
+  payoutMomoNetwork: string;
+  payoutMomoAccountName: string;
+  payoutMomoVerifiedAt: string | null;
+  managedPaymentsAvailable: boolean;
+}
+
+export type PaymentSettingsSaveResult = Omit<PaymentSettingsResponse, 'storageConfigured'>;
+
 export interface PaymentKeysPayload {
   paystackPublicKey?: string;
   paystackSecretKey?: string;
@@ -158,6 +171,43 @@ export interface PaymentKeysPayload {
   hubtelMerchantAccountId?: string;
   enableCod: boolean;
   activeGateway: string;
+  paymentMode?: 'MANAGED' | 'BYOK';
+  payoutMomoNumber?: string;
+  payoutMomoNetwork?: string;
+}
+
+export interface ManagedPayoutRequest {
+  id: string;
+  amount_ghs: number | string;
+  momo_number: string;
+  momo_network: string;
+  momo_account_name: string;
+  status: string;
+  transfer_reference: string | null;
+  admin_note: string | null;
+  requested_at: string;
+  processed_at: string | null;
+}
+
+export interface ManagedPayoutSummary {
+  balance: {
+    totalSalesGhs: number;
+    platformFeesGhs: number;
+    netPayableGhs: number;
+    paidOutGhs: number;
+    pendingPayoutGhs: number;
+    availableGhs: number;
+  };
+  payout: {
+    minimumGhs: number;
+    momoNumber: string;
+    momoNetwork: string;
+    momoAccountName: string;
+    momoVerifiedAt: string | null;
+    managedMode: boolean;
+  };
+  platformFeePercent: number;
+  requests: ManagedPayoutRequest[];
 }
 
 /* ============================ v1.1 (command center) ======================== */

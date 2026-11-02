@@ -234,12 +234,16 @@ function RootNavigator() {
   );
 }
 
-/** Applies the active Paper theme (light/dark) + status-bar style to the tree. */
+/** Applies the active Paper theme and a contrasting device status bar. */
 function ThemedProviders({ children }: { children: React.ReactNode }) {
   const { theme, isDark } = useThemeMode();
   return (
     <PaperProvider theme={theme}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar
+        style={isDark ? 'light' : 'dark'}
+        backgroundColor={isDark ? '#0B1120' : '#E8F1FF'}
+        translucent={false}
+      />
       {children}
     </PaperProvider>
   );

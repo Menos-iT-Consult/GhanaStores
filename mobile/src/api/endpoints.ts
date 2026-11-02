@@ -7,6 +7,7 @@ import type {
   DeviceNotificationPreferences,
   LoginResult,
   LoyaltyLookup,
+  ManagedPayoutSummary,
   NotificationsPage,
   Order,
   OrderDetail,
@@ -14,7 +15,8 @@ import type {
   OrderFilter,
   OrderStatus,
   PaymentKeysPayload,
-  PaymentSettings,
+  PaymentSettingsResponse,
+  PaymentSettingsSaveResult,
   PosSalePayload,
   PosSaleResult,
   PresignResult,
@@ -96,14 +98,27 @@ export function updateProductPrice(id: string, price: number) {
 
 export function getPaymentKeys() {
   return api
-    .get<{ settings: PaymentSettings; storageConfigured: boolean }>('/api/mobile/v1/settings/payment-keys')
+    .get<PaymentSettingsResponse>('/api/payment-settings')
     .then((r) => r.data);
 }
 
 export function savePaymentKeys(payload: PaymentKeysPayload) {
   return api
-    .post<{ settings: PaymentSettings }>('/api/mobile/v1/settings/payment-keys', payload)
-    .then((r) => r.data.settings);
+    .put<PaymentSettingsSaveResult>('/api/payment-settings', payload)
+    .then((r) => r.data);
+}
+
+export function getManagedPayoutSummary() {
+  return api.get<ManagedPayoutSummary>('/api/seller/payouts').then((r) => r.data);
+}
+
+export function requestManagedPayout(amountGhs: number) {
+  return api
+    .post<{ request: ManagedPayoutSummary['requests'][number]; availableGhs: number; message: string }>(
+      '/api/seller/payouts',
+      { amountGhs },
+    )
+    .then((r) => r.data);
 }
 
 /* ------------------------------- Push devices ---------------------------- */
