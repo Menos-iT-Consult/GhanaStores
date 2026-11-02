@@ -385,8 +385,8 @@
 
 [data-gs-theme-header="overlay"] > div > div,
 [data-gs-theme-header="floating"] > div > div {
-  background: color-mix(in srgb, var(--bg) 78%, transparent) !important;
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+  background: var(--gs-header-surface, color-mix(in srgb, var(--bg) 96%, transparent)) !important;
+  border-color: var(--gs-header-border, color-mix(in srgb, var(--accent) 28%, transparent)) !important;
   backdrop-filter: blur(18px);
 }
 
@@ -402,7 +402,16 @@
 [data-gs-theme-header="minimal"] > div > div:first-child {
   min-height: 3.75rem;
   border-bottom: 0;
-  background: var(--bg) !important;
+  background: var(--gs-header-surface, var(--bg)) !important;
+}
+
+[data-gs-theme-header] [data-gs-header-control]:hover {
+  background: var(--gs-header-hover, rgba(255,255,255,.08));
+  color: var(--gs-header-fg, #fff);
+}
+
+[data-gs-theme-header] [data-gs-header-search]::placeholder {
+  color: var(--gs-header-muted, rgba(255,255,255,.4));
 }
 
 [data-gs-theme-header="utility"] > div > div:first-child {
@@ -1129,6 +1138,123 @@
 [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
   border-radius: 0.3rem !important;
 }
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-theme-header] > div {
+  position: sticky !important;
+  top: 0;
+  z-index: 30;
+  background: var(--primary) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 42%, transparent) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 16%, transparent);
+  backdrop-filter: none !important;
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] {
+  margin-top: 0;
+  border-top: 0;
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] .gs-hero-layout[data-gs-hero-layout="split"] {
+  min-height: 34rem !important;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--bg)), var(--bg) 72%);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-media] {
+  min-height: 34rem;
+  background: var(--primary);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-media] img {
+  height: 100%;
+  min-height: 34rem;
+  object-position: center;
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 40rem;
+  padding: clamp(2rem, 6vw, 5rem);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] > p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--textSecondary) !important;
+  letter-spacing: 0.28em;
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] > p:first-child::before {
+  width: 1.75rem;
+  height: 1px;
+  background: var(--accent);
+  content: "";
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  max-width: 9ch;
+  margin-top: 1.2rem;
+  color: var(--primary);
+  font-size: clamp(3.4rem, 6vw, 6.25rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] > p:nth-of-type(2) {
+  max-width: 28rem;
+  margin-top: 1.35rem;
+  color: var(--textSecondary) !important;
+  font-size: clamp(0.95rem, 1.4vw, 1.1rem);
+  line-height: 1.8;
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] button {
+  min-height: 3.25rem;
+  margin-top: 2rem;
+  border: 1px solid var(--accent) !important;
+  border-radius: 0.15rem;
+  background: var(--accent) !important;
+  color: var(--primary) !important;
+  letter-spacing: 0.14em;
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="categories"],
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] {
+  padding-top: clamp(2.5rem, 5vw, 4.5rem);
+  padding-bottom: clamp(2.5rem, 5vw, 4.5rem);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  border: 1px solid color-mix(in srgb, var(--bg) 54%, transparent);
+  border-radius: 0.15rem;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .columns-2 > [data-gs-product-card] {
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, transparent);
+  background: var(--bg);
+}
+[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] [data-gs-product-price] {
+  border-color: color-mix(in srgb, var(--accent) 72%, white) !important;
+  background: var(--accent) !important;
+  color: var(--primary) !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+@container storefront (max-width: 640px) {
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] .gs-hero-layout[data-gs-hero-layout="split"] {
+    min-height: 0 !important;
+  }
+
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-media],
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-media] img {
+    min-height: 19rem;
+  }
+
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+    align-items: flex-start;
+    padding: 2rem 1.5rem 2.25rem;
+    text-align: left;
+  }
+
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+    max-width: 10ch;
+    font-size: clamp(3rem, 12vw, 4.25rem) !important;
+  }
+
+  [data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] button {
+    align-self: flex-start;
+  }
+}
 
 [data-gs-theme="fashion-golden_hour-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
   border-left: 5px solid var(--accent);
@@ -1409,4 +1535,179 @@
   [data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] .columns-2 > :nth-child(even) {
     margin-top: 0;
   }
+}
+
+/* Theme-specific finishing passes for the remaining curated storefronts. */
+[data-gs-theme="fashion-golden_hour-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  max-width: 10ch;
+  letter-spacing: -0.06em;
+}
+[data-gs-theme="fashion-golden_hour-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] [data-gs-product-card] {
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+}
+[data-gs-theme="fashion-jade_district-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 52rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+[data-gs-theme="fashion-jade_district-spacious_hero_minimal-subtle"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  min-height: 14rem;
+  box-shadow: 7px 7px 0 color-mix(in srgb, var(--accent) 38%, transparent);
+}
+[data-gs-theme="fashion-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 48rem;
+  border-left: 3px solid var(--accent);
+}
+[data-gs-theme="fashion-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] [data-gs-product-card] > button {
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
+}
+[data-gs-theme="fashion-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  border-left: 0.5rem solid var(--accent);
+  padding-left: clamp(1.25rem, 4vw, 3rem);
+}
+[data-gs-theme="fashion-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  min-height: 11rem;
+  border-bottom: 4px solid var(--accent);
+}
+[data-gs-theme="electronics-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-media] {
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -0.75rem;
+}
+[data-gs-theme="electronics-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border-radius: 0.35rem !important;
+}
+[data-gs-theme="electronics-golden_hour-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="dual"] > :first-child {
+  border-top: 3px solid var(--accent);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+}
+[data-gs-theme="electronics-golden_hour-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="dual"] > :first-child h1 {
+  letter-spacing: -0.045em;
+}
+[data-gs-theme="electronics-golden_hour-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .grid > * {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 10%, transparent) !important;
+}
+[data-gs-theme="electronics-azure_mist-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="search_first"] > :first-child {
+  max-width: 42rem;
+  border-left: 3px solid var(--accent);
+}
+[data-gs-theme="electronics-azure_mist-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  border-bottom: 3px solid color-mix(in srgb, var(--accent) 65%, transparent) !important;
+}
+[data-gs-theme="electronics-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="dual"] > :first-child h1 {
+  max-width: 9ch;
+  text-transform: uppercase;
+}
+[data-gs-theme="electronics-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] .grid > * {
+  box-shadow: 6px 6px 0 color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+[data-gs-theme="electronics-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="banner"] > div > div:first-child {
+  max-width: 54rem;
+  border-left: 5px solid var(--accent);
+}
+[data-gs-theme="electronics-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li {
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+[data-gs-theme="beauty-midnight_noir-compact_nohero_card-rounded"] [data-gs-home-section="hero"] {
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+[data-gs-theme="beauty-midnight_noir-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] [data-gs-product-card] > button {
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+[data-gs-theme="beauty-jade_district-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] [data-gs-hero-copy] h1 {
+  max-width: 10ch;
+  letter-spacing: -0.055em;
+}
+[data-gs-theme="beauty-jade_district-dense_hero_bordered-crisp"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  border-radius: 2rem;
+}
+[data-gs-theme="beauty-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 48rem;
+  border-radius: 1.5rem 0.25rem 1.5rem 0.25rem;
+}
+[data-gs-theme="beauty-azure_mist-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] [data-gs-product-card] > button {
+  border-radius: 1.25rem 0.25rem 1.25rem 0.25rem;
+}
+[data-gs-theme="beauty-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="compact"] > div > div:first-child h1 {
+  max-width: 12ch;
+  letter-spacing: -0.045em;
+}
+[data-gs-theme="beauty-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li {
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+[data-gs-theme="beauty-coral_blush-compact_nohero_card-rounded"] [data-gs-home-section="hero"] [data-gs-hero-media] {
+  border-radius: 2rem 2rem 0.5rem 0.5rem;
+}
+[data-gs-theme="beauty-coral_blush-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] [data-gs-product-card] > button {
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+}
+[data-gs-theme="marketplace-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="compact"] > div > div:first-child {
+  padding-inline: clamp(1.25rem, 4vw, 3rem);
+  border-left: 4px solid var(--accent);
+}
+[data-gs-theme="marketplace-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li {
+  border-bottom: 1px dashed color-mix(in srgb, var(--accent) 38%, transparent);
+}
+[data-gs-theme="marketplace-golden_hour-compact_nohero_card-rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 46rem;
+  border-radius: 0.35rem;
+  box-shadow: 8px 8px 0 color-mix(in srgb, var(--accent) 26%, transparent);
+}
+[data-gs-theme="marketplace-golden_hour-compact_nohero_card-rounded"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  border-radius: 0.35rem;
+}
+[data-gs-theme="marketplace-jade_district-compact_nohero_card-rounded"] [data-gs-home-section="hero"] {
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+}
+[data-gs-theme="marketplace-jade_district-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] .grid > * {
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+[data-gs-theme="marketplace-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="search_first"] > :first-child {
+  max-width: 42rem;
+  border-bottom: 3px solid var(--accent);
+}
+[data-gs-theme="marketplace-coral_blush-dense_hero_bordered-crisp"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  min-height: 12rem;
+  border-radius: 0.5rem;
+}
+[data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 50rem;
+  text-shadow: 0 2px 24px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+[data-gs-theme="marketplace-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [data-gs-product-card] > button {
+  border-radius: 1.25rem;
+}
+[data-gs-theme="groceries-midnight_noir-spacious_hero_minimal-subtle"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 50rem;
+  border-left: 4px solid var(--accent);
+}
+[data-gs-theme="groceries-midnight_noir-spacious_hero_minimal-subtle"] [data-gs-home-section="products-grid"] .grid > * {
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+}
+[data-gs-theme="groceries-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 48rem;
+  border-bottom: 3px solid var(--accent);
+}
+[data-gs-theme="groceries-midnight_noir-wide_nohero_list-extra_rounded"] [data-gs-home-section="categories"] [data-gs-category-card] {
+  border-radius: 0.4rem;
+}
+[data-gs-theme="groceries-golden_hour-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="banner"] > div > div:first-child {
+  max-width: 52rem;
+  border-left: 5px solid var(--bg);
+}
+[data-gs-theme="groceries-golden_hour-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li {
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+[data-gs-theme="groceries-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="hero"] > .gs-hero-layout[data-gs-hero-layout="banner"] > div > div:first-child {
+  max-width: 46rem;
+  border-block: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+}
+[data-gs-theme="groceries-azure_mist-compact_nohero_card-rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li {
+  border-left: 3px solid var(--accent);
+}
+[data-gs-theme="groceries-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="hero"] [data-gs-hero-copy] {
+  max-width: 48rem;
+  border-radius: 1.5rem;
+}
+[data-gs-theme="groceries-coral_blush-wide_nohero_list-extra_rounded"] [data-gs-home-section="products-grid"] [aria-label="Express menu"] > li {
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }

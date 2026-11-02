@@ -207,6 +207,7 @@ public/                       manifest.webmanifest, sw.js, favicon.svg
 | 6 | Variants & low-stock SMS | `routes/inventoryRoutes.js`, `SellerInventory.jsx` | Required product category with existing-category suggestions, multi-option variants (size/colour/SKU), custom thresholds, alert latch prevents duplicate SMS, re-arms after restock |
 | 7 | Domains & SSL | `routes/domainRoutes.js` | Host-header tenant resolution (`custom_domain` or `subdomain_slug`), CNAME instructions, Caddy on-demand TLS `/api/domains/caddy-ask` |
 | 8 | Affiliate portal | `routes/affiliateApiRoutes.js`, `src/pages/affiliate/` | Reserved `affiliate.<PLATFORM_DOMAIN>` host, affiliate-only sign-in/signup, referral dashboard and cookie-based attribution; transactional email/SMS for account, referral, commission and payout events; audited admin payout review |
+| 9 | Seller assistant | `routes/didwaAiRoutes.js`, `services/didwaAiService.js`, `services/didwaAiContextService.js`, `src/components/ai/`, `mobile/src/components/ai/` | Seven allowlisted seller actions; local order parsing/product copy; inventory, sales, and order summaries; bounded tenant-scoped context readiness; no external AI API |
 
 ## API Surface
 
@@ -229,6 +230,8 @@ POST   /api/orders/storefront/checkout Buyer cart -> order + WhatsApp deep link
 PATCH  /api/orders/:id/status         PAID (wallet+loyalty) / CANCELLED (restock)
 GET    /api/orders/:id/receipt        PDF receipt (seller JWT or ?token= HMAC share link)
 GET    /api/inventory/products        Catalog with variants
+GET    /api/ai/products               Active products for a seller's copy action
+POST   /api/ai/gateway                Allowlisted system-generated seller actions only
 PATCH  /api/inventory/variants/:id/stock  Adjust stock (delta or absolute)
 GET    /api/inventory/low-stock       Below-threshold report
 GET    /api/public/orders/:orderIdOrNumber  Track by order ID or order number
@@ -243,11 +246,34 @@ All seller/admin routes require `Authorization: Bearer <jwt>`. Every query is
 scoped by `store_id` from the token - cross-tenant reads are impossible by
 construction (verified in the e2e suite).
 
+### DiDwa system-generated seller assistant
+
+`/api/ai/products` and `/api/ai/gateway` require a seller JWT and a
+non-suspended store; phone verification is not required. The gateway accepts
+only the seven action IDs in `config/didwaAiActions.js`. WhatsApp text is
+accepted only for order parsing; off-script text receives the DiDwa Support
+notice using the support email and phone configured in the admin platform
+settings. Order parsing and product copy use local deterministic code and
+templates; no external AI API or model is called. Inventory, paid-sales, and
+order-status summaries use store-scoped aggregates and omit buyer personal
+details. Balance data is read from the managed-payment ledger, and payout
+requests reuse the verified-wallet, balance-locked manual-review flow.
+
+`services/didwaAiContextService.js` prepares bounded, server-only context for a
+future conversational model. It combines the current seller's catalog,
+inventory and business aggregates with an explicit allowlist of public platform
+contact details, Ghana delivery regions, and managed-payment policy. It excludes
+customer records, payout destinations, admin credentials, and other stores'
+data. The context is not exposed through an API endpoint or sent to a model.
+DiDwa currently has no LLM runtime; conversational LLM responses remain
+unavailable until a local or internal runtime is provisioned and reviewed.
+
 ## Testing
 
 ```bash
 node scripts/e2eTest.js     # 37 assertions across all 7 modules
 node scripts/routeTest.js   # 44 route-table assertions (no server, no DB)
+npm run test:didwa-ai       # seller gate, action whitelist, parser, and copy templates
 npm run test:uploads        # storage guards, signed-URL contract, bucket CORS policy
 npm run test:domain-dns     # the DNS records sellers are told to create (no A records)
 npm run r2:cors             # live R2 probe: bucket policy + browser preflight + PUT

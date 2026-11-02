@@ -11,6 +11,7 @@ import {
 } from '../services/managedPaymentSettings.js';
 import { normalizeGhPhone } from '../utils/helpers.js';
 import { platformReferenceKind } from '../services/paystackPlatform.js';
+import { getManagedPayoutContext } from '../services/managedPayoutService.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0;
@@ -65,6 +66,44 @@ await test('managed order math rounds gross, fee, and net to pesewas', () => {
   assert.deepEqual(managedOrderAmounts(0.01, 20), { gross: 0.01, fee: 0, net: 0.01 });
 });
 
+await test('AI managed-payment context returns only the seller-scoped balance and public policy', async () => {
+  let executedSql = '';
+  let queryParams;
+  const context = await getManagedPayoutContext('seller-store', {
+    runQuery: async (sql, params) => {
+      executedSql = sql;
+      queryParams = params;
+      return {
+        rows: [{
+          use_managed_payments: true,
+          total_sales_ghs: '500.00',
+          platform_fees_ghs: '10.00',
+          net_payable_ghs: '490.00',
+          paid_out_ghs: '100.00',
+          pending_ghs: '40.00',
+        }],
+      };
+    },
+    loadPolicy: async () => ({ minimumPayoutGhs: 50, feePercent: 2 }),
+  });
+  assert.deepEqual(queryParams, ['seller-store']);
+  assert.match(executedSql, /WHERE s\.id = \$1/);
+  assert.doesNotMatch(executedSql, /momo_number|momo_account_name|transfer_reference/i);
+  assert.deepEqual(context, {
+    balance: {
+      totalSalesGhs: 500,
+      platformFeesGhs: 10,
+      netPayableGhs: 490,
+      paidOutGhs: 100,
+      pendingPayoutGhs: 40,
+      availableGhs: 350,
+    },
+    managedMode: true,
+    minimumGhs: 50,
+    platformFeePercent: 2,
+  });
+});
+
 await test('payout network aliases normalize to canonical supported names', () => {
   assert.equal(normalizeMomoNetwork('MTN'), 'MTN');
   assert.equal(normalizeMomoNetwork('Vodafone Cash'), 'TELECEL');
@@ -87,6 +126,7 @@ const schema = fs.readFileSync(path.join(ROOT, 'db', 'schema.sql'), 'utf8');
 const checkout = fs.readFileSync(path.join(ROOT, 'routes', 'orderRoutes.js'), 'utf8');
 const webhook = fs.readFileSync(path.join(ROOT, 'services', 'paymentWebhooks.js'), 'utf8');
 const payouts = fs.readFileSync(path.join(ROOT, 'routes', 'managedPayoutRoutes.js'), 'utf8');
+const payoutService = fs.readFileSync(path.join(ROOT, 'services', 'managedPayoutService.js'), 'utf8');
 const paymentSettings = fs.readFileSync(path.join(ROOT, 'routes', 'paymentSettingsRoutes.js'), 'utf8');
 const paystack = fs.readFileSync(path.join(ROOT, 'services', 'paystackPlatform.js'), 'utf8');
 await test('schema enables managed mode for existing/new stores without backfilling sales', () => {
@@ -105,10 +145,11 @@ await test('managed checkout snapshots processor and fee, while webhook verifies
   assert.match(webhook, /ON CONFLICT \(external_reference\) DO NOTHING/);
 });
 await test('payout requests reserve balance and manual payout processing is ledger-backed', () => {
-  assert.match(payouts, /FOR UPDATE/);
-  assert.match(payouts, /status = 'pending'/);
-  assert.match(payouts, /payout_momo_account_name/);
-  assert.match(payouts, /momo_account_name/);
+  assert.match(payoutService, /FOR UPDATE/);
+  assert.match(payoutService, /status = 'pending'/);
+  assert.match(payoutService, /payout_momo_account_name/);
+  assert.match(payoutService, /momo_account_name/);
+  assert.match(payouts, /requestManagedPayout/);
   assert.match(paymentSettings, /resolvePaystackMomoAccountName/);
   assert.match(paystack, /TELECEL: \['VODAFONE', 'VODAFONE CASH', 'TELECEL', 'TELECEL CASH'\]/);
 });

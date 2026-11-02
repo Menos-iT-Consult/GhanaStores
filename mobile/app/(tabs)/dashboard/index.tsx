@@ -14,6 +14,7 @@ import { refreshAndroidWidget } from '@/widgets/refreshAndroidWidget';
 import { GlassCard } from '@/components/glass/GlassCard';
 import { ThemeToggle } from '@/components/glass/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
+import { DiDwaAiSheet } from '@/components/ai/DiDwaAiSheet';
 import { RevenueCarousel } from '@/components/glass/RevenueCarousel';
 import { useGlass } from '@/components/glass/glass';
 import { QuickActions } from '@/components/glass/QuickActions';
@@ -38,6 +39,7 @@ export default function DashboardScreen() {
   const reduceMotion = useReducedMotion();
   const sync = usePosSync();
   const [snack, setSnack] = React.useState<string | null>(null);
+  const [aiVisible, setAiVisible] = React.useState(false);
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['dashboard-full'],
@@ -170,6 +172,7 @@ export default function DashboardScreen() {
               { label: 'New sale', icon: 'cash-register', emphasis: 'primary', onPress: () => router.push('/pos') },
               { label: 'Orders', icon: 'receipt', onPress: () => router.push('/orders') },
               { label: 'Add product', icon: 'plus-box-outline', onPress: () => router.push('/products/new') },
+              { label: 'DiDwa AI', icon: 'robot-outline', onPress: () => setAiVisible(true) },
             ]}
           />
         </Animated.View>
@@ -297,6 +300,7 @@ export default function DashboardScreen() {
       <Snackbar visible={Boolean(snack)} onDismiss={() => setSnack(null)} duration={2500}>
         {snack}
       </Snackbar>
+      <DiDwaAiSheet visible={aiVisible} onDismiss={() => setAiVisible(false)} />
     </View>
   );
 }

@@ -24,7 +24,7 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
     onNavigate('shop');
   };
   return (
-    <div className="sticky top-0 z-20" style={{ background: 'rgba(9,13,22,.9)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+    <div className="sticky top-0 z-20" style={{ background: 'var(--gs-header-surface, rgba(9,13,22,.96))', backdropFilter: 'blur(14px)', borderBottom: '1px solid var(--gs-header-border, rgba(148,163,184,.2))' }}>
       <div className={`mx-auto flex max-w-6xl items-center gap-2 ${compact ? 'px-3 py-2' : 'px-5 py-2.5'}`}>
         <button type="button" onClick={() => onNavigate('home')} className="flex shrink-0 items-center gap-2" aria-label="Store home">
           {c.branding.logo_url ? (
@@ -33,10 +33,10 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
             <IconLogo size={32} />
           )}
           {!compact ? (
-            <span className="max-w-[140px] truncate text-xs font-extrabold text-white">{c.branding.site_title}</span>
+            <span className="max-w-[140px] truncate text-xs font-extrabold" style={{ color: 'var(--gs-header-fg, #fff)' }}>{c.branding.site_title}</span>
           ) : null}
         </button>
-        <form onSubmit={submit} role="search" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 py-1.5">
+        <form onSubmit={submit} role="search" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border px-2 py-1.5" style={{ borderColor: 'var(--gs-header-border, rgba(255,255,255,.15))', background: 'var(--gs-header-hover, rgba(255,255,255,.05))' }}>
           {/* Tier-conditional, NOT sm: - the storefront can render inside a
               375px customizer frame on a wide window, where sm: would lie. */}
           <label className={`relative shrink-0 items-center ${compact ? 'hidden' : 'flex'}`}>
@@ -44,21 +44,24 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
               value={cat}
               onChange={(e) => setCat(e.target.value)}
               aria-label="Category"
-              className="appearance-none bg-transparent py-0.5 pl-1 pr-5 text-[11px] font-bold text-white/80 outline-none"
+              className="appearance-none bg-transparent py-0.5 pl-1 pr-5 text-[11px] font-bold outline-none"
+              style={{ color: 'var(--gs-header-fg, #fff)' }}
             >
               {cats.map((x) => <option key={x} value={x} className="text-slate-900">{x}</option>)}
             </select>
-            <ChevronDown size={12} className="pointer-events-none absolute right-1 text-white/50" aria-hidden="true" />
+            <ChevronDown size={12} className="pointer-events-none absolute right-1" style={{ color: 'var(--gs-header-muted, rgba(255,255,255,.5))' }} aria-hidden="true" />
           </label>
-          <span className={`h-4 w-px bg-white/15 ${compact ? 'hidden' : 'block'}`} aria-hidden="true" />
-          <Search size={13} className="shrink-0 text-white/50" aria-hidden="true" />
+          <span className={`h-4 w-px ${compact ? 'hidden' : 'block'}`} style={{ background: 'var(--gs-header-border, rgba(255,255,255,.15))' }} aria-hidden="true" />
+          <Search size={13} className="shrink-0" style={{ color: 'var(--gs-header-muted, rgba(255,255,255,.5))' }} aria-hidden="true" />
           <input
             type="search"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
             placeholder="Search the catalog"
             aria-label="Quick search"
-            className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold text-white outline-none placeholder:text-white/40"
+            className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold outline-none"
+            style={{ color: 'var(--gs-header-fg, #fff)' }}
+            data-gs-header-search=""
           />
         </form>
         {mobileMenu && compact ? (
@@ -68,7 +71,9 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
             aria-label={menuOpen ? 'Close store navigation' : 'Open store navigation'}
             aria-expanded={menuOpen}
             aria-controls="dense-store-navigation"
-            className="shrink-0 rounded-lg p-2 text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            data-gs-header-control=""
+            className="shrink-0 rounded-lg p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-current"
+            style={{ color: 'var(--gs-header-fg, #fff)' }}
           >
             {menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}
           </button>
@@ -77,12 +82,13 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
           type="button"
           onClick={() => onNavigate('cart')}
           aria-label="Open cart page"
-          className="relative shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white"
-          style={{ background: 'var(--primary)', borderRadius: 'calc(var(--radius) - 4px)' }}
+          data-gs-header-control=""
+          className="relative shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold"
+          style={{ background: 'var(--gs-header-active-bg, var(--primary))', color: 'var(--gs-header-active-fg, #fff)', borderRadius: 'calc(var(--radius) - 4px)' }}
         >
           <IconCart size={13} className="mr-1 inline" /> Cart
           {ctx.cartCount > 0 ? (
-            <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-extrabold" style={{ background: 'var(--accent)', color: '#0F172A' }}>{ctx.cartCount}</span>
+            <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-extrabold" style={{ background: 'var(--accent)', color: 'var(--gs-header-ticker-fg, #0F172A)' }}>{ctx.cartCount}</span>
           ) : null}
         </button>
       </div>
@@ -103,8 +109,11 @@ export default function DenseHeader({ t, active, onNavigate, ctx, onShopShortcut
               type="button"
               onClick={() => { onNavigate(key); setMenuOpen(false); }}
               aria-current={on ? 'page' : undefined}
+              data-gs-header-control=""
               className="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-bold transition"
-              style={on ? { background: 'var(--primary)', color: '#fff' } : { color: 'rgba(255,255,255,.7)' }}
+              style={on
+                ? { background: 'var(--gs-header-active-bg, var(--primary))', color: 'var(--gs-header-active-fg, #fff)' }
+                : { color: 'var(--gs-header-muted, rgba(255,255,255,.7))' }}
             >
               {label}
             </button>

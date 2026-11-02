@@ -335,7 +335,7 @@ case '/messages': return <SellerMessages />;
   }
 
   if (shouldWaitForHostResolution) {
-    return <StorefrontBootPlaceholder label="Loading DiDwa" />;
+    return <StorefrontBootPlaceholder />;
   }
 
   /* Public web pages - open to everyone, no dashboard chrome. The index

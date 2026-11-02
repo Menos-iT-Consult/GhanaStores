@@ -51,10 +51,11 @@ console.log('\nDidwa storefront render -> every page renders at every width\n');
 
 {
   const html = renderToString(React.createElement(StorefrontBootPlaceholder));
-  log('storefront host resolution shows a visible accessible loading state',
-    html.includes('role="status"')
-    && html.includes('aria-label="Opening storefront"')
-    && html.includes('Getting the shop ready for you'));
+  log('storefront boot does not render the unexpected loading splash',
+    html.includes('min-h-screen')
+    && html.includes('aria-hidden="true"')
+    && !html.includes('Opening storefront')
+    && !html.includes('Getting the shop ready for you'));
 }
 
 /* ---------- 1. Every page renders at every responsive width ---------- */
@@ -139,6 +140,52 @@ log('new product creation requires a category and suggests existing categories',
     html.includes('background:var(--bg)')
     && html.includes('color:var(--text)')
     && html.includes('color:var(--primary)'));
+  const themeCss = readFileSync('src/components/storefront/templates/themeCompositions.css', 'utf8');
+  log('Theme 1 renders its split hero and always-visible product price hooks',
+    html.includes('data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"')
+    && html.includes('data-gs-hero-layout="split"')
+    && html.includes('data-gs-product-price=""'));
+  log('Theme 1 has dedicated header and product-price art direction',
+    themeCss.includes('[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-theme-header]')
+    && themeCss.includes('[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"] [data-gs-home-section="products-grid"] [data-gs-product-price]'));
+  const themeFinishingPasses = themeCss.split('/* Theme-specific finishing passes for the remaining curated storefronts. */')[1] || '';
+  log('each remaining curated theme has individually scoped finishing styles',
+    THEME_DATA.slice(1).length === 24
+    && THEME_DATA.slice(1).every((item) => (
+      themeFinishingPasses.split(`[data-gs-theme="${item.id}"]`).length - 1 >= 2
+    )));
+
+  const lightHeaderTheme = THEME_DATA.find((item) => item.config.design.header === 'overlay');
+  const darkHeaderTheme = THEME_DATA[0];
+  const renderThemeHeader = (theme) => renderToString(React.createElement(Storefront, {
+    config: templateToCustomizerTokens(theme),
+    page: 'home',
+    viewportWidth: 1024,
+    products: [],
+  }));
+  const lightHeaderHtml = renderThemeHeader(lightHeaderTheme);
+  const darkHeaderHtml = renderThemeHeader(darkHeaderTheme);
+  const darkMobileHeaderHtml = renderToString(React.createElement(Storefront, {
+    config: templateToCustomizerTokens(darkHeaderTheme),
+    page: 'home',
+    viewportWidth: 375,
+    products: [],
+  }));
+  const darkHeaderRule = themeCss.match(
+    /\[data-gs-theme="fashion-midnight_noir-dense_hero_bordered-crisp"\] \[data-gs-theme-header\] > div\s*\{([^}]*)\}/,
+  )?.[1] || '';
+  log('light theme headers use dark foregrounds and the selected theme identity',
+    lightHeaderHtml.includes(`data-gs-theme="${lightHeaderTheme.id}"`)
+    && lightHeaderHtml.toLowerCase().includes('--gs-header-fg:#0f172a'));
+  log('dark theme headers retain white foregrounds and the selected theme identity',
+    darkHeaderHtml.includes(`data-gs-theme="${darkHeaderTheme.id}"`)
+    && darkHeaderHtml.toLowerCase().includes('--gs-header-fg:#ffffff'));
+  log('editorial theme header remains sticky',
+    darkHeaderRule.includes('position: sticky !important;'));
+  log('mobile hamburger inherits the contrast-aware header foreground',
+    darkMobileHeaderHtml.includes('aria-label="Open store navigation"')
+    && darkMobileHeaderHtml.includes('data-gs-header-control=""')
+    && darkMobileHeaderHtml.includes('color:var(--gs-header-fg, #fff)'));
 
   const noHeroConfig = {
     ...config,

@@ -225,7 +225,7 @@ export async function loadSellerStore(req, res, next) {
     const { rows } = await query(
       `SELECT id, name, email, phone, owner_name, subdomain_slug, custom_domain,
               status, plan, trial_ends_at, grace_ends_at, whatsapp_number, momo_number,
-              currency,
+              currency, phone_verified,
               loyalty_points_per_ghs, loyalty_point_value, created_at
          FROM stores WHERE id = $1 LIMIT 1`,
       [req.auth.sub],
@@ -276,7 +276,7 @@ export async function authenticateMobileToken(req, res, next) {
 
   try {
     const { rows } = await query(
-      `SELECT id, name, email, phone, subdomain_slug, status, plan, currency
+      `SELECT id, name, email, phone, subdomain_slug, status, plan, currency, phone_verified
          FROM stores WHERE id = $1 LIMIT 1`,
       [payload.sub],
     );

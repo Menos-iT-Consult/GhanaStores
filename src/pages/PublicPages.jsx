@@ -11,7 +11,7 @@
  */
 import { Fragment, useEffect, useState } from 'react';
 import {
-  ArrowRight, BarChart3, BellRing, Check, CreditCard, Globe, Mail, MapPin, ChevronRight, Menu, MessageCircle, Package, Phone, QrCode, Scale, Send,
+  ArrowRight, BarChart3, BellRing, Bot, Check, CreditCard, Globe, Mail, MapPin, ChevronRight, Menu, MessageCircle, Package, Phone, QrCode, Scale, Send,
   ShieldCheck, Smartphone, X,
   Wallet, Zap,
 } from 'lucide-react';
@@ -374,14 +374,14 @@ function PageHero({ eyebrow, title, sub, children }) {
 export function AboutPage({ authed = false }) {
   const values = [
     { Icon: ShieldCheck, title: 'Merchant first', body: 'Every feature starts with a shop-owner problem - never with a trend.' },
-    { Icon: Zap, title: 'Built for reality', body: 'Power cuts and patchy networks are normal here, so offline mode is the core, not an extra.' },
-    { Icon: Scale, title: 'Honest by default', body: 'Clear pricing, plain-language policies and payouts that land when we say they will.' },
+    { Icon: Zap, title: 'Built for daily trading', body: 'Record POS cash sales while offline and sync them when your connection returns.' },
+    { Icon: Scale, title: 'Clear payment choices', body: 'Review your payment setup and payout request status from your seller account.' },
   ];
   return (
     <>
       <MetaTags
         title="About Us | DiDwa – Commerce Tools Made for Ghana"
-        description="DiDwa exists because running a shop in Ghana should not require five notebooks, two calculators and a leap of faith. Built for local merchants, by people who understand Mobile Money, patchy networks and cedi pricing."
+        description="Learn how DiDwa brings point-of-sale tools, inventory, online storefronts, payment options, and seller-focused AI together for Ghanaian merchants."
         canonical={siteUrl('/about')}
         keywords={['about us', 'DiDwa Ghana', 'e-commerce platform Ghana', 'Ghana SME']}
       />
@@ -393,9 +393,9 @@ export function AboutPage({ authed = false }) {
       />
       <section className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
         <div className="space-y-5 text-[15px] leading-relaxed text-slate-600">
-          <p>We started in Accra watching brilliant traders lose hours to manual receipts, missed MoMo confirmations and stock counts done from memory. The tools that existed were built elsewhere, priced in dollars and designed for shops that never lose internet.</p>
-          <p>So we built the opposite: a seller companion that assumes patchy networks, speaks Mobile Money natively, reconciles rider cash without drama and turns every WhatsApp enquiry into a receipted order. One login runs the counter, the storefront, the books and the app in your pocket.</p>
-          <p>Today merchants across all sixteen regions use DiDwa to sell in person and online - and we are just getting started.</p>
+          <p>DiDwa brings the everyday tools of running a shop into one seller workspace. Merchants can record in-person sales, manage products and stock, track orders, and publish an online storefront.</p>
+          <p>For Ghanaian commerce, that includes offline-capable POS sales, checkout through a configured payment gateway, and managed Mobile Money payout requests for eligible stores. Store owners can also use guided, system-generated DiDwa AI actions based on their own store data.</p>
+          <p>Our goal is to make it easier for merchants to manage the details behind each sale, whether they serve customers at the counter or online.</p>
         </div>
 
         <div className="mt-12 grid gap-5 sm:grid-cols-3">
@@ -812,51 +812,32 @@ export function PrivacyPage({ authed = false }) {
  * one they care about and search engines can index it.
  */
 export const FEATURE_CARDS = [
-  { Icon: Smartphone, title: 'Offline-first POS', body: 'Ring up sales with no internet - transactions sync the moment you are back online.' },
-  { Icon: Wallet, title: 'Instant MoMo payouts', body: 'Cash out to MTN, Telecel/Vodafone or AT Money the moment an order settles.' },
-  { Icon: Package, title: 'Inventory that thinks', body: 'Multi-variant stock tracking with automatic low-stock SMS reminders.' },
-  { Icon: MessageCircle, title: 'WhatsApp commerce', body: 'Customers order straight from chat; receipts and fulfilment in one tap.' },
-  { Icon: Globe, title: 'Your own storefront', body: 'A shareable subdomain - or bring a custom domain - with 25 curated themes and live editing.' },
-  { Icon: BarChart3, title: 'Insights that pay', body: 'Best sellers, loyalty points, cash flow and payout readiness without spreadsheets.' },
-  { Icon: BellRing, title: 'Seller app & push alerts', body: 'Run the shop from your phone - push notifications and Android home-screen widgets keep you posted.' },
-  { Icon: CreditCard, title: 'Pay your way', body: 'Buyers pay by Mobile Money, card or cash on delivery - you choose Paystack or Hubtel as your gateway.' },
-  { Icon: QrCode, title: 'Receipts that prove it', body: 'Every order gets a PDF receipt with a QR code the buyer can scan to verify it.' },
+  { Icon: Smartphone, title: 'Offline-capable POS', body: 'Record cash sales without a connection; queued sales sync when you are back online.' },
+  { Icon: Wallet, title: 'Managed payments & payouts', body: 'Track managed sales, platform fees and net balance, then submit eligible payout requests to a verified MTN MoMo, Telecel Cash or AT Money wallet. Requests go through manual review.' },
+  { Icon: Package, title: 'Product & inventory control', body: 'Track product variants, stock counts and low-stock thresholds, with SMS reminders for products that need attention.' },
+  { Icon: MessageCircle, title: 'WhatsApp order tools', body: 'Share checkout links over WhatsApp, or use a guided AI action to turn a customer message into structured order details.' },
+  { Icon: Globe, title: 'A storefront that fits your brand', body: 'Choose from 25 curated themes, customize your storefront and preview changes before publishing.' },
+  { Icon: BarChart3, title: 'Sales & order insights', body: 'Review sales trends, top products, stock levels and order statuses from your seller dashboard and guided AI actions.' },
+  { Icon: BellRing, title: 'Seller tools on mobile', body: 'Use the mobile-friendly seller dashboard to manage your shop. Dedicated App Store and Google Play listings are coming soon.' },
+  { Icon: CreditCard, title: 'Flexible checkout options', body: 'Configure checkout through Paystack or Hubtel, and enable cash on delivery when available. The options customers see depend on your store settings.' },
+  { Icon: QrCode, title: 'Receipts with QR verification', body: 'Generate PDF order receipts with QR codes buyers can scan to verify receipt details.' },
+  { Icon: Bot, title: 'DiDwa AI for sellers', body: 'Use guided, system-generated actions for WhatsApp order parsing, product copy, store insights and managed payout information, based on your store data.' },
 ];
 
 export const STEPS = [
   { n: '01', title: 'Create your store', body: 'Register with just a shop name, email and phone number. Your 14-day trial starts instantly - no card needed.' },
-  { n: '02', title: 'Stock your catalog', body: 'Add products with prices, variants and stock counts from the dashboard or the seller app. Share your storefront link or sell in person.' },
-  { n: '03', title: 'Sell & get paid', body: 'Accept Mobile Money, card or cash on delivery, reconcile rider deliveries and withdraw earnings whenever you like.' },
+  { n: '02', title: 'Stock your catalog', body: 'Add products with prices, variants and stock counts from your seller dashboard. Share your storefront link or sell in person.' },
+  { n: '03', title: 'Sell & manage payments', body: 'Accept the checkout methods enabled for your store, process in-person sales and track orders. If managed payments are enabled, you can request a payout to your verified MoMo wallet; requests are subject to eligibility and manual review.' },
 ];
-
-export const STATS = [
-  { v: '100+', k: 'Active sellers' },
-  { v: 'GHS 5K', k: 'Processed monthly' },
-  { v: '16', k: 'Regions covered' },
-];
-
-/** The headline numbers, reused by the features page and the home page. */
-export function StatsBand() {
-  return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {STATS.map((stat) => (
-        <div key={stat.k} className="rounded-2xl border border-slate-200 bg-white p-5 text-center">
-          <p className="text-2xl font-extrabold tracking-tight">{stat.v}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">{stat.k}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function FeaturesPage({ authed = false }) {
   return (
     <>
       <MetaTags
         title="Features | DiDwa – Everything a Ghanaian Shop Needs in One Login"
-        description="Built for merchants who sell across the counter, over the phone and online at the same time. DiDwa features include Mobile Money POS, inventory management, WhatsApp ordering, and a themable storefront."
+        description="Explore DiDwa's offline-capable POS, inventory and order insights, guided seller AI, managed payout requests, and 25 customizable storefront themes."
         canonical={siteUrl('/features')}
-        keywords={['features', 'e-commerce platform Ghana', 'digital POS Ghana', 'online store builder Ghana']}
+        keywords={['features', 'e-commerce platform Ghana', 'digital POS Ghana', 'online store builder Ghana', 'DiDwa AI for sellers', 'managed payments Ghana', 'storefront themes Ghana']}
       />
       <PublicShell authed={authed}>
       <PageHero
@@ -876,9 +857,6 @@ export function FeaturesPage({ authed = false }) {
             </div>
           ))}
         </div>
-        <div className="mt-12">
-          <StatsBand />
-        </div>
       </section>
     </PublicShell>
     </>
@@ -889,16 +867,16 @@ export function HowItWorksPage({ authed = false }) {
   return (
     <>
       <MetaTags
-        title="How It Works | DiDwa – Live in Three Steps"
-        description="No onboarding call, no paperwork. Most merchants are selling within an hour of registering. Create your store, stock your catalog, and sell online with Mobile Money in Ghana."
+        title="How It Works | Set Up Your DiDwa Store"
+        description="Create your store, add products, configure checkout and manage in-person and online orders with DiDwa. Managed payout requests have eligibility requirements."
         canonical={siteUrl('/how-it-works')}
         keywords={['how it works', 'start online store Ghana', 'e-commerce platform Ghana', 'digital POS Ghana']}
       />
       <PublicShell authed={authed}>
       <PageHero
         eyebrow="How it works"
-        title="Live in three steps."
-        sub="No onboarding call, no paperwork. Most merchants are selling within an hour of registering."
+        title="Set up your store in three steps."
+        sub="Create your account, stock your catalog and choose your payment setup, then manage sales and orders from one seller workspace."
       />
       <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
         <ol className="space-y-5">

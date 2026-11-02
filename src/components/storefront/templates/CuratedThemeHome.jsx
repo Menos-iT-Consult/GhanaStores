@@ -57,16 +57,56 @@ const CATEGORY_LABELS = {
   groceries: 'groceries',
 };
 
+function colorLuminance(color) {
+  const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(String(color || ''));
+  if (!match) return null;
+  const hex = match[1].length === 3
+    ? [...match[1]].map((digit) => `${digit}${digit}`).join('')
+    : match[1];
+  const [red, green, blue] = [0, 2, 4].map((offset) => {
+    const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function headerAppearance(config, headerStyle) {
+  const themeId = config.theme_id || config.themeId || '';
+  const usesThemeSurface = ['minimal', 'overlay', 'floating'].includes(headerStyle);
+  const surfaceColor = themeId === 'fashion-midnight_noir-dense_hero_bordered-crisp'
+    ? config.colors?.primary
+    : usesThemeSurface ? config.colors?.background : '#090D16';
+  const luminance = colorLuminance(surfaceColor);
+  const accentLuminance = colorLuminance(config.colors?.accent);
+  const isLight = luminance == null ? !usesThemeSurface : luminance > 0.42;
+  const tickerIsLight = accentLuminance == null || accentLuminance > 0.42;
+  const foreground = isLight ? '#0F172A' : '#FFFFFF';
+  const activeForeground = isLight ? '#FFFFFF' : '#090D16';
+  return {
+    '--gs-header-surface': usesThemeSurface
+      ? 'color-mix(in srgb, var(--bg) 96%, transparent)'
+      : 'rgba(9,13,22,.96)',
+    '--gs-header-fg': foreground,
+    '--gs-header-muted': `color-mix(in srgb, ${foreground} 72%, transparent)`,
+    '--gs-header-border': `color-mix(in srgb, ${foreground} 18%, transparent)`,
+    '--gs-header-active-bg': foreground,
+    '--gs-header-active-fg': activeForeground,
+    '--gs-header-hover': `color-mix(in srgb, ${foreground} 8%, transparent)`,
+    '--gs-header-ticker-fg': tickerIsLight ? '#0F172A' : '#FFFFFF',
+  };
+}
+
 export function CuratedThemeHeader({ t, active, onNavigate, ctx, config }) {
   const design = config.theme_design || config.design || {};
   const category = config.theme_category || config.category || 'marketplace';
+  const headerStyle = design.header || '';
   const Header = HEADER_BY_STYLE[design.header] || ({
     fashion: BoutiqueHeader,
     beauty: BoutiqueHeader,
     groceries: TickerHeader,
   }[category] || DenseHeader);
   return (
-    <div data-gs-theme-header={design.header || ''} className="contents">
+    <div data-gs-theme-header={headerStyle} className="contents" style={headerAppearance(config, headerStyle)}>
       <Header t={t} active={active} onNavigate={onNavigate} ctx={ctx} />
     </div>
   );

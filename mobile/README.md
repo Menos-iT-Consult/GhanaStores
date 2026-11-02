@@ -52,6 +52,7 @@ All routes live under `/api/mobile` on the DiDwa API (see `routes/mobile*`,
 - `GET  /api/mobile/v1/dashboard/stats`
 - `GET  /api/mobile/v1/orders`, `GET /api/mobile/v1/orders/:id`, `PATCH .../status`, `GET .../:id/receipt`
 - `GET  /api/mobile/v1/products`, `PATCH .../:id/stock`, `PATCH .../:id/price`
+- `GET /api/ai/products`, `POST /api/ai/gateway` (verified sellers only; same four system-generated actions as the web dashboard)
 - `GET/POST /api/mobile/v1/settings/payment-keys`
 - **v1.1 command centre / POS / catalog** (thin adapters over the shared PWA engines):
   - `GET  /api/mobile/v1/dashboard/full`, `GET /api/mobile/v1/analytics/top`

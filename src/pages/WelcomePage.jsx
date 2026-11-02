@@ -12,11 +12,11 @@
  * STRICT RULE: pure SVG / Lucide React icons ONLY - ZERO emojis.
  */
 import {
-  ArrowRight, BarChart3, BellRing, Check, ChevronRight, Globe,
-  MessageCircle, Package, ShieldCheck, Smartphone, Sparkles,
+  ArrowRight, BellRing, Bot, Check, ChevronRight, Globe,
+  MessageCircle, Package, ShieldCheck, Smartphone,
   Wallet, Zap,
 } from 'lucide-react';
-import { PublicShell, FEATURE_CARDS, STEPS, STATS } from './PublicPages.jsx';
+import { PublicShell, FEATURE_CARDS, STEPS } from './PublicPages.jsx';
 import MetaTags from '../components/seo/MetaTags.jsx';
 import OrganizationSchema from '../components/seo/OrganizationSchema.jsx';
 import SoftwareApplicationSchema from '../components/seo/SoftwareApplicationSchema.jsx';
@@ -24,6 +24,12 @@ import FAQSchema from '../components/seo/FAQSchema.jsx';
 import { META_CONTENT, siteUrl } from '../lib/seo.js';
 
 const AFFILIATE_DASHBOARD_URL = 'https://affiliate.didwaghana.com';
+
+const HOME_HIGHLIGHTS = [
+  { Icon: Zap, title: 'Sell in person, even offline', body: 'Record POS cash sales without a connection and sync queued sales when you are back online.' },
+  { Icon: Globe, title: 'Make your storefront yours', body: 'Choose from 25 curated themes and preview your customizations before publishing.' },
+  { Icon: Bot, title: 'Get guided seller AI', body: 'Use system-generated actions for product copy and insights grounded in your store data.' },
+];
 
 export default function WelcomePage({ authed = false, onStart, onDashboard }) {
   const start = onStart || (() => {});
@@ -38,7 +44,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
         description={homepage.description}
         canonical={siteUrl('/')}
         ogImage={siteUrl('/didwa-logo.jpg')}
-        keywords={['online store builder Ghana', 'e-commerce platform Ghana', 'digital POS Ghana']}
+        keywords={['online store builder Ghana', 'e-commerce platform Ghana', 'digital POS Ghana', 'storefront themes Ghana', 'DiDwa AI for sellers']}
       />
       <OrganizationSchema />
       <SoftwareApplicationSchema />
@@ -55,12 +61,11 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
           <div>
             <h1 className="mt-5 animate-fade-up text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl motion-reduce:animate-none">
               Sell in-store &amp; online.
-              <span className="mt-1 block bg-gradient-to-r from-blue-600 to-emerald-brand bg-clip-text text-transparent">Get paid instantly.</span>
+              <span className="mt-1 block bg-gradient-to-r from-blue-600 to-emerald-brand bg-clip-text text-transparent">Manage every sale with DiDwa.</span>
             </h1>
             <p className="mt-5 max-w-lg animate-fade-up text-base leading-relaxed text-slate-500 sm:text-lg motion-reduce:animate-none" style={{ animationDelay: '90ms' }}>
-              DiDwa is the all-in-one companion for Ghanaian merchants: a POS that works offline, Mobile Money payouts,
-              inventory with smart alerts, WhatsApp ordering, a storefront you can theme and a seller app with push
-              alerts - all from one login.
+              Bring in-person sales, inventory, online orders and your storefront into one seller workspace. Use guided
+              DiDwa AI actions based on your store data, and request managed payouts when your store is eligible.
             </p>
 
             <div className="mt-8 flex animate-fade-up flex-wrap items-center gap-3 motion-reduce:animate-none" style={{ animationDelay: '180ms' }}>
@@ -94,14 +99,14 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
                   <span key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-blue-600/80 to-blue-400" style={{ height: `${h}%` }} />
                 ))}
               </div>
-              <p className="mt-3 text-xs font-bold text-slate-500">Sales trending up 18%</p>
+              <p className="mt-3 text-xs font-bold text-slate-500">Sales overview at a glance</p>
             </div>
 
             <div className="absolute left-2 top-36 w-80 -rotate-2 rounded-2xl border border-slate-100 bg-white p-5 shadow-card transition-transform duration-300 hover:-rotate-1">
               <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Live activity</p>
               <ul className="mt-3 space-y-3">
                 {[
-                  { Icon: Wallet, tone: 'bg-emerald-100 text-emerald-700', text: 'MoMo payout sent', meta: '+ GHS 480.00' },
+                  { Icon: Wallet, tone: 'bg-emerald-100 text-emerald-700', text: 'Managed payout request', meta: 'Manual review' },
                   { Icon: MessageCircle, tone: 'bg-blue-100 text-blue-700', text: 'New WhatsApp order', meta: 'Kente scarf x2' },
                   { Icon: BellRing, tone: 'bg-amber-100 text-amber-700', text: 'Low stock alert', meta: 'Shea butter - 3 left' },
                 ].map(({ Icon, tone, text, meta }) => (
@@ -154,12 +159,12 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
       <section aria-label="Built for Ghanaian sellers" className="border-y border-slate-100 bg-white">
         <ul className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-7 gap-y-3 px-4 py-5 sm:px-6">
           {[
-            { Icon: Zap, text: 'Offline-first POS' },
-            { Icon: Wallet, text: 'MoMo & card payouts' },
-            { Icon: MessageCircle, text: 'WhatsApp orders' },
-            { Icon: Smartphone, text: 'Seller app + push' },
-            { Icon: BellRing, text: 'Instant alerts' },
-            { Icon: ShieldCheck, text: 'Two-factor login' },
+            { Icon: Zap, text: 'Offline-capable POS' },
+            { Icon: Wallet, text: 'Mobile Money & card checkout' },
+            { Icon: MessageCircle, text: 'WhatsApp order tools' },
+            { Icon: Smartphone, text: 'Mobile-friendly dashboard' },
+            { Icon: BellRing, text: 'Stock and order alerts' },
+            { Icon: ShieldCheck, text: 'Managed payout requests' },
           ].map(({ Icon, text }) => (
             <li key={text} className="flex items-center gap-2 text-xs font-bold text-slate-500 sm:text-sm">
               <Icon size={15} className="shrink-0 text-blue-600" aria-hidden="true" /> {text}
@@ -230,47 +235,47 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
         </div>
       </section>
 
-      {/* Stats / why us */}
-      <section id="stats" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20">
+      {/* Practical benefits */}
+      <section id="benefits" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20">
         <div className="relative overflow-hidden rounded-3xl bg-[#0B1120] px-8 py-12 text-white sm:px-12">
           <div className="pointer-events-none absolute inset-0 opacity-[0.06]" aria-hidden="true" style={{ backgroundImage: 'repeating-linear-gradient(135deg, #ffffff 0 2px, transparent 2px 14px)' }} />
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-400">Why merchants switch</span>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight">The back office that runs itself</h2>
-            <p className="mt-4 text-sm leading-relaxed text-slate-300 sm:text-base">From kiosks at Makola to growing boutiques in Kumasi - sellers use DiDwa to keep books clean and cash moving.</p>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-400">Built for your day-to-day</span>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight">Tools that work together around your store</h2>
+            <p className="mt-4 text-sm leading-relaxed text-slate-300 sm:text-base">Manage sales, your storefront and stock from one seller account, with guided AI tools that use your store's own information.</p>
           </div>
-          <dl className="mx-auto mt-10 grid max-w-3xl grid-cols-2 gap-6 text-center md:grid-cols-4">
-            {STATS.map(({ v, k }) => (
-              <div key={k}>
-                <dt className="order-last mt-1 block text-[11px] font-bold uppercase tracking-wide text-slate-400">{k}</dt>
-                <dd className="text-2xl font-extrabold text-emerald-400 sm:text-3xl">{v}</dd>
-              </div>
+          <div className="mx-auto mt-10 grid max-w-4xl gap-4 sm:grid-cols-3">
+            {HOME_HIGHLIGHTS.map(({ Icon, title, body }) => (
+              <article key={title} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <Icon size={20} className="text-emerald-400" aria-hidden="true" />
+                <h3 className="mt-3 text-sm font-extrabold">{title}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-300">{body}</p>
+              </article>
             ))}
-          </dl>
+          </div>
           <p className="mx-auto mt-10 flex max-w-md items-center justify-center gap-2 text-center text-xs font-semibold text-slate-400">
             <ShieldCheck size={14} className="shrink-0 text-emerald-400" aria-hidden="true" />
-            Your data is encrypted, two-factor login is built in, and your storefront runs on its own secure web address.
+            Payout availability depends on your payment settings, verified wallet and eligible managed balance.
           </p>
         </div>
       </section>
 
-      {/* Seller app */}
+      {/* Mobile seller tools */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid items-center gap-10 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12 lg:grid-cols-2">
           <div>
-            <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Seller app</span>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Your store, in your pocket.</h2>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Mobile seller tools</span>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Manage your shop on mobile.</h2>
             <p className="mt-4 text-sm leading-relaxed text-slate-500 sm:text-base">
-              Run the whole shop from your phone: an offline-first POS that keeps selling when the
-              network drops, live order alerts with push notifications, catalog and stock edits,
-              customer loyalty and Mobile Money payouts - all synced to the same account.
+              Use the mobile-friendly seller dashboard to manage products, stock, sales and orders. Dedicated iOS and
+              Android store downloads are not available yet; you can access your seller account from a mobile browser.
             </p>
             <ul className="mt-6 grid gap-2 sm:grid-cols-2">
               {[
-                'Offline POS with outbox sync',
-                'Push alerts for new orders',
-                'Catalog & stock on the go',
-                'Mobile Money payouts',
+                'View and manage orders',
+                'Edit products and stock',
+                'Record POS cash sales offline',
+                'Review managed payout requests',
               ].map((item) => (
                 <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                   <Check size={16} className="shrink-0 text-emerald-500" aria-hidden="true" />
@@ -278,51 +283,21 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
                 </li>
               ))}
             </ul>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <a
-                href="#"
-                aria-disabled="true"
-                className="relative inline-flex items-center gap-3 rounded-xl bg-charcoal px-5 py-3 text-white shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
-                <span className="absolute -right-2 -top-2 rounded-full bg-amber-300 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-slate-900">
-                  Coming soon
-                </span>
-                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden="true">
-                  <path d="M17.05 12.04c-.03-3.14 2.57-4.64 2.69-4.72-1.46-2.14-3.74-2.43-4.55-2.46-1.94-.2-3.78 1.14-4.77 1.14-1 0-2.5-1.11-4.11-1.08-2.11.03-4.06 1.23-5.15 3.12-2.19 3.8-.56 9.42 1.58 12.5 1.04 1.51 2.28 3.2 3.91 3.14 1.57-.06 2.17-1.01 4.06-1.01 1.89 0 2.43 1.01 4.11.98 1.69-.03 2.76-1.53 3.79-3.05 1.2-1.75 1.69-3.45 1.72-3.54-.04-.02-3.29-1.26-3.32-5.02zM14.1 3.13c.86-1.04 1.44-2.5 1.28-3.94-1.24.05-2.74.83-3.63 1.87-.8.93-1.5 2.41-1.31 3.82 1.38.11 2.79-.71 3.66-1.75z" />
-                </svg>
-                <span className="flex flex-col leading-tight">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">Download on the</span>
-                  <span className="text-base font-extrabold">App Store</span>
-                </span>
-              </a>
-              <a
-                href="#"
-                aria-disabled="true"
-                className="relative inline-flex items-center gap-3 rounded-xl bg-charcoal px-5 py-3 text-white shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
-                <span className="absolute -right-2 -top-2 rounded-full bg-amber-300 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-slate-900">
-                  Coming soon
-                </span>
-                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden="true">
-                  <path d="M3.6 1.8c-.4.3-.6.8-.6 1.5v17.4c0 .7.2 1.2.6 1.5l.1.1 9.8-9.8v-.2L3.7 1.7l-.1.1z" />
-                  <path d="M16.6 15.5l-3.3-3.3v-.2l3.3-3.3.1.1 4 2.3c1.1.6 1.1 1.7 0 2.3l-4 2.1-.1 0z" fill="#FFC107" />
-                  <path d="M16.7 15.4L13.3 12 3.6 21.7c.4.4 1 .4 1.7 0l11.4-6.3z" fill="#4CAF50" />
-                  <path d="M16.7 8.6L5.3 2.3c-.7-.4-1.3-.4-1.7 0L13.3 12l3.4-3.4z" fill="#03A9F4" />
-                </svg>
-                <span className="flex flex-col leading-tight">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">Get it on</span>
-                  <span className="text-base font-extrabold">Google Play</span>
-                </span>
-              </a>
-            </div>
+            <button
+              type="button"
+              onClick={authed ? dashboard : () => start('login')}
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-charcoal px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            >
+              Open seller dashboard <ArrowRight size={15} aria-hidden="true" />
+            </button>
             <p className="mt-4 text-xs font-semibold text-slate-400">
-              App Store &amp; Google Play listings coming soon - links will be activated at launch.
+              App Store and Google Play listings are coming soon.
             </p>
           </div>
           <div className="flex items-center justify-center">
             <img
               src="/iphone-shot.png"
-              alt="DiDwa seller app on an iPhone, showing sales, pending orders, and store management tools"
+              alt="DiDwa seller tools displayed on an iPhone, showing sales, pending orders, and store management tools"
               className="h-auto w-full max-w-[min(100%,28rem)] object-contain drop-shadow-2xl"
               loading="lazy"
               decoding="async"
@@ -335,7 +310,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-emerald-600 px-8 py-14 text-center text-white sm:px-12">
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
           <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Ready to sell smarter?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-blue-100 sm:text-base">Join thousands of Ghanaian merchants running their entire shop from one app. Free for 14 days.</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-blue-100 sm:text-base">Bring in-person sales, your online store and stock tools into one seller workspace. Start with a 14-day free trial.</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             {authed ? (
               <>

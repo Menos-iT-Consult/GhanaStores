@@ -33,6 +33,7 @@ import { useThemeDraft } from './dashboard/useThemeDraft.js';
 import { useUnsavedChanges } from './dashboard/useUnsavedChanges.js';
 import UnsavedChangesDialog from './dashboard/UnsavedChangesDialog.jsx';
 import { CUSTOMIZER_ROUTE } from './dashboard/constants.js';
+import DiDwaAiPanel from '../components/ai/DiDwaAiPanel.jsx';
 
 export default function DashboardLayout({ children }) {
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(
@@ -222,6 +223,7 @@ export default function DashboardLayout({ children }) {
         onDiscard={() => guard.resolveLeave('discard')}
         onStay={() => guard.resolveLeave('stay')}
       />
+      <DiDwaAiPanel />
     </div>
   );
 }

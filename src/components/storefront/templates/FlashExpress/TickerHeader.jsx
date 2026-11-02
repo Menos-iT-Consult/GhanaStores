@@ -17,11 +17,11 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
   const ticker = c.header?.announcement_text || 'Order now for same-day delivery';
   return (
     <div className="sticky top-0 z-20">
-      <div className="flex items-center justify-center gap-1.5 overflow-hidden px-3 py-1.5 text-center text-[10px] font-extrabold uppercase tracking-widest" style={{ background: 'var(--accent)', color: '#0F172A' }} role="status">
+      <div className="flex items-center justify-center gap-1.5 overflow-hidden px-3 py-1.5 text-center text-[10px] font-extrabold uppercase tracking-widest" style={{ background: 'var(--accent)', color: 'var(--gs-header-ticker-fg, #0F172A)' }} role="status">
         <Rocket size={12} aria-hidden="true" className="shrink-0" />
         <span className="truncate">{ticker}</span>
       </div>
-      <div style={{ background: 'rgba(9,13,22,.92)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+      <div style={{ background: 'var(--gs-header-surface, rgba(9,13,22,.96))', backdropFilter: 'blur(14px)', borderBottom: '1px solid var(--gs-header-border, rgba(148,163,184,.2))' }}>
         <div className={`mx-auto flex max-w-6xl items-center gap-2 ${compact ? 'px-3 py-2' : 'px-5 py-2.5'}`}>
           <button type="button" onClick={() => onNavigate('home')} className="flex min-w-0 items-center gap-2" aria-label="Store home">
             {c.branding.logo_url ? (
@@ -30,8 +30,8 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
               <IconLogo size={36} />
             )}
             <span className="min-w-0">
-              <span className="block truncate text-xs font-extrabold text-white">{c.branding.site_title}</span>
-              <span className="flex items-center gap-0.5 text-[9px] font-bold text-emerald-300">
+              <span className="block truncate text-xs font-extrabold" style={{ color: 'var(--gs-header-fg, #fff)' }}>{c.branding.site_title}</span>
+              <span className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color: 'var(--gs-header-muted, #6ee7b7)' }}>
                 <MapPin size={9} aria-hidden="true" /> Delivering now
               </span>
             </span>
@@ -44,7 +44,9 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
               aria-label={menuOpen ? 'Close store navigation' : 'Open store navigation'}
               aria-expanded={menuOpen}
               aria-controls="ticker-store-navigation"
-              className="relative shrink-0 rounded-lg p-2 text-white/80 transition hover:bg-white/10"
+              data-gs-header-control=""
+              className="relative shrink-0 rounded-lg p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-current"
+              style={{ color: 'var(--gs-header-fg, rgba(255,255,255,.8))' }}
             >
               {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
             </button>
@@ -53,7 +55,9 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
             type="button"
             onClick={() => onNavigate('wishlist')}
             aria-label={`Open wishlist${ctx.wishlistCount ? `, ${ctx.wishlistCount} saved` : ''}`}
-            className="relative shrink-0 rounded-lg p-2 text-white/80 hover:bg-white/10"
+            data-gs-header-control=""
+            className="relative shrink-0 rounded-lg p-2"
+            style={{ color: 'var(--gs-header-muted, rgba(255,255,255,.8))' }}
           >
             <Heart size={16} aria-hidden="true" />
             {ctx.wishlistCount > 0 && <span className="absolute right-0 top-0 text-[9px] font-bold">{ctx.wishlistCount}</span>}
@@ -62,7 +66,9 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
             type="button"
             onClick={() => onNavigate('track')}
             aria-label="Track order"
-            className="shrink-0 rounded-lg p-2 text-white/80 hover:bg-white/10"
+            data-gs-header-control=""
+            className="shrink-0 rounded-lg p-2"
+            style={{ color: 'var(--gs-header-muted, rgba(255,255,255,.8))' }}
           >
             <PackageSearch size={16} aria-hidden="true" />
           </button>
@@ -71,11 +77,12 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
             onClick={() => onNavigate('cart')}
             aria-label="Open cart page"
             className="relative shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
-            style={{ background: 'var(--primary)', borderRadius: 'calc(var(--radius) - 4px)' }}
+            data-gs-header-control=""
+            style={{ background: 'var(--gs-header-active-bg, var(--primary))', color: 'var(--gs-header-active-fg, #fff)', borderRadius: 'calc(var(--radius) - 4px)' }}
           >
             <IconCart size={13} className="mr-1 inline" /> {ctx.cartCount > 0 ? `${ctx.cartCount}` : 'Cart'}
             {ctx.cartCount > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-extrabold" style={{ background: 'var(--accent)', color: '#0F172A' }}>{ctx.cartCount}</span>
+              <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-extrabold" style={{ background: 'var(--accent)', color: 'var(--gs-header-ticker-fg, #0F172A)' }}>{ctx.cartCount}</span>
             ) : null}
           </button>
         </div>
@@ -88,6 +95,7 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
             : 'flex items-center overflow-x-auto'
           }`}
           aria-label="Storefront pages"
+          style={{ background: 'var(--gs-header-surface, rgba(9,13,22,.96))' }}
         >
           {NAV_LINKS.map(({ key, label }) => {
             const on = active === key;
@@ -97,8 +105,11 @@ export default function TickerHeader({ t, active, onNavigate, ctx }) {
                 type="button"
                 onClick={() => { onNavigate(key); setMenuOpen(false); }}
                 aria-current={on ? 'page' : undefined}
+                data-gs-header-control=""
                 className="shrink-0 rounded-md px-2.5 py-2 text-[11px] font-bold transition"
-                style={on ? { background: 'var(--primary)', color: '#fff' } : { color: 'rgba(255,255,255,.7)' }}
+                style={on
+                  ? { background: 'var(--gs-header-active-bg, var(--primary))', color: 'var(--gs-header-active-fg, #fff)' }
+                  : { color: 'var(--gs-header-muted, rgba(255,255,255,.7))' }}
               >
                 {label}
               </button>

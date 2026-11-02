@@ -13,6 +13,7 @@ import {
 import {
   ArrowLeft, Monitor, Smartphone, Tablet, X, BadgeCheck, Star, Palette,
 } from 'lucide-react';
+import Storefront, { toDisplayProduct } from '../components/storefront/Storefront.jsx';
 import { templateToCustomizerTokens, mergeThemeConfig, normalizeCustomThemeConfig } from '../theme/config.js';
 import '../components/storefront/templates/themeCompositions.css';
 
@@ -344,9 +345,9 @@ export default function ThemeDemoViewer({ templateId }) {
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewport, setViewport] = useState('desktop');
-  const [selected, setSelected] = useState(null);
-  const [cartCount, setCartCount] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [previewPage, setPreviewPage] = useState('home');
+  const [previewProductId, setPreviewProductId] = useState(null);
+  const [previewCart, setPreviewCart] = useState([]);
   const [applying, setApplying] = useState(false);
   const [published, setPublished] = useState(false);
   /* The seller's saved overrides, layered back over the template when the
@@ -362,6 +363,9 @@ export default function ThemeDemoViewer({ templateId }) {
       const res = await api.get(`/api/themes/demo/${encodeURIComponent(templateId)}`);
       setData(res);
       setPublished(false);
+      setPreviewPage('home');
+      setPreviewProductId(null);
+      setPreviewCart([]);
       /* Resolve whether this demoed theme is the seller's ACTIVE theme
          (per requirement: once a theme is active, opening its preview
          reveals the Customizer button). */
@@ -381,12 +385,6 @@ export default function ThemeDemoViewer({ templateId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Lock page scroll while the product dialog is open.
-  useEffect(() => {
-    document.body.style.overflow = selected ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [selected]);
-
   async function applyTheme() {
     if (applying || !data?.theme) return;
     setApplying(true);
@@ -400,11 +398,6 @@ export default function ThemeDemoViewer({ templateId }) {
     } finally {
       setApplying(false);
     }
-  }
-
-  function buyLink(product) {
-    const msg = `Hello! I would like to order "${product.name}" (${ghs(product.price)}). Is it available?`;
-    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
   }
 
   /* Open the customizer pre-seeded with the ACTIVE theme (the one being
@@ -431,7 +424,46 @@ export default function ThemeDemoViewer({ templateId }) {
   }
 
   const vp = VIEWPORTS.find((v) => v.key === viewport) || VIEWPORTS[0];
-  const cfg = data?.theme?.config || {};
+  const previewConfig = data?.theme
+    ? templateToCustomizerTokens(data.theme)
+    : null;
+  const previewProducts = data?.sampleItems?.map((item) => toDisplayProduct({
+    id: item.id,
+    name: item.name,
+    description: item.description || item.tagline,
+    category: data?.theme?.category || 'marketplace',
+    price: item.price,
+    stock: 20,
+    image_url: item.imageUrl,
+  })) || [];
+  const previewWidth = viewport === 'desktop' ? 1120 : vp.width;
+
+  function navigatePreview(page, id = null) {
+    setPreviewPage(page);
+    setPreviewProductId(page === 'product' ? id : null);
+  }
+
+  function addPreviewCartItem(product, _variant, quantity = 1) {
+    setPreviewCart((items) => {
+      const current = items.find((item) => String(item.id) === String(product.id));
+      if (current) {
+        return items.map((item) => (
+          String(item.id) === String(product.id)
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        ));
+      }
+      return [...items, { ...product, quantity }];
+    });
+  }
+
+  function setPreviewCartQuantity(product, quantity) {
+    setPreviewCart((items) => quantity <= 0
+      ? items.filter((item) => String(item.id) !== String(product.id))
+      : items.map((item) => (
+        String(item.id) === String(product.id) ? { ...item, quantity } : item
+      )));
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-200/70">
@@ -549,42 +581,28 @@ export default function ThemeDemoViewer({ templateId }) {
             )}
 
             {/* The storefront itself */}
-            <div
-              className="sandbox-shell relative overflow-hidden bg-white shadow-2xl"
-              data-gs-preview=""
-              data-gs-page="home"
-              data-gs-composition={cfg.design?.composition || ''}
-              data-gs-profile={cfg.design?.profile || ''}
-              data-gs-header={cfg.design?.header || ''}
-              data-gs-hero={cfg.design?.hero || ''}
-              data-gs-product-presentation={cfg.design?.productPresentation || ''}
-              style={{
-                '--primary': cfg.palette?.primary || '#0B6E4F',
-                '--bg': cfg.palette?.background || '#FFFFFF',
-                '--text': cfg.palette?.textPrimary || '#0F172A',
-                '--accent': cfg.palette?.accent || '#F59E0B',
-                '--radius': cfg.borderRadius?.base || '0.5rem',
-                containerType: 'inline-size',
-                containerName: 'storefront',
-                borderRadius: viewport === 'desktop' ? 16 : 34,
-              }}
-            >
-              <div className="relative h-[calc(100vh-9.5rem)] min-h-[520px] overflow-y-auto overscroll-contain">
-                <StorefrontHeader
-                  config={cfg}
-                  viewport={viewport}
-                  cartCount={cartCount}
-                  menuOpen={menuOpen}
-                  onToggleMenu={() => setMenuOpen((o) => !o)}
-                />
-                <StorefrontBody
-                  config={cfg}
-                  items={data.sampleItems}
-                  viewport={viewport}
-                  onSelect={setSelected}
-                  onAddToCart={() => setCartCount((c) => c + 1)}
-                />
-              </div>
+            <div className="sandbox-shell relative overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <Storefront
+                config={previewConfig}
+                products={previewProducts}
+                cart={previewCart}
+                productId={previewProductId}
+                page={previewPage}
+                viewportWidth={previewWidth}
+                onNavigate={navigatePreview}
+                onAddToCart={addPreviewCartItem}
+                onSetQty={setPreviewCartQuantity}
+                onRemove={(product) => setPreviewCart((items) => (
+                  items.filter((item) => String(item.id) !== String(product.id))
+                ))}
+                className="relative min-h-[520px] overscroll-contain"
+                rootStyle={{
+                  height: 'calc(100vh - 9.5rem)',
+                  minHeight: '520px',
+                  containerType: 'inline-size',
+                  containerName: 'storefront',
+                }}
+              />
             </div>
 
             <p className="mt-3 text-center text-[11px] font-semibold text-slate-500">
@@ -594,10 +612,6 @@ export default function ThemeDemoViewer({ templateId }) {
         )}
       </main>
 
-      {/* Product detail dialog */}
-      {selected && (
-        <ProductDialog product={selected} onClose={() => setSelected(null)} buyLink={buyLink} />
-      )}
     </div>
   );
 }

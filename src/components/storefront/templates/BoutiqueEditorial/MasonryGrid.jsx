@@ -26,6 +26,7 @@ export default function MasonryGrid({ t, products, onQuickView, ctx }) {
           <div
             key={p.id}
             className="group relative mb-6 break-inside-avoid"
+            data-gs-product-card=""
             style={{ borderRadius: 'var(--radius)', marginTop: !compact && i % 2 === 1 ? '2.5rem' : undefined }}
           >
             <button
@@ -52,6 +53,7 @@ export default function MasonryGrid({ t, products, onQuickView, ctx }) {
                 <span className="block text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">{p.category || 'Collection'}</span>
                 <span className="mt-0.5 block text-base font-bold text-white" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{p.name}</span>
                 <span
+                  data-gs-product-price=""
                   className="mt-1.5 inline-block rounded-full px-3 py-1 text-sm font-extrabold text-white transition-all duration-300"
                   style={{
                     background: 'rgba(255,255,255,.14)',

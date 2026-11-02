@@ -34,6 +34,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 import posRoutes from './routes/posRoutes.js';
 import paymentSettingsRoutes from './routes/paymentSettingsRoutes.js';
 import managedPayoutRoutes from './routes/managedPayoutRoutes.js';
+import didwaAiRoutes from './routes/didwaAiRoutes.js';
 import smsSettingsRoutes from './routes/smsSettingsRoutes.js';
 import smsPacksRoutes from './routes/smsPacksRoutes.js';
 import whatsappInvoiceRoutes, { whatsappRouter } from './routes/whatsappInvoiceRoutes.js';
@@ -185,12 +186,19 @@ const affiliatePayoutLimiter = createRateLimiter({
   message: 'Too many payout requests. Please wait before submitting another request.',
   skip: (req) => req.method !== 'POST',
 });
+const didwaAiLimiter = createRateLimiter({
+  name: 'didwa-ai',
+  windowMs: 60_000,
+  max: 30,
+  message: 'Too many DiDwa AI requests. Please wait a moment and try again.',
+});
 
 app.use('/api/public/orders', publicOrderLimiter);
 app.use('/api/contact', publicContactLimiter);
 app.use('/api/storefront', publicContactLimiter);
 app.use('/api/domains/search', domainSearchLimiter);
 app.use('/api/affiliate/payouts', affiliatePayoutLimiter);
+app.use('/api/ai', didwaAiLimiter);
 
 app.get('/health', async (_req, res) => {
   try {
@@ -235,6 +243,7 @@ app.get('/health', async (_req, res) => {
 app.use('/api/billing', billingRoutes);
 app.use('/api/payment-settings', paymentSettingsRoutes);
 app.use('/api', managedPayoutRoutes);
+app.use('/api/ai', didwaAiRoutes);
 app.use('/api/sms-settings', smsSettingsRoutes);
 app.use('/api/sms-packs', smsPacksRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -292,8 +301,8 @@ installProcessGuards();
 // Only bind a port + start the scheduler when executed directly. Under Vercel
 // (or any serverless wrapper importing this module) the platform owns the
 // socket, and scheduled jobs arrive via GET /api/billing/cron instead.
-const invokedDirectly = Boolean(process.argv[1]) &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const invokedDirectly = process.env.DIDWA_START_SERVER === 'true'
+  || (Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href);
 
 if (invokedDirectly && !ON_VERCEL) {
   app.listen(PORT, () => {

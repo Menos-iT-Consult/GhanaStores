@@ -112,6 +112,10 @@ console.log('\nDiDwa responsive behaviour -> index.html + src/index.css + src/li
     && /containerName:\s*'storefront'/.test(themePreview)
     && /containerType:\s*'inline-size'/.test(themeDemo)
     && /containerName:\s*'storefront'/.test(themeDemo));
+  log('theme demo renders the shared storefront with the selected theme tokens',
+    /import Storefront, \{ toDisplayProduct \} from '\.\.\/components\/storefront\/Storefront\.jsx'/.test(themeDemo)
+    && /templateToCustomizerTokens\(data\.theme\)/.test(themeDemo)
+    && /data\?\.theme\?\.category/.test(themeDemo));
   log('composition breakpoints use storefront container width, not browser width',
     /@container storefront \(max-width: 640px\)/.test(themeCompositionCss)
     && /@container storefront \(max-width: 479px\)/.test(themeCompositionCss)

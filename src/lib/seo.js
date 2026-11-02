@@ -48,23 +48,15 @@ export const META_CONTENT = {
     title: 'Online Store Builder in Ghana & POS | DiDwa',
     titleLength: 43,
     description:
-      'Run your Ghanaian shop online and in-store with DiDwa. Accept Mobile Money, manage inventory and orders, and launch your own online store.',
-    descriptionLength: 138,
-    h1: 'Sell in-store and online with DiDwa',
+      'Manage in-person and online sales, stock, orders, and storefront themes with DiDwa. Get guided seller AI tools and managed payout requests.',
+    descriptionLength: 139,
+    h1: 'Sell in-store & online. Manage every sale with DiDwa.',
     h2s: [
-      'The All-in-One Commerce Platform for Ghanaian Merchants',
-      'Accept Mobile Money & Card Payments',
-      'Digital POS Built for Ghanaian Retail',
-      'Inventory Management for Local Shops',
-      'Why Ghanaian Sellers Choose DiDwa',
-      'Local Support & Cedi Pricing',
-      'Subdomain & Custom Domain Setup',
-      'Mobile-First Storefront Design',
-      'Start Selling Online in 3 Steps',
-      'Step 1: Register Your Store',
-      'Step 2: Add Products & Set Prices',
-      'Step 3: Go Live & Accept Orders',
-      'Frequently Asked Questions',
+      'One login. Every tool your shop needs.',
+      'Three steps to your first sale',
+      'Tools that work together around your store',
+      'Manage your shop on mobile.',
+      'Ready to sell smarter?',
     ],
   },
   merchantLanding: {
@@ -101,15 +93,19 @@ export const META_CONTENT = {
 
 export const FAQ_CONTENT = [
   {
-    q: 'What is the best e-commerce platform in Ghana?',
-    a: 'DiDwa is built specifically for Ghanaian merchants, with Mobile Money integration, cedi pricing, and local support.',
+    q: 'What is DiDwa?',
+    a: 'DiDwa is a commerce platform for Ghanaian merchants to manage in-person POS sales, products, inventory, online storefronts, and orders.',
   },
   {
     q: 'Can I sell online in Ghana with DiDwa?',
-    a: 'Yes. DiDwa lets you build an online store, list products, accept payments via MOMO and cards, and manage orders from one dashboard.',
+    a: 'Yes. Build a storefront with curated themes, customize and preview it, then manage products and online orders from your seller dashboard.',
   },
   {
-    q: 'Does DiDwa support Mobile Money payments?',
-    a: 'Yes. DiDwa integrates with MTN MoMo, Vodafone Cash, and AirtelTigo Money for Ghanaian customers.',
+    q: 'Which payment methods can customers use?',
+    a: "Checkout options depend on the merchant's configured Paystack or Hubtel gateway. Merchants may also enable cash on delivery where available.",
+  },
+  {
+    q: 'What can DiDwa AI do?',
+    a: "The seller-only assistant offers guided, system-generated actions for WhatsApp order parsing, product copy, store insights, and managed payout information using the seller's own store data.",
   },
 ];
