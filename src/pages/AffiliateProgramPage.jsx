@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, BadgePercent, CalendarDays, Clock3, Wallet } from 'lucide-react';
+import {
+  ArrowRight, BadgePercent, CalendarDays, Clock3, Link2, ShieldCheck, Users, Wallet,
+} from 'lucide-react';
 import { api } from '../api.js';
 import { PublicShell } from './PublicPages.jsx';
 import MetaTags from '../components/seo/MetaTags.jsx';
@@ -109,6 +111,77 @@ export default function AffiliateProgramPage({ authed = false, onStart, onDashbo
             </dl>
           )}
         </section>
+
+        <section className="mt-16" aria-labelledby="affiliate-how-heading">
+          <div className="text-center">
+            <h2 id="affiliate-how-heading" className="text-2xl font-extrabold tracking-tight text-charcoal">
+              How the affiliate program works
+            </h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+              Refer businesses that could benefit from DiDwa, then follow referrals and eligible commissions from your affiliate dashboard.
+            </p>
+          </div>
+          <ol className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                Icon: Users,
+                title: 'Create your affiliate account',
+                body: 'Sign up for the affiliate portal to get your own referral link and code.',
+              },
+              {
+                Icon: Link2,
+                title: 'Share your referral link',
+                body: 'Introduce merchants to DiDwa. Referrals are attributed using your link and the current attribution window shown above.',
+              },
+              {
+                Icon: BadgePercent,
+                title: 'Track referrals and commissions',
+                body: 'Use your dashboard to review referred stores, recorded commissions, balances and payout requests.',
+              },
+            ].map(({ Icon, title, body }, index) => (
+              <li key={title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                  <Icon size={20} aria-hidden="true" />
+                </span>
+                <p className="mt-4 text-xs font-extrabold uppercase tracking-wide text-blue-700">Step {index + 1}</p>
+                <h3 className="mt-1 text-base font-extrabold text-charcoal">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">{body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="mt-12 grid gap-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 sm:grid-cols-[auto_1fr] sm:p-8">
+          <ShieldCheck className="text-emerald-700" size={24} aria-hidden="true" />
+          <div>
+            <h2 className="text-lg font-extrabold text-charcoal">Requesting your commission payout</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Payout requests use commissions marked paid, must meet the current minimum and require a Mobile Money account verified in your dashboard. The processing window shown in the program terms applies after you submit a request. You can check request status and history in the portal.
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Commissions and referrals are subject to the current program terms. Earnings depend on eligible referrals and are not guaranteed.
+            </p>
+          </div>
+        </section>
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+          <a
+            href={AFFILIATE_SIGNUP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+          >
+            Join the affiliate program <ArrowRight size={16} aria-hidden="true" />
+          </a>
+          <a
+            href={AFFILIATE_LOGIN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal"
+          >
+            Affiliate sign in
+          </a>
+        </div>
       </main>
     </PublicShell>
   );

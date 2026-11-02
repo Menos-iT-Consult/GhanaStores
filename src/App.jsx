@@ -327,8 +327,8 @@ case '/messages': return <SellerMessages />;
     if (route === '/affiliate/login' || route === '/affiliate/signup') {
       return <AffiliateAccessPage initialMode={route.endsWith('/signup') ? 'signup' : 'login'} />;
     }
-    if (route === '/affiliate-program') return <AffiliateProgramPage />;
-    if (route === '/' || route === '/affiliate/dashboard'
+    if (route === '/' || route === '/affiliate-program') return <AffiliateProgramPage />;
+    if (route === '/affiliate/dashboard'
         || route === '/affiliate/dashboard/referrals' || route === '/affiliate/dashboard/payouts') {
       return <AffiliateDashboardPage />;
     }
