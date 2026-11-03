@@ -91,7 +91,7 @@ export function OfflineConnectionOverlay({ enabled }: OfflineConnectionOverlayPr
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
 
   return (
-    <View style={[styles.overlay, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.overlay, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.content}>
         <Animated.View style={[styles.iconWrap, { backgroundColor: colors.primaryContainer, transform: [{ scale }] }]}>
           <MaterialCommunityIcons name="wifi-off" size={46} color={colors.onPrimaryContainer} />
@@ -130,6 +130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
+    paddingBottom: 28,
   },
   content: { width: '100%', maxWidth: 380, alignItems: 'center' },
   iconWrap: {

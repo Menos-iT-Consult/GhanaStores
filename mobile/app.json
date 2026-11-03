@@ -31,7 +31,9 @@
       [
         "expo-notifications",
         {
-          "color": "#0066FF"
+          "color": "#0066FF",
+          "defaultChannel": "orders",
+          "iosDisplayInForeground": true
         }
       ],
       [

@@ -143,6 +143,12 @@ export function saveDeviceNotificationPreferences(token: string, preferences: De
     .then((r) => r.data.preferences);
 }
 
+export function sendTestPush() {
+  return api
+    .post<{ sent: number; failed: number; message: string }>('/api/mobile/devices/test')
+    .then((r) => r.data);
+}
+
 /* ------------------------------- Notifications ----------------------------- */
 
 /** Server-backed push history for the Notifications screen (newest first). */

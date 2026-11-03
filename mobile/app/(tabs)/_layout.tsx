@@ -14,6 +14,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useThemeMode } from '@/theme/ThemeContext';
+import { DiDwaAiSheet } from '@/components/ai/DiDwaAiSheet';
 
 /**
  * Bottom tab navigator for the signed-in merchant, ordered:
@@ -103,6 +104,7 @@ function LiquidTabBar({
 }: BottomTabBarProps) {
   const { colors } = useTheme();
   const { isDark } = useThemeMode();
+  const [aiVisible, setAiVisible] = useState(false);
   const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const [capsuleWidth, setCapsuleWidth] = useState(0);
@@ -112,7 +114,8 @@ function LiquidTabBar({
     progress.value = reduceMotion ? state.index : withSpring(state.index, PILL_SPRING);
   }, [state.index, progress, reduceMotion]);
 
-  const tabWidth = capsuleWidth / Math.max(1, state.routes.length);
+  const aiSlotWidth = 56;
+  const tabWidth = (capsuleWidth - aiSlotWidth) / Math.max(1, state.routes.length);
 
   const pillStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: progress.value * tabWidth + 6 }],
@@ -181,8 +184,23 @@ function LiquidTabBar({
               />
             );
           })}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open DiDwa AI"
+            onPress={() => setAiVisible(true)}
+            style={({ pressed }) => [
+              styles.aiTabButton,
+              {
+                backgroundColor: colors.primary,
+                opacity: pressed ? 0.84 : 1,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons name="robot-outline" size={25} color={colors.onPrimary} />
+          </Pressable>
         </View>
       </View>
+      <DiDwaAiSheet visible={aiVisible} onDismiss={() => setAiVisible(false)} />
     </View>
   );
 }
@@ -225,9 +243,20 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: 'row',
     flex: 1,
+    paddingRight: 56,
   },
   tabButton: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiTabButton: {
+    position: 'absolute',
+    right: 7,
+    top: 7,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
   },

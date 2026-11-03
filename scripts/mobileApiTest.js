@@ -240,7 +240,8 @@ test('splash animates smoothly and DiDwa AI is available from the bottom navigat
   assert.ok(splash.includes('useReducedMotion'));
   assert.ok(root.includes('accessibilityLabel="Open DiDwa AI"'));
   assert.ok(root.includes('<DiDwaAiSheet'));
-  assert.ok(root.includes("segments[0] === '(tabs)'"));
+  assert.ok(tabs.includes('Open DiDwa AI'), 'AI button must be mounted inside the tab bar');
+  assert.ok(tabs.includes('<DiDwaAiSheet'), 'tab-bar AI button must open the AI sheet');
   assert.ok(tabs.includes('<LiquidTabBar {...props} />'));
   assert.ok(!dashboard.includes("label: 'DiDwa AI'"));
   assert.ok(ai.includes('actionChips: { flexDirection: \'row\', flexWrap: \'wrap\''));
@@ -461,6 +462,35 @@ test('mobile app has a branded offline overlay with automatic reconnect recovery
   assert.ok(offline.includes("type: 'active'"), 'reconnect must refetch active network queries');
   assert.ok(offline.includes("You're offline"), 'custom branded offline copy must be present');
   assert.ok(offline.includes('Try again'), 'offline retry action must be available');
+});
+
+test('AI button is integrated into the tab bar and app writes are queued offline', () => {
+  const tabs = read('mobile/app/(tabs)/_layout.tsx');
+  const client = read('mobile/src/api/client.ts');
+  const outbox = read('mobile/src/offline/appOutbox.ts');
+  const cache = read('mobile/src/queryClient.ts');
+  assert.ok(tabs.includes('accessibilityLabel="Open DiDwa AI"'), 'AI must be an accessible tab-bar control');
+  assert.ok(tabs.includes('paddingRight: 56'), 'AI slot must reserve its own space in the capsule');
+  assert.ok(tabs.includes('DiDwaAiSheet'), 'the tab-bar AI button must open the shared sheet');
+  assert.ok(client.includes('enqueueMutation'), 'network mutation failures must enter the offline queue');
+  assert.ok(outbox.includes('flushAppOutbox'), 'queued app writes must flush on reconnect');
+  assert.ok(cache.includes('hydrateQueryCache'), 'query reads must be restored for offline use');
+});
+
+test('push delivery has category channels, backend test delivery, and app controls', () => {
+  const pushClient = read('mobile/src/services/pushNotifications.ts');
+  const pushServer = read('services/pushService.js');
+  const deviceRoutes = read('routes/mobileDeviceRoutes.js');
+  const settings = read('mobile/app/settings.tsx');
+  const endpoints = read('mobile/src/api/endpoints.ts');
+  assert.ok(pushClient.includes("id: 'orders'"), 'Android orders channel must exist');
+  assert.ok(pushClient.includes("id: 'payments'"), 'Android payments channel must exist');
+  assert.ok(pushClient.includes("id: 'stock'"), 'Android stock channel must exist');
+  assert.ok(pushClient.includes("id: 'account'"), 'Android account channel must exist');
+  assert.ok(pushServer.includes("channelId: category"), 'server messages must use category channels');
+  assert.ok(deviceRoutes.includes("router.post('/test'"), 'backend push test endpoint must exist');
+  assert.ok(endpoints.includes('/api/mobile/devices/test'), 'app must expose push test API');
+  assert.ok(settings.includes('Send test notification'), 'settings must expose push delivery testing');
 });
 
 test('successful password and 2FA login navigate directly to the seller dashboard', () => {

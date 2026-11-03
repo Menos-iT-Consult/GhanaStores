@@ -8,7 +8,7 @@ import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
-import { queryClient } from '@/queryClient';
+import { clearQueryCache, hydrateQueryCache, queryClient } from '@/queryClient';
 import { ThemeProvider, useThemeMode } from '@/theme/ThemeContext';
 import {
   addNotificationResponseListener,
@@ -25,6 +25,7 @@ import { isBiometricLockEnabled } from '@/services/biometricService';
 import { useMotionScreenOptions } from '@/navigation/useMotionScreenOptions';
 import { DiDwaAiSheet } from '@/components/ai/DiDwaAiSheet';
 import { OfflineConnectionOverlay } from '@/components/OfflineConnectionOverlay';
+import { startAppOfflineSync } from '@/offline/appOutbox';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -234,11 +235,20 @@ function RootNavigator() {
           <DidwaLottieSplash onReady={markSplashPainted} />
         </View>
       ) : null}
-      {ready && status === 'signedIn' && !isLocked && !showSplash ? (
-        <DiDwaAiDock inTabs={segments[0] === '(tabs)'} />
+      {ready && status === 'signedIn' && !isLocked && !showSplash &&
+        !['dashboard', 'products', 'pos', 'orders', 'customers'].includes(String(segments[0])) ? (
+        <DiDwaAiDock inTabs={false} />
       ) : null}
       <OfflineConnectionOverlay
-        enabled={ready && !isLocked && !showSplash && pathname !== '/pos' && !pathname.startsWith('/pos/') && !pathname.includes('/pos/')}
+        enabled={
+          ready &&
+          !isLocked &&
+          !showSplash &&
+          pathname !== '/pos' &&
+          !pathname.startsWith('/(tabs)/pos') &&
+          !pathname.startsWith('/pos/') &&
+          !pathname.includes('/pos/')
+        }
       />
     </>
   );
@@ -310,10 +320,28 @@ export default function RootLayout() {
       <ThemeProvider>
         <ThemedProviders>
           <AuthProvider>
-            <RootNavigator />
+            <CachedRootLayout />
           </AuthProvider>
         </ThemedProviders>
       </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+function CachedRootLayout() {
+  const [cacheReady, setCacheReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    hydrateQueryCache().finally(() => {
+      if (active) setCacheReady(true);
+    });
+    const stopSync = startAppOfflineSync();
+    return () => {
+      active = false;
+      stopSync();
+    };
+  }, []);
+
+  return cacheReady ? <RootNavigator /> : <View style={StyleSheet.absoluteFill} />;
 }

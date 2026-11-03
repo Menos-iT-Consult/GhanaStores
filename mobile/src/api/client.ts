@@ -1,5 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import NetInfo from '@react-native-community/netinfo';
+import { enqueueMutation } from '@/offline/appOutbox';
 
 /**
  * Axios client for the DiDwa mobile API.
@@ -86,6 +88,27 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
+    const method = String(original?.method || '').toUpperCase();
+    if (!error.response && original && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+      const network = await NetInfo.fetch().catch(() => null);
+      if (!network || !network.isConnected || network.isInternetReachable === false) {
+        await enqueueMutation({
+          method,
+          url: original.url || '',
+          data: original.data,
+          headers: original.headers
+            ? Object.fromEntries(Object.entries(original.headers).map(([key, value]) => [key, String(value)]))
+            : undefined,
+        });
+        return {
+          data: { queued: true, message: 'Saved offline. It will sync when internet returns.' },
+          status: 202,
+          statusText: 'Queued Offline',
+          headers: {},
+          config: original,
+        } as any;
+      }
+    }
 
     // Respect server-side rate limits: back off once, then surface the error.
     if (status === 429 && original && !(original as any)._rateLimited) {

@@ -12,6 +12,7 @@ import {
   type PushRegistrationResult,
 } from '@/services/pushNotifications';
 import * as endpoints from '@/api/endpoints';
+import { apiErrorMessage } from '@/api/client';
 import type { DeviceNotificationPreferences } from '@/types';
 
 type PushPermissionStatus = Awaited<ReturnType<typeof getPushPermissionStatus>>;
@@ -113,6 +114,20 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('[push] Could not enable notifications:', error);
       setPushMessage('Could not enable notifications. Please try again.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const sendTestNotification = async () => {
+    setPushBusy(true);
+    setPushMessage(null);
+    try {
+      const result = await endpoints.sendTestPush();
+      setPushMessage(result.message);
+    } catch (error) {
+      console.error('[push] Could not send push test:', error);
+      setPushMessage(apiErrorMessage(error, 'Could not send the test notification.'));
     } finally {
       setPushBusy(false);
     }
@@ -232,6 +247,18 @@ export default function SettingsScreen() {
                   style={styles.pushAction}
                 >
                   {pushPermission === 'granted' ? 'Refresh this device' : 'Enable notifications'}
+                </Button>
+              ) : null}
+              {pushPermission === 'granted' && !pushStatusError ? (
+                <Button
+                  mode="text"
+                  icon="bell-ring-outline"
+                  loading={pushBusy}
+                  disabled={pushBusy}
+                  onPress={() => void sendTestNotification()}
+                  style={styles.pushAction}
+                >
+                  Send test notification
                 </Button>
               ) : null}
               {pushStatusError ? (

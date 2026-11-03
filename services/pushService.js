@@ -134,18 +134,18 @@ export async function sendMerchantPushNotification({ storeId, title, body, data 
       const recipients = rows.filter((row) =>
         shouldSendPushNotification(row.notification_preferences, data?.type),
       );
+      const category = notificationCategory(data?.type);
       const messages = recipients.map((r) => ({
         to: r.expo_push_token,
         sound: 'default',
         title: String(title),
         body: String(body),
         data: data || {},
-        // Android decides visibility by channel. Since Expo's FCM V1 migration a
-        // message with no channelId is dropped into an auto-created fallback
-        // channel (fcm_fallback_notification_channel) which is often silent, so
-        // the notification arrives but is never seen. Target the high-importance
-        // 'orders' channel the client creates on permission grant. Ignored on iOS.
-        ...(r.platform === 'android' ? { channelId: 'orders' } : {}),
+        priority: 'high',
+        // Android only. Messages can target category-specific channels that the
+        // app creates before registering, avoiding Expo's silent fallback channel.
+        ...(r.platform === 'android' ? { channelId: category } : {}),
+        ...(r.platform === 'ios' ? { _contentAvailable: true } : {}),
       }));
 
       const invalidTokens = [];

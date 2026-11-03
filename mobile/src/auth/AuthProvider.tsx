@@ -13,6 +13,7 @@ import { isTwoFactorChallenge, type LoginResult, type Session, type StoreMeta } 
 import { unregisterDeviceForPush } from '@/services/pushNotifications';
 import { clearWidgetSnapshot } from '@/widgets/snapshot';
 import { clearBiometricLockPreference } from '@/services/biometricService';
+import { clearQueryCache } from '@/queryClient';
 
 /**
  * Session + auth state for the seller app. Credentials (access + refresh
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const rt = currentRefreshToken();
     if (rt) await endpoints.logout(rt).catch(() => undefined);
     await clearSession();
+    await clearQueryCache();
     // Drop the cached store numbers so the home-screen widget falls back to
     // its "open the app to sync" empty state instead of stale figures.
     await clearWidgetSnapshot();

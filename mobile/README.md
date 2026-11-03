@@ -76,18 +76,103 @@ subdomain is recommended — the app never uses host-header tenant routing).
 
 ```bash
 npm i -g eas-cli
-eas login                 # GitHub / Google login both fine
-eas init                  # writes your Expo username + projectId into app.json
+eas login
+eas project:info
 ```
 
-`app.json` ships with `owner: REPLACE_WITH_EXPO_USERNAME` and
-`extra.eas.projectId: REPLACE_WITH_EAS_PROJECT_ID` placeholders — `eas init`
-fills both. **Expo push tokens only mint after a real projectId exists.**
+The mobile app is already linked to:
 
-Push category preferences apply to the currently registered device. Changing
-the account sign-in email or verified phone from **Settings → Business profile**
-requires the current password and a verification code sent to the new contact.
-Public storefront contacts are separate from those account-recovery details.
+- EAS owner: `didwa-seller`
+- EAS project ID: `3f211281-79e1-4a80-97a8-83b1209f7f52`
+- Android package: `com.didwa.seller`
+- iOS bundle identifier: `com.didwa.seller`
+- API origin: `https://app.didwaghana.com`
+
+Expo push tokens require the EAS project ID and a physical device. Push
+registration is not available in Android emulators or iOS simulators.
+
+## Push notification setup
+
+### Android / Firebase Cloud Messaging
+
+1. Create or select the Firebase project associated with `com.didwa.seller`.
+2. In Firebase Console, register an Android app with package name
+   `com.didwa.seller` and download the generated service configuration only if
+   needed by the native build workflow.
+3. Run:
+
+   ```bash
+   cd mobile
+   eas credentials --platform android
+   ```
+
+4. Choose the EAS build profile, configure Google Service Account / FCM Key,
+   and upload or link the Android push credentials in EAS.
+5. Build a development or preview client; Expo Go does not provide the same
+   native notification behavior as a standalone development build.
+
+   ```bash
+   eas build --profile development --platform android
+   ```
+
+The app creates these Android channels after notification permission is
+granted:
+
+- `orders` - new and updated orders
+- `payments` - received payments
+- `stock` - low-stock alerts
+- `account` - subscription, plan, and security updates
+
+Notification channel settings can be changed by the user in Android system
+Settings. The app supplies the channel descriptions and default high importance.
+
+### iOS / Apple Push Notifications
+
+1. Use an Apple Developer account with access to the `com.didwa.seller` app
+   identifier.
+2. In Apple Developer certificates, identifiers, and profiles, enable the Push
+   Notifications capability for `com.didwa.seller`.
+3. Run:
+
+   ```bash
+   cd mobile
+   eas credentials --platform ios
+   ```
+
+4. Let EAS create or select the Apple Push Key or APNs certificate for this
+   bundle identifier. Store the Apple credentials only in EAS, not in source.
+5. Build and install the app on a physical iPhone:
+
+   ```bash
+   eas build --profile development --platform ios
+   ```
+
+The app requests permission explicitly from **Settings**. Foreground alerts are
+enabled on iOS, and notification taps open the relevant app route.
+
+### Register and test
+
+1. Install the development or preview build on a physical Android or iOS
+   device.
+2. Sign in as a seller and open **Settings**.
+3. Enable notification permission when prompted.
+4. Tap **Refresh push registration** if the registration status is not
+   `Registered`.
+5. Tap **Send test notification**.
+6. Verify the banner or lock-screen alert, notification-category preference
+   behavior, and notification history.
+
+For a full validation pass, test:
+
+- permission granted and denied
+- foreground and background delivery
+- app closed and cold-start notification tap
+- order, payment, stock, and account deep links
+- category preference changes
+- token refresh
+- Android channels
+- Expo device-not-registered cleanup
+- reconnect behavior after the device comes back online
 
 ## Build & submit
 

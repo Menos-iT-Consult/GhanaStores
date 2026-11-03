@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { query } from '../config/database.js';
 import { authenticateMobileToken } from '../middleware/authMiddleware.js';
+import { sendMerchantPushNotification } from '../services/pushService.js';
 
 const router = Router();
 
@@ -134,6 +135,27 @@ router.put('/preferences', authenticateMobileToken, async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'This device is not registered for notifications.' });
     res.json({ preferences: rows[0].notification_preferences });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------------- Delivery test ----------------------------- */
+router.post('/test', authenticateMobileToken, async (req, res, next) => {
+  try {
+    const result = await sendMerchantPushNotification({
+      storeId: req.storeId,
+      title: 'DiDwa push test',
+      body: 'Your notifications are working correctly.',
+      data: { type: 'welcome', source: 'settings_test' },
+    });
+    res.json({
+      sent: result.sent,
+      failed: result.failed,
+      message: result.sent > 0
+        ? 'Test notification sent.'
+        : 'No registered device received the test. Refresh this device first.',
+    });
   } catch (err) {
     next(err);
   }

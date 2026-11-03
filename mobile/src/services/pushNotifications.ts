@@ -50,12 +50,22 @@ export async function requestPushPermission(): Promise<boolean> {
 
 async function ensureNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync('orders', {
-    name: 'Orders',
-    importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: '#0066FF',
-  });
+  const channels = [
+    { id: 'orders', name: 'Orders', description: 'New orders and order updates', lightColor: '#0066FF' },
+    { id: 'payments', name: 'Payments', description: 'Payment confirmations and receipts', lightColor: '#16A34A' },
+    { id: 'stock', name: 'Stock alerts', description: 'Low stock and inventory warnings', lightColor: '#F59E0B' },
+    { id: 'account', name: 'Account updates', description: 'Security, subscription, and store alerts', lightColor: '#7C3AED' },
+  ];
+  await Promise.all(channels.map((channel) =>
+    Notifications.setNotificationChannelAsync(channel.id, {
+      name: channel.name,
+      description: channel.description,
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: channel.lightColor,
+      enableVibrate: true,
+    }),
+  ));
 }
 
 /**
