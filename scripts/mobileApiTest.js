@@ -232,14 +232,19 @@ test('mobile payment settings support managed payments and managed payouts', () 
 test('splash animates smoothly and DiDwa AI is available from the bottom navigation', () => {
   const splash = read('mobile/src/components/DidwaLottieSplash.tsx');
   const tabs = read('mobile/app/(tabs)/_layout.tsx');
+  const root = read('mobile/app/_layout.tsx');
   const dashboard = read('mobile/app/(tabs)/dashboard/index.tsx');
   const ai = read('mobile/src/components/ai/DiDwaAiSheet.tsx');
   const settings = read('mobile/app/settings.tsx');
   assert.ok(splash.includes('withRepeat'));
   assert.ok(splash.includes('useReducedMotion'));
-  assert.ok(tabs.includes('accessibilityLabel="Open DiDwa AI"'));
-  assert.ok(tabs.includes('<DiDwaAiSheet'));
+  assert.ok(root.includes('accessibilityLabel="Open DiDwa AI"'));
+  assert.ok(root.includes('<DiDwaAiSheet'));
+  assert.ok(root.includes("segments[0] === '(tabs)'"));
+  assert.ok(tabs.includes('<LiquidTabBar {...props} />'));
   assert.ok(!dashboard.includes("label: 'DiDwa AI'"));
+  assert.ok(ai.includes('actionChips: { flexDirection: \'row\', flexWrap: \'wrap\''));
+  assert.ok(!ai.includes('<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionChips}>'));
   assert.ok(!ai.includes('AI_SUPPORT_FALLBACK'));
   assert.ok(!settings.includes('<ThemeToggle'));
 });
@@ -250,7 +255,8 @@ test('account settings is clearly named and the device status bar has readable c
   const layout = read('mobile/app/_layout.tsx');
   assert.ok(settings.includes('title="Account settings"'));
   assert.ok(accountSettings.includes('title="Account settings"'));
-  assert.ok(layout.includes("backgroundColor={isDark ? '#0B1120' : '#E8F1FF'}"));
+  assert.ok(layout.includes("backgroundColor={isDark ? '#0B1120' : '#0066FF'}"));
+  assert.ok(layout.includes('style="light"'));
   assert.ok(layout.includes("<StatusBar"));
 });
 
@@ -444,6 +450,17 @@ test('root layout always mounts the stack behind the splash overlay', () => {
   const screen = read('mobile/app/notifications/index.tsx');
   assert.ok(screen.includes('endpoints.getNotifications'));
   assert.ok(screen.includes('markAllNotificationsRead'));
+});
+
+test('mobile app has a branded offline overlay with automatic reconnect recovery', () => {
+  const layout = read('mobile/app/_layout.tsx');
+  const offline = read('mobile/src/components/OfflineConnectionOverlay.tsx');
+  assert.ok(layout.includes('OfflineConnectionOverlay'), 'root layout must mount offline recovery');
+  assert.ok(layout.includes("pathname !== '/pos'"), 'POS route must be excluded from the global offline overlay');
+  assert.ok(offline.includes('@react-native-community/netinfo'), 'offline state must use NetInfo');
+  assert.ok(offline.includes("type: 'active'"), 'reconnect must refetch active network queries');
+  assert.ok(offline.includes("You're offline"), 'custom branded offline copy must be present');
+  assert.ok(offline.includes('Try again'), 'offline retry action must be available');
 });
 
 test('successful password and 2FA login navigate directly to the seller dashboard', () => {

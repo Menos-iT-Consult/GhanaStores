@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, View } from 'react-native';
-import { PaperProvider } from 'react-native-paper';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { PaperProvider, useTheme } from 'react-native-paper';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -21,6 +23,8 @@ import { DidwaLottieSplash } from '@/components/DidwaLottieSplash';
 import { AppLockOverlay } from '@/components/AppLockOverlay';
 import { isBiometricLockEnabled } from '@/services/biometricService';
 import { useMotionScreenOptions } from '@/navigation/useMotionScreenOptions';
+import { DiDwaAiSheet } from '@/components/ai/DiDwaAiSheet';
+import { OfflineConnectionOverlay } from '@/components/OfflineConnectionOverlay';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -230,6 +234,40 @@ function RootNavigator() {
           <DidwaLottieSplash onReady={markSplashPainted} />
         </View>
       ) : null}
+      {ready && status === 'signedIn' && !isLocked && !showSplash ? (
+        <DiDwaAiDock inTabs={segments[0] === '(tabs)'} />
+      ) : null}
+      <OfflineConnectionOverlay
+        enabled={ready && !isLocked && !showSplash && pathname !== '/pos' && !pathname.startsWith('/pos/') && !pathname.includes('/pos/')}
+      />
+    </>
+  );
+}
+
+function DiDwaAiDock({ inTabs }: { inTabs: boolean }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open DiDwa AI"
+        onPress={() => setVisible(true)}
+        style={({ pressed }) => [
+          styles.aiButton,
+          {
+            right: 16,
+            bottom: insets.bottom + (inTabs ? 44 : 16),
+            backgroundColor: colors.primary,
+            opacity: pressed ? 0.84 : 1,
+          },
+        ]}
+      >
+        <MaterialCommunityIcons name="robot-outline" size={26} color={colors.onPrimary} />
+      </Pressable>
+      <DiDwaAiSheet visible={visible} onDismiss={() => setVisible(false)} />
     </>
   );
 }
@@ -240,14 +278,31 @@ function ThemedProviders({ children }: { children: React.ReactNode }) {
   return (
     <PaperProvider theme={theme}>
       <StatusBar
-        style={isDark ? 'light' : 'dark'}
-        backgroundColor={isDark ? '#0B1120' : '#E8F1FF'}
+        style="light"
+        backgroundColor={isDark ? '#0B1120' : '#0066FF'}
         translucent={false}
       />
       {children}
     </PaperProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  aiButton: {
+    position: 'absolute',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 20,
+  },
+});
 
 export default function RootLayout() {
   return (

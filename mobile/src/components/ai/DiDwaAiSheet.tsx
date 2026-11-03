@@ -364,7 +364,7 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
         </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text variant="titleSmall" style={styles.sectionTitle}>Choose a suggested action</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <View style={styles.actionChips}>
             {AI_ACTIONS.map((action) => (
               <Chip
                 key={action.id}
@@ -376,7 +376,7 @@ export function DiDwaAiSheet({ visible, onDismiss }: { visible: boolean; onDismi
                 {action.label}
               </Chip>
             ))}
-          </ScrollView>
+          </View>
 
           {selectedAction ? (
             <Text variant="bodySmall" style={styles.description}>
@@ -501,6 +501,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 32, gap: 14 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 10 },
   sectionTitle: { marginTop: 4 },
+  actionChips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingVertical: 2 },
   chips: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
   chip: { marginRight: 2 },
   description: { color: '#475569' },

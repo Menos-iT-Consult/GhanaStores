@@ -14,7 +14,6 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useThemeMode } from '@/theme/ThemeContext';
-import { DiDwaAiSheet } from '@/components/ai/DiDwaAiSheet';
 
 /**
  * Bottom tab navigator for the signed-in merchant, ordered:
@@ -101,8 +100,7 @@ function LiquidTabBar({
   state,
   navigation,
   descriptors,
-  onOpenAi,
-}: BottomTabBarProps & { onOpenAi: () => void }) {
+}: BottomTabBarProps) {
   const { colors } = useTheme();
   const { isDark } = useThemeMode();
   const reduceMotion = useReducedMotion();
@@ -122,103 +120,82 @@ function LiquidTabBar({
 
   return (
     <View style={[styles.barArea, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: colors.background }]}>
-      <View style={styles.barRow}>
+      <View
+        style={[
+          styles.capsule,
+          {
+            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
+            shadowOpacity: isDark ? 0.35 : 0.1,
+          },
+        ]}
+        onLayout={(e) => setCapsuleWidth(e.nativeEvent.layout.width)}
+      >
+        <BlurView
+          intensity={45}
+          tint={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+          {...(Platform.OS === 'android' ? { experimentalBlurMethod: 'dimezisBlurView' as const } : {})}
+        />
         <View
           style={[
-            styles.capsule,
-            {
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
-              shadowOpacity: isDark ? 0.35 : 0.1,
-            },
+            StyleSheet.absoluteFill,
+            { backgroundColor: isDark ? 'rgba(20,26,36,0.66)' : 'rgba(255,255,255,0.66)' },
           ]}
-          onLayout={(e) => setCapsuleWidth(e.nativeEvent.layout.width)}
-        >
-          <BlurView
-            intensity={45}
-            tint={isDark ? 'dark' : 'light'}
-            style={StyleSheet.absoluteFill}
-            {...(Platform.OS === 'android' ? { experimentalBlurMethod: 'dimezisBlurView' as const } : {})}
-          />
-          <View
+        />
+
+        {tabWidth > 0 ? (
+          <Animated.View
             style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: isDark ? 'rgba(20,26,36,0.66)' : 'rgba(255,255,255,0.66)' },
+              styles.pill,
+              {
+                width: tabWidth - 12,
+                backgroundColor: isDark ? 'rgba(143,184,255,0.18)' : 'rgba(0,102,255,0.10)',
+              },
+              pillStyle,
             ]}
           />
+        ) : null}
 
-          {tabWidth > 0 ? (
-            <Animated.View
-              style={[
-                styles.pill,
-                {
-                  width: tabWidth - 12,
-                  backgroundColor: isDark ? 'rgba(143,184,255,0.18)' : 'rgba(0,102,255,0.10)',
-                },
-                pillStyle,
-              ]}
-            />
-          ) : null}
-
-          <View style={styles.tabsRow}>
-            {state.routes.map((route, index) => {
-              const descriptor = descriptors[route.key];
-              const label = String(descriptor?.options.title ?? route.name);
-              const focused = state.index === index;
-              return (
-                <TabButton
-                  key={route.key}
-                  routeKey={route.key}
-                  routeName={route.name}
-                  label={label}
-                  index={index}
-                  focused={focused}
-                  progress={progress}
-                  activeColor={colors.primary}
-                  inactiveColor={colors.onSurfaceVariant}
-                  reduceMotion={reduceMotion}
-                  onPress={() => {
-                    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                    if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
-                  }}
-                  onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
-                />
-              );
-            })}
-          </View>
+        <View style={styles.tabsRow}>
+          {state.routes.map((route, index) => {
+            const descriptor = descriptors[route.key];
+            const label = String(descriptor?.options.title ?? route.name);
+            const focused = state.index === index;
+            return (
+              <TabButton
+                key={route.key}
+                routeKey={route.key}
+                routeName={route.name}
+                label={label}
+                index={index}
+                focused={focused}
+                progress={progress}
+                activeColor={colors.primary}
+                inactiveColor={colors.onSurfaceVariant}
+                reduceMotion={reduceMotion}
+                onPress={() => {
+                  const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                  if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+                }}
+                onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+              />
+            );
+          })}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open DiDwa AI"
-          onPress={onOpenAi}
-          style={({ pressed }) => [
-            styles.aiButton,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.82 : 1 },
-          ]}
-        >
-          <MaterialCommunityIcons name="robot-outline" size={25} color={colors.onPrimary} />
-        </Pressable>
       </View>
     </View>
   );
 }
 
 export default function TabsLayout() {
-  const [aiVisible, setAiVisible] = useState(false);
-
   return (
-    <>
-      <Tabs
-        screenOptions={{ headerShown: false }}
-        tabBar={(props) => <LiquidTabBar {...props} onOpenAi={() => setAiVisible(true)} />}
-      >
-        <Tabs.Screen name="dashboard" options={{ title: 'Home' }} />
-        <Tabs.Screen name="products" options={{ title: 'Products' }} />
-        <Tabs.Screen name="pos" options={{ title: 'POS' }} />
-        <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
-        <Tabs.Screen name="customers" options={{ title: 'Customers' }} />
-      </Tabs>
-      <DiDwaAiSheet visible={aiVisible} onDismiss={() => setAiVisible(false)} />
-    </>
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <LiquidTabBar {...props} />}>
+      <Tabs.Screen name="dashboard" options={{ title: 'Home' }} />
+      <Tabs.Screen name="products" options={{ title: 'Products' }} />
+      <Tabs.Screen name="pos" options={{ title: 'POS' }} />
+      <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
+      <Tabs.Screen name="customers" options={{ title: 'Customers' }} />
+    </Tabs>
   );
 }
 
@@ -227,13 +204,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 4,
   },
-  barRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   capsule: {
-    flex: 1,
     height: 56,
     borderRadius: 28,
     borderWidth: StyleSheet.hairlineWidth,
@@ -264,17 +235,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
     letterSpacing: 0.1,
-  },
-  aiButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 7,
   },
 });
