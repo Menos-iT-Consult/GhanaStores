@@ -61,6 +61,7 @@
     "db:init": "node scripts/dbInit.js",
     "db:reset": "node scripts/dbReset.js",
     "db:migrate": "node db/migrate.js",
+    "db:partners": "node scripts/applyPartnerMigration.js",
     "themes:migrate-assignments": "node scripts/migrateThemeAssignments.js",
     "db:seed": "node scripts/dbSeed.js",
     "r2:cors": "node scripts/r2Cors.js",

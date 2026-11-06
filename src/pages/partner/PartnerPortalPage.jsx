@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ArrowUpRight, BadgePercent, Building2, Copy, Handshake, LogOut, RefreshCw, Users, Wallet,
+  ArrowLeft, ArrowRight, ArrowUpRight, BadgePercent, Building2, Copy, Handshake, LockKeyhole, LogIn, LogOut, Mail, Phone, RefreshCw, UserPlus, UserRound, Users, Wallet,
 } from 'lucide-react';
 import {
   clearPartnerSession, getPartnerToken, ghs, partnerApi, setPartnerSession,
 } from '../../api.js';
 import { navigate, usePathname } from '../../router.js';
+import { LogoLockup } from '../../components/icons.jsx';
+import PasswordInput from '../../components/PasswordInput.jsx';
 
-const fieldClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
-const inputLabelClass = 'block space-y-1.5 text-xs font-semibold text-slate-600';
+const fieldClass = 'w-full rounded-xl border border-slate-200 bg-mist/60 py-2.5 pl-10 pr-11 text-sm text-charcoal placeholder:text-slate-400 transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100';
+const inputLabelClass = 'block space-y-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500';
 
 function PartnerAccess({ initialMode, initialError = '', onLogin }) {
   const [mode, setMode] = useState(initialMode);
@@ -44,17 +46,31 @@ function PartnerAccess({ initialMode, initialError = '', onLogin }) {
   const applying = mode === 'apply';
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10">
-      <section className="w-full max-w-xl rounded-3xl border border-white/10 bg-white p-6 text-slate-900 shadow-2xl sm:p-9">
-        <div className="flex items-center gap-3">
-          <span className="rounded-xl bg-blue-600 p-2.5 text-white"><Handshake size={20} /></span>
-          <div>
-            <p className="text-sm font-extrabold">DiDwa Strategic Partners</p>
-            <p className="text-xs text-slate-500">Ambassador & partner network</p>
-          </div>
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-mist px-4 py-10">
+      <div className="pointer-events-none absolute -left-32 top-10 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-emerald-brand/10 blur-3xl" aria-hidden="true" />
+      <div className="relative w-full max-w-md">
+      <a href="/" aria-label="DiDwa strategic partner program home" className="mb-7 flex justify-center">
+        <LogoLockup onLight subtitle="Strategic partner program" />
+      </a>
+      <section className="rounded-3xl border border-slate-100 bg-white p-6 text-charcoal shadow-card ring-1 ring-slate-900/5 sm:p-8">
+        <button type="button" onClick={() => navigate('/')} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-charcoal">
+          <ArrowLeft size={14} aria-hidden="true" /> Partner program
+        </button>
+        <div className="mb-6 mt-5 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist" aria-label="Partner account access">
+          {[
+            { key: 'apply', label: 'Apply', Icon: UserPlus },
+            { key: 'login', label: 'Sign in', Icon: LogIn },
+          ].map(({ key, label, Icon }) => (
+            <button key={key} type="button" role="tab" aria-selected={mode === key}
+              onClick={() => { setMode(key); setError(''); setNotice(''); setForm((current) => ({ ...current, password: '' })); }}
+              className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition ${mode === key ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:text-charcoal'}`}>
+              <Icon size={14} aria-hidden="true" /> {label}
+            </button>
+          ))}
         </div>
-        <h1 className="mt-7 text-2xl font-extrabold">{applying ? 'Apply to become a partner' : 'Partner sign in'}</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
+        <h1 className="text-xl font-extrabold">{applying ? 'Apply to become a partner' : 'Partner sign in'}</h1>
+        <p className="mt-1 text-sm leading-6 text-slate-400">
           {applying
             ? 'For institutional leaders, business associations, tech hubs, and community voices building local commerce.'
             : 'Sign in to view your network and manage your Mobile Money payout requests.'}
@@ -65,24 +81,29 @@ function PartnerAccess({ initialMode, initialError = '', onLogin }) {
           {applying && (
             <>
               <label className={inputLabelClass}>Full name
-                <input className={fieldClass} value={form.fullName} onChange={update('fullName')} autoComplete="name" required maxLength={120} />
+                <span className="relative block"><UserRound size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input className={fieldClass} value={form.fullName} onChange={update('fullName')} autoComplete="name" required maxLength={120} /></span>
               </label>
               <label className={inputLabelClass}>Organization or community
-                <input className={fieldClass} value={form.organizationName} onChange={update('organizationName')} autoComplete="organization" required maxLength={160} />
+                <span className="relative block"><Building2 size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input className={fieldClass} value={form.organizationName} onChange={update('organizationName')} autoComplete="organization" required maxLength={160} /></span>
               </label>
               <label className={inputLabelClass}>Phone number
-                <input className={fieldClass} value={form.phone} onChange={update('phone')} type="tel" autoComplete="tel" required maxLength={32} />
+                <span className="relative block"><Phone size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input className={fieldClass} value={form.phone} onChange={update('phone')} type="tel" autoComplete="tel" required maxLength={32} /></span>
               </label>
             </>
           )}
           <label className={inputLabelClass}>Email
-            <input className={fieldClass} value={form.email} onChange={update('email')} type="email" autoComplete="email" required />
+            <span className="relative block"><Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input className={fieldClass} value={form.email} onChange={update('email')} type="email" autoComplete="email" required /></span>
           </label>
           <label className={inputLabelClass}>Password
-            <input className={fieldClass} value={form.password} onChange={update('password')} type="password" autoComplete={applying ? 'new-password' : 'current-password'} required minLength={8} maxLength={128} />
+            <span className="relative block"><LockKeyhole size={16} className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <PasswordInput id="partner-password" className={fieldClass} value={form.password} onChange={update('password')} autoComplete={applying ? 'new-password' : 'current-password'} required minLength={8} maxLength={128} /></span>
           </label>
-          <button type="submit" disabled={busy} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
-            {busy ? 'Please wait...' : applying ? 'Submit application' : 'Sign in'}
+          <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:from-blue-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60">
+            {busy ? 'Please wait...' : applying ? 'Submit application' : 'Sign in'} {!busy && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </form>
         <p className="mt-5 text-center text-sm text-slate-500">
@@ -96,6 +117,7 @@ function PartnerAccess({ initialMode, initialError = '', onLogin }) {
           </button>
         </p>
       </section>
+      </div>
     </main>
   );
 }

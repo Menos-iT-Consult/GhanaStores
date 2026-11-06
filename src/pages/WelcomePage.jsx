@@ -97,18 +97,21 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
           </div>
 
           {/* Admin-managed visual */}
-          <div className="relative hidden h-[430px] select-none sm:block">
-            <div className="absolute inset-y-5 left-8 right-0 overflow-hidden rounded-[2rem] border border-white/80 bg-[#0B1120] shadow-2xl shadow-slate-900/15">
+          <div className="relative hidden h-[460px] select-none sm:block">
+            <div className="absolute inset-x-2 top-2 bottom-12 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/10">
               {content.mediaType === 'video' && content.mediaUrl ? (
                 <video className="h-full w-full object-cover" src={content.mediaUrl} poster={content.posterUrl || undefined} muted autoPlay loop playsInline aria-label={content.mediaAlt} />
               ) : (
-                <img src={content.mediaUrl || '/iphone-shot.png'} alt={content.mediaAlt || 'DiDwa seller tools'} className="h-full w-full object-cover object-center" loading="eager" decoding="async" />
+                <img src={content.mediaUrl || '/iphone-shot.png'} alt={content.mediaAlt || 'DiDwa seller tools'} className="h-full w-full object-contain object-center" loading="eager" decoding="async" />
               )}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0B1120]/95 via-[#0B1120]/40 to-transparent" />
-              <p className="absolute bottom-5 left-6 right-6 text-sm font-bold text-white drop-shadow">{content.mediaCaption}</p>
             </div>
+            {content.mediaCaption && (
+              <p className="absolute bottom-0 left-1/2 max-w-[70%] -translate-x-1/2 truncate rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm">
+                {content.mediaCaption}
+              </p>
+            )}
 
-            <div className="absolute left-0 top-12 w-64 rounded-2xl border border-slate-100 bg-white/95 p-5 shadow-card backdrop-blur animate-fade-up motion-reduce:animate-none">
+            <div className="absolute left-0 top-12 w-56 rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-card backdrop-blur animate-fade-up motion-reduce:animate-none">
               <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Live activity</p>
               <ul className="mt-3 space-y-3">
                 {[
@@ -127,7 +130,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
               </ul>
             </div>
 
-            <div className="absolute bottom-0 right-3 w-60 rounded-2xl border border-slate-100 bg-white p-4 shadow-card">
+            <div className="absolute bottom-10 right-0 w-52 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-card">
               <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                 <Package size={12} className="text-blue-500" aria-hidden="true" /> Point of sale
               </p>
@@ -153,8 +156,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
               </span>
             </div>
 
-            <span className="absolute right-10 top-0 inline-flex items-center gap-1.5 rounded-full bg-[#0B1120] px-3.5 py-1.5 text-[11px] font-bold text-white shadow-lg">
-              <Zap size={12} className="text-emerald-400" /> 14-day free trial
+            <span className="absolute right-4 top-0 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-lg">
+              <Zap size={12} className="text-emerald-600" /> 14-day free trial
             </span>
           </div>
         </div>

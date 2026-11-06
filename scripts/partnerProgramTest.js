@@ -18,7 +18,10 @@ const routes = read('../src/routes.js');
 const server = read('../server.js');
 const prompts = read('../config/partnerPrompts.js');
 const runner = read('../scripts/applyAffiliateMigration.js');
+const partnerRunner = read('../scripts/applyPartnerMigration.js');
+const packageJson = JSON.parse(read('../package.json'));
 const webhooks = read('../services/paymentWebhooks.js');
+const passwordInput = read('../src/components/PasswordInput.jsx');
 
 const checks = [
   ['migration defines partner profiles, network, earnings ledger, and payouts',
@@ -75,11 +78,20 @@ const checks = [
       && /Request MoMo payout/.test(portal)
       && /RateSlider/.test(adminUi)
       && /Mark paid/.test(adminUi)],
+  ['partner access uses DiDwa branding and the shared accessible password reveal',
+    /LogoLockup onLight subtitle="Strategic partner program"/.test(portal)
+      && /PasswordInput/.test(portal)
+      && /aria-label=\{label\}/.test(passwordInput)],
   ['outreach templates avoid promises of fixed commission or guaranteed earnings',
     /PARTNER_OUTREACH_TEMPLATES/.test(prompts)
       && /Never promise a specific rate, guaranteed earnings/.test(prompts)],
   ['partner migration is included in the documented affiliate migration runner',
     /004_partner_program\.sql/.test(runner)],
+  ['standalone partner migration checks prerequisites and verifies created tables',
+    packageJson.scripts['db:partners'] === 'node scripts/applyPartnerMigration.js'
+      && /to_regclass\(relation_name\)/.test(partnerRunner)
+      && /004_partner_program\.sql/.test(partnerRunner)
+      && /partners, partner_network, partner_ledgers, partner_payouts/.test(partnerRunner)],
   ['partner sign-in and payout routes have dedicated rate limits',
     /\/api\/partners\/login', authLimiter/.test(server)
       && /\/api\/partners\/payouts', affiliatePayoutLimiter/.test(server)],

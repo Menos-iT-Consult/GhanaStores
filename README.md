@@ -140,13 +140,21 @@ reserved platform host and displays the partner portal, while Central Admin
 manages applications, individual override rates, network views, and MoMo payout
 decisions under **Configuration > Strategic partners**.
 
-Apply the canonical base schema and the affiliate/partner migrations before
-using partner APIs:
+Apply the canonical base schema and affiliate migrations before the partner
+migration. In production, run `db:partners` once with `DATABASE_URL` set to the
+same production database used by the API; do not rely on the app's automatic
+base-schema setup to apply program migrations.
 
 ```bash
 npm run db:init
 node scripts/applyAffiliateMigration.js
+npm run db:partners
 ```
+
+`npm run db:partners` checks that the base and affiliate tables exist before
+applying migration 004, then verifies all four partner tables. If the partner
+application endpoint returns `relation "partners" does not exist`, apply this
+migration to the API's configured production database and retry the request.
 
 Tier 1 accrues on each paid order's `orders.total` (gross order GMV) for a
 merchant directly attributed to an approved partner. Tier 2 accrues on the

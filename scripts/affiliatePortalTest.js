@@ -46,6 +46,10 @@ const checks = [
   ['referral links set a protected cookie using configured attribution duration', /router\.get\('\/attribution'/.test(routes) && /httpOnly: true/.test(routes) && /settings\.attributionDays/.test(routes)],
   ['merchant registration attributes a valid referral cookie', /const referralCookie = String\(req\.headers\.cookie/.test(billingRoutes) && /findByReferralCode\(referralCode\)/.test(billingRoutes)],
   ['frontend provides separate affiliate access and dashboard screens', /\/api\/affiliate\/signup/.test(accessPage) && /\/api\/affiliate\/stats/.test(dashboardPage)],
+  ['affiliate access uses DiDwa branding and the shared accessible password reveal',
+    /LogoLockup onLight subtitle="Affiliate program"/.test(accessPage)
+      && /PasswordInput/.test(accessPage)
+      && /aria-label=\{label\}/.test(read('../src/components/PasswordInput.jsx'))],
   ['affiliate dashboard loads referrals, payout history, and program terms', ['/api/affiliate/referrals', '/api/affiliate/payouts', '/api/affiliate/program'].every((path) => dashboardPage.includes(path))],
   ['seller referral links open registration with the code prefilled', /platformOrigin\}\/login\?ref=\$\{encodeURIComponent\(profile\.referral_code\)\}/.test(dashboardPage) && /referralCode:\s*new URLSearchParams\(window\.location\.search\)\.get\('ref'\)/.test(read('../src/pages/AuthScreen.jsx'))],
   ['short referral codes are saved as attribution and accepted for signup', /A-HJ-NP-Z2-9/.test(app) && /isValidReferralCode/.test(routes) && /isValidReferralCode/.test(billingRoutes)],

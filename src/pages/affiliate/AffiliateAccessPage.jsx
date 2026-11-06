@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, LockKeyhole, Mail, Phone, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole, LogIn, Mail, Phone, UserPlus, UserRound } from 'lucide-react';
 import { affiliateApi, setAffiliateSession } from '../../api.js';
 import { navigate } from '../../router.js';
 import { LogoLockup } from '../../components/icons.jsx';
 import PasswordInput from '../../components/PasswordInput.jsx';
 
-const fieldClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-charcoal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+const fieldClass = 'w-full rounded-xl border border-slate-200 bg-mist/60 py-2.5 pl-10 pr-11 text-sm text-charcoal placeholder:text-slate-400 transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100';
 
 export default function AffiliateAccessPage({ initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode);
@@ -50,24 +50,39 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
   const signingUp = mode === 'signup';
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-      <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-9">
-        <a href="/" aria-label="DiDwa affiliate program home" className="inline-flex">
-          <LogoLockup onLight />
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-mist px-4 py-10">
+      <div className="pointer-events-none absolute -left-32 top-10 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-emerald-brand/10 blur-3xl" aria-hidden="true" />
+      <div className="relative w-full max-w-md">
+        <a href="/" aria-label="DiDwa affiliate program home" className="mb-7 flex justify-center">
+          <LogoLockup onLight subtitle="Affiliate program" />
         </a>
-        <button type="button" onClick={() => navigate('/')} className="mt-7 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-charcoal">
+        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-card ring-1 ring-slate-900/5 sm:p-8">
+        <button type="button" onClick={() => navigate('/')} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-charcoal">
           <ArrowLeft size={14} aria-hidden="true" /> Affiliate program
         </button>
-        <h1 className="mt-5 text-2xl font-extrabold text-charcoal">
+        <div className="mb-6 mt-5 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist" aria-label="Affiliate account access">
+          {[
+            { key: 'signup', label: 'Join program', Icon: UserPlus },
+            { key: 'login', label: 'Sign in', Icon: LogIn },
+          ].map(({ key, label, Icon }) => (
+            <button key={key} type="button" role="tab" aria-selected={mode === key}
+              onClick={() => { setMode(key); setError(''); setForm((current) => ({ ...current, password: '' })); }}
+              className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition ${mode === key ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:text-charcoal'}`}>
+              <Icon size={14} aria-hidden="true" /> {label}
+            </button>
+          ))}
+        </div>
+        <h1 className="text-xl font-extrabold text-charcoal">
           {signingUp ? 'Join the affiliate program' : 'Affiliate sign in'}
         </h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-400">
           {signingUp ? 'Create an account to refer businesses and track your commissions.' : 'Sign in to manage your referrals and earnings.'}
         </p>
 
         {error && <p role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
-        <form onSubmit={submit} className="mt-6 space-y-4">
+        <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="on">
           {signingUp && (
             <>
               <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
@@ -93,14 +108,14 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
               <input value={form.email} onChange={update('email')} className={`${fieldClass} pl-9`} type="email" autoComplete="email" required />
             </span>
           </label>
-          <div className="block space-y-1.5 text-xs font-semibold text-slate-600">
+          <div className="block space-y-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <label htmlFor="affiliate-password">Password</label>
             <span className="relative block">
-              <LockKeyhole size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <PasswordInput id="affiliate-password" value={form.password} onChange={update('password')} className={`${fieldClass} pl-9`} autoComplete={signingUp ? 'new-password' : 'current-password'} required minLength={8} maxLength={128} />
+              <LockKeyhole size={16} className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <PasswordInput id="affiliate-password" value={form.password} onChange={update('password')} className={fieldClass} autoComplete={signingUp ? 'new-password' : 'current-password'} required minLength={8} maxLength={128} />
             </span>
           </div>
-          <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60">
+          <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:from-blue-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60">
             {busy ? 'Please wait...' : signingUp ? 'Create affiliate account' : 'Sign in'}
             {!busy && <ArrowRight size={16} aria-hidden="true" />}
           </button>
@@ -113,6 +128,7 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
             {signingUp ? 'Sign in' : 'Join now'}
           </button>
         </p>
+        </section>
       </div>
     </main>
   );
