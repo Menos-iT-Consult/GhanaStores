@@ -106,6 +106,12 @@ const checks = [
       && /\/dashboard\/payouts/.test(portal)
       && /RateSlider/.test(adminUi)
       && /Mark paid/.test(adminUi)],
+  ['partner subdomain root explains the program and links to application and login',
+    /PartnerProgramPage/.test(portal)
+      && /route === '\/'/.test(portal)
+      && /navigate\('\/apply'\)/.test(read('../src/pages/partner/PartnerProgramPage.jsx'))
+      && /navigate\('\/login'\)/.test(read('../src/pages/partner/PartnerProgramPage.jsx'))
+      && /Ambassador & Strategic Partner Program/.test(read('../src/pages/partner/PartnerProgramPage.jsx'))],
   ['partner access uses DiDwa branding and the shared accessible password reveal',
     /PartnerAccessPage/.test(portal)
       && /LogoLockup onLight subtitle="Strategic partner program"/.test(partnerAccess)

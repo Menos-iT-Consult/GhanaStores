@@ -8,6 +8,7 @@ import PartnerAccessPage from './PartnerAccessPage.jsx';
 import PartnerOverviewPage from './PartnerOverviewPage.jsx';
 import PartnerReferralsPage from './PartnerReferralsPage.jsx';
 import PartnerPayoutsPage from './PartnerPayoutsPage.jsx';
+import PartnerProgramPage from './PartnerProgramPage.jsx';
 
 const PAGE_PATHS = {
   overview: '/dashboard',
@@ -74,7 +75,8 @@ export default function PartnerPortalPage() {
     return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-semibold text-slate-300">Loading partner portal...</div>;
   }
   if (!partner) {
-    const mode = route.endsWith('/apply') || route === '/' ? 'apply' : 'login';
+    if (route === '/') return <PartnerProgramPage />;
+    const mode = route === '/apply' ? 'apply' : 'login';
     return <PartnerAccessPage initialMode={mode} initialError={error} onLogin={(profile) => { setPartner(profile); load(); }} />;
   }
 
