@@ -26,6 +26,7 @@ import { buildLabel } from '../buildInfo.js';
 import MetaTags from '../components/seo/MetaTags.jsx';
 import { META_CONTENT, siteUrl } from '../lib/seo.js';
 import { usePlatformPublicSettings, whatsappChatUrl } from '../lib/platformPublicSettings.js';
+import { usePublicPageContent } from '../lib/publicPageContent.js';
 
 const UPDATED = 'August 2026';
 const contactEmail = () => `hello@${getPlatformDomain()}`;
@@ -357,13 +358,16 @@ export function PublicShell({ authed = false, children, wide = false, onStart, o
 
 /** Centered hero band shared by info pages. `children` slots extra content (toggles, CTAs) below the sub. */
 function PageHero({ eyebrow, title, sub, children }) {
+  const pathname = usePathname();
+  const { content } = usePublicPageContent(pathname);
   return (
     <section className="relative overflow-hidden border-b border-slate-900/5 bg-mist/60 py-16 sm:py-20">
+      <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:radial-gradient(#2563eb_1px,transparent_1px)] [background-size:24px_24px]" aria-hidden="true" />
       <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-blue-500/15 blur-3xl" aria-hidden="true" />
       <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6">
-        <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">{eyebrow}</span>
-        <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
-        {sub ? <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-500">{sub}</p> : null}
+        <span className="inline-flex rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-blue-600 shadow-sm backdrop-blur">{content.eyebrow || eyebrow}</span>
+        <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{content.title || title}</h1>
+        {(content.description || sub) ? <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-500">{content.description || sub}</p> : null}
         {children}
       </div>
     </section>

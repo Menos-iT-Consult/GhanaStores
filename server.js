@@ -52,9 +52,11 @@ import mobileAuthRoutes from './routes/mobileAuthRoutes.js';
 import mobileDeviceRoutes from './routes/mobileDeviceRoutes.js';
 import mobileRoutes from './routes/mobileRoutes.js';
 import publicPlatformSettingsRoutes from './routes/publicPlatformSettingsRoutes.js';
+import publicPageContentRoutes from './routes/publicPageContentRoutes.js';
 import seoRoutes from './routes/seoRoutes.js';
 import { startBillingCron } from './jobs/billingCron.js';
 import affiliateApiRoutes from './routes/affiliateApiRoutes.js';
+import partnerApiRoutes from './routes/partnerApiRoutes.js';
 
 dotenv.config();
 
@@ -107,6 +109,8 @@ app.use('/api/mobile/auth/login', authLimiter);
 app.use('/api/mobile/auth/refresh', authLimiter);
 app.use('/api/affiliate/signup', authLimiter);
 app.use('/api/affiliate/login', authLimiter);
+app.use('/api/partners/apply', authLimiter);
+app.use('/api/partners/login', authLimiter);
 app.use('/api/admin/login', authLimiter);
 /* retain the raw body for webhook signature verification.
    Paystack signs the EXACT bytes it sent with HMAC-SHA512; a body that has been
@@ -130,6 +134,9 @@ const platformOrigins = [
   `https://www.${apex}`,
   `https://app.${apex}`,
   `https://api.${apex}`,
+  `https://affiliate.${apex}`,
+  `https://partner.${apex}`,
+  `https://admin.${apex}`,
 ];
 const configuredOrigins = String(process.env.CLIENT_URL || '')
   .split(',')
@@ -198,6 +205,7 @@ app.use('/api/contact', publicContactLimiter);
 app.use('/api/storefront', publicContactLimiter);
 app.use('/api/domains/search', domainSearchLimiter);
 app.use('/api/affiliate/payouts', affiliatePayoutLimiter);
+app.use('/api/partners/payouts', affiliatePayoutLimiter);
 app.use('/api/ai', didwaAiLimiter);
 
 app.get('/health', async (_req, res) => {
@@ -256,7 +264,9 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/affiliate', affiliateApiRoutes);
+app.use('/api/partners', partnerApiRoutes);
 app.use('/api', publicPlatformSettingsRoutes);
+app.use('/api', publicPageContentRoutes);
 app.use('/api/cron', billingCronRoute);
 // Hubtel payment webhook — must be at /api/webhooks/hubtel (called by Hubtel infra)
 app.use('/api/webhooks', webhookRouter);

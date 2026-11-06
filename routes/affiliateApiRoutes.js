@@ -19,6 +19,7 @@ import { platformDomain } from '../middleware/domainMiddleware.js';
 import { normalizeGhPhone } from '../utils/helpers.js';
 import { resolvePaystackMomoAccountName } from '../services/paystackPlatform.js';
 import { dispatchAffiliateNotification } from '../services/affiliateNotifications.js';
+import { findApprovedPartnerByCode } from '../models/partner.js';
 
 const router = Router();
 
@@ -67,6 +68,7 @@ router.get('/attribution', async (req, res, next) => {
       cookieOptions.domain = `.${platformDomain()}`;
     }
     res.cookie('didwa_ref', referralCode, cookieOptions);
+    res.clearCookie('didwa_partner', cookieOptions);
     return res.json({ attributed: true });
   } catch (err) {
     return next(err);
@@ -86,13 +88,24 @@ router.post('/signup', async (req, res, next) => {
     if (await findByEmailForAuth(email)) {
       return res.status(409).json({ error: 'An affiliate account already uses this email.' });
     }
+    const partnerCode = String(req.body?.partnerCode || '').trim();
+    const partner = partnerCode ? await findApprovedPartnerByCode(partnerCode) : null;
+    if (partnerCode && !partner) {
+      return res.status(400).json({ error: 'The partner referral code was not found or is inactive.' });
+    }
     const passwordHash = await bcrypt.hash(password, 12);
     const affiliate = await create({
       fullName,
       email,
       phone,
       passwordHash,
+      parentPartnerId: partner?.id || null,
     });
+    if (partner) {
+      const options = { path: '/', secure: process.env.NODE_ENV === 'production', sameSite: 'lax' };
+      if (process.env.NODE_ENV === 'production') options.domain = `.${platformDomain()}`;
+      res.clearCookie('didwa_partner', options);
+    }
     void dispatchAffiliateNotification(affiliate, 'welcome');
     return res.status(201).json({
       token: issueAffiliateToken(affiliate),

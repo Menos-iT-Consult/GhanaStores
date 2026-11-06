@@ -1,7 +1,7 @@
 /**
  * DiDwa - JWT Authentication Middleware
- * Issues and verifies tokens for SELLER (store owner) and ADMIN (platform)
- * roles, and enforces tenant scoping + store status guards.
+ * Issues and verifies tokens for the platform's seller, affiliate, partner,
+ * and admin roles, and enforces tenant scoping + store status guards.
  */
 import jwt from 'jsonwebtoken';
 import { query } from '../config/database.js';
@@ -49,6 +49,14 @@ export function issueAffiliateToken(affiliate) {
     sub: affiliate.id,
     role: 'AFFILIATE',
     email: affiliate.email,
+  });
+}
+
+export function issuePartnerToken(partner) {
+  return signToken({
+    sub: partner.id,
+    role: 'PARTNER',
+    email: partner.email,
   });
 }
 

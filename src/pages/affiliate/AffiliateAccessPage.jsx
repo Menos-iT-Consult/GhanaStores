@@ -29,7 +29,14 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
     try {
       const result = await affiliateApi.post(
         mode === 'signup' ? '/api/affiliate/signup' : '/api/affiliate/login',
-        form,
+        {
+          ...form,
+          partnerCode: mode === 'signup'
+            ? (/^P[A-HJ-NP-Z2-9]{9}$/i.test(new URLSearchParams(window.location.search).get('ref') || '')
+              ? new URLSearchParams(window.location.search).get('ref')
+              : undefined)
+            : undefined,
+        },
       );
       setAffiliateSession(result.token);
       navigate('/affiliate/dashboard', { replace: true });

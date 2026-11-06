@@ -288,6 +288,19 @@ async function processManagedOrderPayment(payload) {
         WHERE store_id = $1`,
       [lockedOrder.store_id, reversalAmount, fee, net],
     );
+    await t.query(
+      `UPDATE partner_ledgers
+          SET base_amount_ghs = GREATEST(base_amount_ghs - $2, 0),
+              earned_amount_ghs = ROUND(
+                GREATEST(base_amount_ghs - $2, 0) * override_rate_percent / 100, 2
+              ),
+              status = CASE WHEN base_amount_ghs <= $2 + 0.01 THEN 'reversed' ELSE 'available' END,
+              reversed_at = CASE WHEN base_amount_ghs <= $2 + 0.01 THEN NOW() ELSE NULL END
+        WHERE source_type = 'merchant_gmv'
+          AND source_id = $1
+          AND status <> 'reversed'`,
+      [lockedOrder.id, reversalAmount],
+    );
     return { processed: true };
   });
   return { status: 200, body: { received: true, ...reversed } };

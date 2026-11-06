@@ -12,6 +12,7 @@ const TOKEN_KEY = 'gs_token';
 const STORE_KEY = 'gs_store';
 const ADMIN_TOKEN_KEY = 'gs_admin_token';
 const AFFILIATE_TOKEN_KEY = 'gs_affiliate_token';
+const PARTNER_TOKEN_KEY = 'gs_partner_token';
 export const OFFLINE_POS_KEY = 'didwa_pos_pending';
 
 /** How long a request may take before the browser is told to give up. */
@@ -63,6 +64,15 @@ export function setAffiliateSession(token) {
 export function clearAffiliateSession() {
   localStorage.removeItem(AFFILIATE_TOKEN_KEY);
 }
+export function getPartnerToken() {
+  return localStorage.getItem(PARTNER_TOKEN_KEY) || '';
+}
+export function setPartnerSession(token) {
+  localStorage.setItem(PARTNER_TOKEN_KEY, token);
+}
+export function clearPartnerSession() {
+  localStorage.removeItem(PARTNER_TOKEN_KEY);
+}
 export function setAdminSession(token, admin) {
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
   if (admin) localStorage.setItem('gs_admin_profile', JSON.stringify(admin));
@@ -101,11 +111,11 @@ export async function flushOfflineSales() {
 }
 
 async function request(path, {
-  method = 'GET', body, isForm, token: explicitToken, _retried = false, isAffiliate = false,
+  method = 'GET', body, isForm, token: explicitToken, _retried = false, isAffiliate = false, isPartner = false,
 } = {}) {
   const headers = {};
   const token = explicitToken !== undefined ? explicitToken : getToken();
-  const isAdmin = !isAffiliate && explicitToken === getAdminToken() && explicitToken !== undefined;
+  const isAdmin = !isAffiliate && !isPartner && explicitToken === getAdminToken() && explicitToken !== undefined;
   if (token) headers.Authorization = `Bearer ${token}`;
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -141,7 +151,7 @@ async function request(path, {
   if (res.status === 429 && method === 'GET' && !_retried) {
     const retryDelay = retryAfterDelayMs(res.headers.get?.('Retry-After'));
     await new Promise((resolve) => setTimeout(resolve, retryDelay));
-    return request(path, { method, body, isForm, token: explicitToken, _retried: true, isAffiliate });
+    return request(path, { method, body, isForm, token: explicitToken, _retried: true, isAffiliate, isPartner });
   }
 
   if (!res.ok) {
@@ -156,6 +166,9 @@ async function request(path, {
       } else if (isAffiliate) {
         clearAffiliateSession();
         window.dispatchEvent(new Event('gs:affiliate-logout'));
+      } else if (isPartner) {
+        clearPartnerSession();
+        window.dispatchEvent(new Event('gs:partner-logout'));
       } else if (!explicitToken) {
         clearSession();
         window.dispatchEvent(new Event('gs:logout'));
@@ -185,6 +198,11 @@ export const adminApi = {
 export const affiliateApi = {
   get: (p) => request(p, { token: getAffiliateToken(), isAffiliate: true }),
   post: (p, body) => request(p, { method: 'POST', body, token: getAffiliateToken(), isAffiliate: true }),
+};
+
+export const partnerApi = {
+  get: (p) => request(p, { token: getPartnerToken(), isPartner: true }),
+  post: (p, body) => request(p, { method: 'POST', body, token: getPartnerToken(), isPartner: true }),
 };
 
 export const api = {

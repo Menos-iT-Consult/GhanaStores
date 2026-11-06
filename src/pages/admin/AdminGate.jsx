@@ -37,6 +37,8 @@ import AdminNewsletter from './AdminNewsletter.jsx';
 import AdminSmsPricing from './AdminSmsPricing.jsx';
 import AdminAffiliateProgram from './AdminAffiliateProgram.jsx';
 import AdminPlatformSettings from './AdminPlatformSettings.jsx';
+import AdminPublicPages from './AdminPublicPages.jsx';
+import AdminPartners from './AdminPartners.jsx';
 
 /** Static admin routes, longest-prefix match first (detail routes are dynamic). */
 const ADMIN_ROUTES = [
@@ -53,7 +55,9 @@ const ADMIN_ROUTES = [
   ['/admin/plans', AdminPlans],
   ['/admin/sms-pricing', AdminSmsPricing],
   ['/admin/affiliate-program', AdminAffiliateProgram],
+  ['/admin/partners', AdminPartners],
   ['/admin/platform-settings', AdminPlatformSettings],
+  ['/admin/public-pages', AdminPublicPages],
   ['/admin/themes', AdminThemes],
   ['/admin/team', AdminTeam],
   ['/admin/system', AdminSystem],

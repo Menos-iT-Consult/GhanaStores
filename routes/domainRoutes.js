@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { promises as dns } from 'node:dns';
 import { query, withTransaction } from '../config/database.js';
 import { requireSeller } from '../middleware/authMiddleware.js';
-import { adminDomain, resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
+import { adminDomain, classifyHost, resolveTenantStore, platformDomain } from '../middleware/domainMiddleware.js';
 import { RENDITIONS, buildDeliveryUrl, productImageUrl } from '../services/storage.js';
 import { loadPricingCatalog, priceDomainForPurchase, tldOf } from '../services/domainPricing.js';
 import { normalizeSubdomain, subdomainProblem } from '../services/subdomainSlug.js';
@@ -113,6 +113,7 @@ router.get('/resolve', async (req, res, next) => {
         platformDomain: req.platformDomain,
         // The admin host is platform traffic, not a tenant, so it answers here.
         isAdminHost: Boolean(req.isAdminHost),
+        isPartnerHost: classifyHost(req.headers.host).host === `partner.${platformDomain()}`,
         adminDomain: adminDomain(),
         ...req.tenantInfo,
       });
@@ -158,6 +159,7 @@ router.get('/resolve', async (req, res, next) => {
       // A tenant host is never the admin host, but the client still needs the
       // canonical admin URL to redirect /admin to.
       isAdminHost: Boolean(req.isAdminHost),
+      isPartnerHost: classifyHost(req.headers.host).host === `partner.${platformDomain()}`,
       adminDomain: adminDomain(),
       ...req.tenantInfo,
     });

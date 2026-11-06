@@ -23,6 +23,8 @@ import { AboutPage, ContactPage, FeaturesPage, HowItWorksPage, PrivacyPage, Pric
 import AffiliateProgramPage from './pages/AffiliateProgramPage.jsx';
 import AffiliateAccessPage from './pages/affiliate/AffiliateAccessPage.jsx';
 import AffiliateDashboardPage from './pages/affiliate/AffiliateDashboardPage.jsx';
+import PartnerLandingPage from './pages/PartnerLandingPage.jsx';
+import PartnerPortalPage from './pages/partner/PartnerPortalPage.jsx';
 import SellerAnalytics from './pages/SellerAnalytics.jsx';
 import SellerPOS from './pages/SellerPOS.jsx';
 import SellerPaymentSettings from './pages/SellerPaymentSettings.jsx';
@@ -68,7 +70,7 @@ export default function App() {
      client-side guess is baked in at build time and can be stale, so the API
      owns the final word: platform root -> marketing site, tenant -> storefront. */
   const [hostState, setHostState] = useState({
-    status: 'pending', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '', platformDomain: '',
+    status: 'pending', tenant: null, isPlatformRoot: false, isAdminHost: false, isPartnerHost: false, adminDomain: '', platformDomain: '',
   });
   /* Host reported by the storefront as having no store; only set when that
      differs from the server answer App already holds. */
@@ -106,6 +108,8 @@ export default function App() {
   const isPlatformHostWithSubdomains = isPlatformHost || (hasPlatformHost && host === `api.${platformHost}`);
   const resolvedPlatformHost = String(hostState.platformDomain || platformHost || 'didwaghana.com').toLowerCase();
   const isAffiliateHost = Boolean(resolvedPlatformHost) && host === `affiliate.${resolvedPlatformHost}`;
+  const isPartnerHost = Boolean(hostState.isPartnerHost)
+    || (Boolean(resolvedPlatformHost) && host === `partner.${resolvedPlatformHost}`);
   const isTenantHost = isPlatformSubdomain
     || (!isPlatformHostWithSubdomains && host.includes('.') && host.split('.').length >= 2);
 
@@ -114,6 +118,7 @@ export default function App() {
 
     const shouldIndex = INDEXABLE_PUBLIC_ROUTES.has(route)
       && !hostState.isAdminHost
+      && !isPartnerHost
       && (!isAffiliateHost || route === '/affiliate-program');
     if (shouldIndex) return;
 
@@ -135,7 +140,7 @@ export default function App() {
     document.querySelector('link[rel="canonical"]')?.remove();
     document.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"], meta[name="keywords"]')
       .forEach((meta) => meta.remove());
-  }, [route, hostState.tenant, hostState.isAdminHost, isAffiliateHost]);
+  }, [route, hostState.tenant, hostState.isAdminHost, isPartnerHost, isAffiliateHost]);
 
   /* The API classifies the Host header. This is the authoritative answer: the
      client-side guess above depends on a build-time env var that can be stale,
@@ -154,6 +159,7 @@ export default function App() {
           tenant: resolved?.tenant || null,
           isPlatformRoot: Boolean(resolved?.isPlatformRoot),
           isAdminHost: Boolean(resolved?.isAdminHost),
+          isPartnerHost: Boolean(resolved?.isPartnerHost),
           adminDomain: String(resolved?.adminDomain || ''),
           platformDomain: String(resolved?.platformDomain || ''),
         });
@@ -161,7 +167,7 @@ export default function App() {
       .catch(() => {
         if (alive) {
           setHostState({
-            status: 'error', tenant: null, isPlatformRoot: false, isAdminHost: false, adminDomain: '', platformDomain: '',
+            status: 'error', tenant: null, isPlatformRoot: false, isAdminHost: false, isPartnerHost: false, adminDomain: '', platformDomain: '',
           });
         }
       });
@@ -320,6 +326,13 @@ case '/messages': return <SellerMessages />;
     return page;
   }
 
+  if (isPartnerHost) {
+    if (hostState.status === 'pending') {
+      return <div className="min-h-screen bg-slate-950" aria-hidden="true" />;
+    }
+    return <PartnerPortalPage />;
+  }
+
   if (isAffiliateHost) {
     if (hostState.status === 'pending') {
       return <div className="min-h-screen bg-white" aria-hidden="true" />;
@@ -332,6 +345,11 @@ case '/messages': return <SellerMessages />;
         || route === '/affiliate/dashboard/referrals' || route === '/affiliate/dashboard/payouts') {
       return <AffiliateDashboardPage />;
     }
+  }
+
+  if (serverSaysPlatform && route.startsWith('/p/')) {
+    const slug = decodeURIComponent(route.slice('/p/'.length));
+    if (slug && !slug.includes('/')) return <PartnerLandingPage slug={slug} />;
   }
 
   if (shouldWaitForHostResolution) {

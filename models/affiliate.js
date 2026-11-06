@@ -1,7 +1,7 @@
 // models/affiliate.js
 // DiDwa - Affiliate Program Model (pg queries, NO Prisma)
 
-import { query } from '../config/database.js';
+import { query, withTransaction } from '../config/database.js';
 import { getAffiliateProgramSettings } from '../services/affiliateProgramSettings.js';
 import { notifyAffiliateById } from '../services/affiliateNotifications.js';
 import { randomInt } from 'node:crypto';
@@ -75,10 +75,29 @@ export async function findById(id) {
 }
 
 // Create new affiliate profile
-export async function create({ fullName, email, phone, passwordHash, referralCode }) {
+export async function create({ fullName, email, phone, passwordHash, referralCode, parentPartnerId = null }) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const finalCode = referralCode || generateShortReferralCode();
     try {
+      if (parentPartnerId) {
+        return await withTransaction(async ({ query: txQuery }) => {
+          const { rows } = await txQuery(
+            `INSERT INTO affiliates
+               (referral_code, full_name, email, phone, password_hash, is_active, parent_partner_id)
+             VALUES ($1, $2, $3, $4, $5, TRUE, $6)
+             RETURNING id, referral_code, full_name, email, phone,
+                       momo_network, momo_number, momo_verified_name, momo_verified_at, is_active,
+                       created_at, updated_at`,
+            [finalCode, fullName, email, phone, passwordHash, parentPartnerId],
+          );
+          await txQuery(
+            `INSERT INTO partner_network (partner_id, relationship, affiliate_id)
+             VALUES ($1, 'affiliate', $2)`,
+            [parentPartnerId, rows[0].id],
+          );
+          return rows[0];
+        });
+      }
       const { rows } = await query(
         `INSERT INTO affiliates
            (referral_code, full_name, email, phone, password_hash, is_active)

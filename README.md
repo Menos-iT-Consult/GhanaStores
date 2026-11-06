@@ -8,7 +8,7 @@ a storefront on a subdomain or custom domain, manage multi-variant inventory,
 sell in-store or online, accept Mobile Money and cash, and cash out instantly
 via MTN, Telecel/Vodafone or AT Money.
 
-- `db/schema.sql` is the single canonical schema and the only SQL file in the repository.
+- `db/schema.sql` is the canonical platform schema; `db/migrations/` contains additive program migrations.
 - `npm run db:reset` is destructive and refuses to run unless `RESET_DATABASE=yes` is set.
 - Apply the schema to a new Neon database, then run `npm run db:migrate` to seed the 25 curated theme templates.
 
@@ -33,6 +33,7 @@ cp .env.example .env   # then edit values (see below)
 # Fresh database (destructive):
 RESET_DATABASE=yes npm run db:reset
 npm run db:init        # optional: applies db/schema.sql and records its checksum (the app also self-applies)
+node scripts/applyAffiliateMigration.js # applies affiliate and strategic-partner program migrations
 npm run db:migrate     # add/seed the 25 curated theme templates
 npm run db:seed        # optional demo store + catalog + orders
 node server.js         # API on http://localhost:4000
@@ -121,13 +122,54 @@ production without an independently reviewed and approved operational change.
 
 The API has a global per-IP limit, stricter limits for sign-in and verification,
 and dedicated limits for public orders, contact submissions, domain searches,
-and affiliate payouts. The limiter uses Express's resolved client IP rather
+and affiliate/partner payouts. Partner application and sign-in endpoints also
+use the authentication limit. The limiter uses Express's resolved client IP rather
 than trusting a raw `X-Forwarded-For` value. Configure both
 `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` in production to share
 counters across Vercel/server instances; without them, limits are process-local
 and do not aggregate across instances. If the configured shared store is
 unavailable, requests fail closed. Run `npm run test:rate-limit` to exercise
 the limiter.
+
+### Strategic partner program
+
+The ambassador and strategic partner program is separate from the single-tier
+affiliate program. It is implemented in the existing React/Vite SPA and Express
+API (not Next.js middleware): `partner.<PLATFORM_DOMAIN>` is classified as a
+reserved platform host and displays the partner portal, while Central Admin
+manages applications, individual override rates, network views, and MoMo payout
+decisions under **Configuration > Strategic partners**.
+
+Apply the canonical base schema and the affiliate/partner migrations before
+using partner APIs:
+
+```bash
+npm run db:init
+node scripts/applyAffiliateMigration.js
+```
+
+Tier 1 accrues on each paid order's `orders.total` (gross order GMV) for a
+merchant directly attributed to an approved partner. Tier 2 accrues on the
+earned commission amount in `affiliate_commissions` for affiliates recruited
+by that partner. Database triggers create idempotent ledger entries and reverse
+them when an order or affiliate commission is reversed; partial managed-payment
+refunds proportionally reduce the merchant GMV override. Partner payout requests
+reserve available earnings and remain pending until an administrator records
+the completed MoMo transfer reference or rejects the request with a reason.
+The payout is a manual admin release; no MoMo transfer is sent automatically.
+Applications start pending and partner login becomes available only after
+Central Admin approval.
+
+Partner codes and landing-page slugs are created at application time. Direct
+merchant links use `https://<PLATFORM_DOMAIN>/p/<partner-slug>`; affiliate
+recruitment links use `https://affiliate.<PLATFORM_DOMAIN>/affiliate/signup?ref=<partner-code>`.
+Merchant signup attribution is retained in an HTTP-only, 30-day cookie shared
+across the platform apex. The most recently clicked partner or affiliate link
+replaces the other attribution cookie, preventing a merchant from being counted
+as both a direct tier-1 referral and an affiliate referral.
+
+`npm run test:partners` checks routing, attribution, ledger, admin, payout,
+migration, and outreach-template wiring without connecting to a database.
 
 ### Responsive behaviour
 

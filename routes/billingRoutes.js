@@ -25,6 +25,7 @@ import { cycleInterval, listPublicPlans, loadPlanCatalog, resolveOffer } from '.
 import { findByReferralCode } from '../models/affiliate.js';
 import { isValidReferralCode } from '../lib/affiliate.js';
 import { dispatchAffiliateNotification } from '../services/affiliateNotifications.js';
+import { findApprovedPartnerByCode } from '../models/partner.js';
 
 const router = Router();
 
@@ -123,6 +124,23 @@ router.post('/register', async (req, res, next) => {
         return res.status(400).json({ error: 'The referral code was not found or is inactive.' });
       }
     }
+    const partnerCookie = String(req.headers.cookie || '')
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('didwa_partner='))
+      ?.slice('didwa_partner='.length);
+    let partnerReferralCode = '';
+    try {
+      partnerReferralCode = partnerCookie ? decodeURIComponent(partnerCookie) : '';
+    } catch {
+      partnerReferralCode = '';
+    }
+    // A submitted affiliate code takes precedence over a partner cookie. This
+    // prevents one store from being attributed as both a direct merchant and an
+    // affiliate referral.
+    const referredPartner = !referredAffiliate && partnerReferralCode
+      ? await findApprovedPartnerByCode(partnerReferralCode)
+      : null;
 
     /* The seller's CHOSEN address, when the signup form supplied one. Taken
        verbatim - never silently substituted with a generated one, because the
@@ -169,14 +187,14 @@ router.post('/register', async (req, res, next) => {
           }
           const createdStore = await t.query(
             `INSERT INTO stores (name, owner_name, email, phone, password_hash,
-                                 subdomain_slug, whatsapp_number, momo_number)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                                 subdomain_slug, whatsapp_number, momo_number, referred_by_partner_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
              RETURNING id, name, owner_name, email, phone, subdomain_slug, status, plan,
                        trial_ends_at, grace_ends_at, currency, custom_domain, created_at`,
             [String(name).trim(), ownerName ? String(ownerName).trim() : String(name).trim(),
               emailLower, normPhone, hash, attempt === 1 ? slug
                 : await uniqueSlug(`${slug}-retry-${Math.random().toString(36).slice(2, 6)}`),
-              normWhatsapp, normMomo],
+              normWhatsapp, normMomo, referredPartner?.id || null],
           );
           if (referredAffiliate) {
             await t.query(
@@ -184,6 +202,14 @@ router.post('/register', async (req, res, next) => {
                VALUES ($1, $2, 'pending_upgrade')
                ON CONFLICT (referred_store_id) DO NOTHING`,
               [referredAffiliate.id, createdStore.rows[0].id],
+            );
+          }
+          if (referredPartner) {
+            await t.query(
+              `INSERT INTO partner_network (partner_id, relationship, merchant_id)
+               VALUES ($1, 'merchant', $2)
+               ON CONFLICT (merchant_id) WHERE merchant_id IS NOT NULL DO NOTHING`,
+              [referredPartner.id, createdStore.rows[0].id],
             );
           }
           return createdStore;

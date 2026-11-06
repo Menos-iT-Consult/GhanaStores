@@ -36,7 +36,9 @@ export const PWA_ROUTES = [
   '/admin/pricing',
   '/admin/plans',
   '/admin/affiliate-program',
+  '/admin/partners',
   '/admin/platform-settings',
+  '/admin/public-pages',
   '/admin/themes',
   '/admin/team',
   '/admin/system',
@@ -63,9 +65,15 @@ export const PWA_ROUTES = [
 /** Routes that carry a dynamic segment; the segment must not be empty. */
 export const DYNAMIC_ROUTE_PREFIXES = [
   '/dashboard/themes/demo/',
+  '/p/',
   // Customer order tracking on a tenant storefront: /track/<order-number>
   '/track/',
   // A merchant's 360-degree view: /admin/merchants/<uuid>
+  '/admin/merchants/',
+];
+
+const PWA_DYNAMIC_ROUTE_PREFIXES = [
+  '/dashboard/themes/demo/',
   '/admin/merchants/',
 ];
 
@@ -84,5 +92,5 @@ export function isKnownRoute(path) {
 /** True for paths that belong to the seller PWA / admin area. */
 export function isPwaRoute(path) {
   const value = String(path || '/');
-  return PWA.has(value) || matchesPrefix(value, DYNAMIC_ROUTE_PREFIXES);
+  return PWA.has(value) || matchesPrefix(value, PWA_DYNAMIC_ROUTE_PREFIXES);
 }

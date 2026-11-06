@@ -32,7 +32,7 @@ console.log('\nDiDwa route table -> src/routes.js\n');
 /* ---------- Every reachable path stays routable ---------- */
 for (const path of [...PUBLIC_LINKS, ...SIDEBAR_LINKS, '/admin', '/login',
   '/affiliate-program', '/affiliate/login', '/affiliate/signup', '/affiliate/dashboard',
-  '/dashboard/themes/customizer', '/dashboard/themes/demo/clean-slate']) {
+  '/dashboard/themes/customizer', '/dashboard/themes/demo/clean-slate', '/p/partner-name']) {
   log(`routable ${path}`, isKnownRoute(path) === true);
 }
 /* ---------- The super admin hub: every area must have a real route ---------- */
@@ -40,7 +40,7 @@ for (const path of [...PUBLIC_LINKS, ...SIDEBAR_LINKS, '/admin', '/login',
    sidebar entry would navigate into a 404 that looks like a broken platform. */
 const ADMIN_ROUTES = [
   '/admin', '/admin/merchants', '/admin/orders', '/admin/catalog', '/admin/customers',
-  '/admin/payments', '/admin/logistics', '/admin/domains', '/admin/pricing',
+  '/admin/payments', '/admin/logistics', '/admin/domains', '/admin/pricing', '/admin/partners',
   '/admin/themes', '/admin/team', '/admin/system', '/admin/audit',
 ];
 for (const path of ADMIN_ROUTES) {
@@ -70,6 +70,8 @@ for (const path of SIDEBAR_LINKS) {
 for (const path of PUBLIC_LINKS) {
   log(`public route ${path}`, isPwaRoute(path) === false);
 }
+log('partner merchant landing route is public and not PWA-gated',
+  isKnownRoute('/p/partner-name') === true && isPwaRoute('/p/partner-name') === false);
 
 /* ---------- Defensive: a malformed path must not throw ---------- */
 log("empty path treated as '/'", isKnownRoute('') === true);

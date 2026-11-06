@@ -22,6 +22,7 @@ import OrganizationSchema from '../components/seo/OrganizationSchema.jsx';
 import SoftwareApplicationSchema from '../components/seo/SoftwareApplicationSchema.jsx';
 import FAQSchema from '../components/seo/FAQSchema.jsx';
 import { META_CONTENT, siteUrl } from '../lib/seo.js';
+import { usePublicPageContent } from '../lib/publicPageContent.js';
 
 const AFFILIATE_DASHBOARD_URL = 'https://affiliate.didwaghana.com';
 
@@ -34,16 +35,17 @@ const HOME_HIGHLIGHTS = [
 export default function WelcomePage({ authed = false, onStart, onDashboard }) {
   const start = onStart || (() => {});
   const dashboard = onDashboard || (() => {});
+  const { content } = usePublicPageContent('/');
 
   const { homepage } = META_CONTENT;
 
   return (
     <>
       <MetaTags
-        title={homepage.title}
-        description={homepage.description}
+        title={content.seoTitle || homepage.title}
+        description={content.seoDescription || homepage.description}
         canonical={siteUrl('/')}
-        ogImage={siteUrl('/didwa-logo.jpg')}
+        ogImage={content.ogImage?.startsWith('http') ? content.ogImage : siteUrl(content.ogImage || '/didwa-logo.jpg')}
         keywords={['online store builder Ghana', 'e-commerce platform Ghana', 'digital POS Ghana', 'storefront themes Ghana', 'DiDwa AI for sellers']}
       />
       <OrganizationSchema />
@@ -59,13 +61,17 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-2 lg:pt-24">
           <div>
+            {content.eyebrow && (
+              <p className="animate-fade-up text-xs font-extrabold uppercase tracking-[0.18em] text-blue-600 motion-reduce:animate-none">
+                {content.eyebrow}
+              </p>
+            )}
             <h1 className="mt-5 animate-fade-up text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl motion-reduce:animate-none">
-              Sell in-store &amp; online.
-              <span className="mt-1 block bg-gradient-to-r from-blue-600 to-emerald-brand bg-clip-text text-transparent">Manage every sale with DiDwa.</span>
+              {content.title}
+              {content.titleAccent && <span className="mt-1 block bg-gradient-to-r from-blue-600 to-emerald-brand bg-clip-text text-transparent">{content.titleAccent}</span>}
             </h1>
             <p className="mt-5 max-w-lg animate-fade-up text-base leading-relaxed text-slate-500 sm:text-lg motion-reduce:animate-none" style={{ animationDelay: '90ms' }}>
-              Bring in-person sales, inventory, online orders and your storefront into one seller workspace. Use guided
-              DiDwa AI actions based on your store data, and request managed payouts when your store is eligible.
+              {content.description}
             </p>
 
             <div className="mt-8 flex animate-fade-up flex-wrap items-center gap-3 motion-reduce:animate-none" style={{ animationDelay: '180ms' }}>
@@ -75,11 +81,11 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
                 </button>
               ) : (
                 <button type="button" onClick={() => start('register')} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-xl shadow-blue-600/25 transition hover:-translate-y-0.5 hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-                  Start your free trial <ArrowRight size={16} aria-hidden="true" />
+                  {content.primaryLabel || 'Start your free trial'} <ArrowRight size={16} aria-hidden="true" />
                 </button>
               )}
-              <a href="/how-it-works" className="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-                See how it works
+              <a href={content.secondaryHref || '/how-it-works'} className="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+                {content.secondaryLabel || 'See how it works'}
               </a>
             </div>
 
@@ -90,19 +96,19 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
             </ul>
           </div>
 
-          {/* App-preview collage (pure CSS) */}
-          <div className="relative hidden h-[380px] select-none sm:block" aria-hidden="true">
-            <div className="absolute right-0 top-6 w-72 rotate-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-card transition-transform duration-300 hover:rotate-1">
-              <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">This week</p>
-              <div className="mt-4 flex h-28 items-end gap-2">
-                {[42, 68, 55, 82, 60, 95, 74, 100].map((h, i) => (
-                  <span key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-blue-600/80 to-blue-400" style={{ height: `${h}%` }} />
-                ))}
-              </div>
-              <p className="mt-3 text-xs font-bold text-slate-500">Sales overview at a glance</p>
+          {/* Admin-managed visual */}
+          <div className="relative hidden h-[430px] select-none sm:block">
+            <div className="absolute inset-y-5 left-8 right-0 overflow-hidden rounded-[2rem] border border-white/80 bg-[#0B1120] shadow-2xl shadow-slate-900/15">
+              {content.mediaType === 'video' && content.mediaUrl ? (
+                <video className="h-full w-full object-cover" src={content.mediaUrl} poster={content.posterUrl || undefined} muted autoPlay loop playsInline aria-label={content.mediaAlt} />
+              ) : (
+                <img src={content.mediaUrl || '/iphone-shot.png'} alt={content.mediaAlt || 'DiDwa seller tools'} className="h-full w-full object-cover object-center" loading="eager" decoding="async" />
+              )}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0B1120]/95 via-[#0B1120]/40 to-transparent" />
+              <p className="absolute bottom-5 left-6 right-6 text-sm font-bold text-white drop-shadow">{content.mediaCaption}</p>
             </div>
 
-            <div className="absolute left-2 top-36 w-80 -rotate-2 rounded-2xl border border-slate-100 bg-white p-5 shadow-card transition-transform duration-300 hover:-rotate-1">
+            <div className="absolute left-0 top-12 w-64 rounded-2xl border border-slate-100 bg-white/95 p-5 shadow-card backdrop-blur animate-fade-up motion-reduce:animate-none">
               <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Live activity</p>
               <ul className="mt-3 space-y-3">
                 {[
@@ -121,8 +127,7 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
               </ul>
             </div>
 
-            {/* Mini POS mock */}
-            <div className="absolute bottom-0 right-2 w-60 -rotate-1 rounded-2xl border border-slate-100 bg-white p-4 shadow-card transition-transform duration-300 hover:rotate-0">
+            <div className="absolute bottom-0 right-3 w-60 rounded-2xl border border-slate-100 bg-white p-4 shadow-card">
               <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                 <Package size={12} className="text-blue-500" aria-hidden="true" /> Point of sale
               </p>
@@ -176,8 +181,8 @@ export default function WelcomePage({ authed = false, onStart, onDashboard }) {
       {/* Features */}
       <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">Everything included</span>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">One login. Every tool your shop needs.</h2>
+          <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">{content.sectionEyebrow || 'Everything included'}</span>
+          <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{content.sectionTitle || 'One login. Every tool your shop needs.'}</h2>
           <p className="mt-4 text-base text-slate-500">Stop stitching together notebooks, calculators and chat threads - DiDwa runs the whole sale, end to end.</p>
           <p className="mt-3 text-sm font-semibold text-slate-600">
             Every plan starts with a 14-day free trial.{' '}
