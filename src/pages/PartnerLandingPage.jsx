@@ -49,7 +49,7 @@ export default function PartnerLandingPage({ slug }) {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate(`/login?ref=${encodeURIComponent(partner.partnerCode)}&source=partner`)}
               className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-blue-400"
             >
               Create your DiDwa store <ArrowRight size={16} aria-hidden="true" />

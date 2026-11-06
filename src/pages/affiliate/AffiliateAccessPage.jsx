@@ -16,7 +16,7 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
     email: '',
     phone: '',
     password: '',
-    partnerCode: new URLSearchParams(window.location.search).get('ref') || '',
+    partnerCode: String(new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase(),
   });
 
   function update(key) {
@@ -82,14 +82,6 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
         <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="on">
           {signingUp && (
             <>
-              <label className="block space-y-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Partner referral code <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span>
-                <span className="relative block">
-                  <Tag size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                  <input value={form.partnerCode} onChange={update('partnerCode')} className={`${fieldClass} uppercase`} autoComplete="off" maxLength={20} minLength={form.partnerCode ? 3 : undefined} pattern={form.partnerCode ? '[A-Za-z0-9]{3,20}' : undefined} aria-describedby="affiliate-partner-code-help" />
-                </span>
-                <span id="affiliate-partner-code-help" className="block text-[11px] font-normal normal-case tracking-normal text-slate-400">Prefilled when you join through a partner's invite link.</span>
-              </label>
               <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
                 Full name
                 <span className="relative block">
@@ -113,6 +105,16 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
               <input value={form.email} onChange={update('email')} className={`${fieldClass} pl-9`} type="email" autoComplete="email" required />
             </span>
           </label>
+          {signingUp && (
+            <label className="block space-y-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Partner referral code <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span>
+              <span className="relative block">
+                <Tag size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input value={form.partnerCode} onChange={update('partnerCode')} className={`${fieldClass} uppercase`} autoComplete="off" maxLength={20} minLength={form.partnerCode ? 3 : undefined} pattern={form.partnerCode ? '[A-Za-z0-9]{3,20}' : undefined} aria-describedby="affiliate-partner-code-help" />
+              </span>
+              <span id="affiliate-partner-code-help" className="block text-[11px] font-normal normal-case tracking-normal text-slate-400">Prefilled when you join through a partner's invite link.</span>
+            </label>
+          )}
           <div className="block space-y-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <label htmlFor="affiliate-password">Password</label>
             <span className="relative block">

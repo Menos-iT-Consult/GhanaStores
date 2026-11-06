@@ -111,17 +111,24 @@ router.post('/register', async (req, res, next) => {
       cookieReferralCode = '';
     }
     const referralCode = submittedReferralCode || cookieReferralCode;
+    const referralSource = String(req.body?.referralSource || '').trim().toLowerCase();
     let referredAffiliate = null;
-    if (referralCode) {
-      const validReferralCode = isValidReferralCode(referralCode);
-      if (!validReferralCode && submittedReferralCode) {
-        return res.status(400).json({ error: 'The referral code is invalid.' });
+    let referredPartner = null;
+    if (submittedReferralCode) {
+      if (referralSource === 'partner') {
+        referredPartner = await findApprovedPartnerByCode(submittedReferralCode);
+      } else {
+        const validReferralCode = isValidReferralCode(submittedReferralCode);
+        if (validReferralCode) referredAffiliate = await findByReferralCode(submittedReferralCode);
+        if (!referredAffiliate) referredPartner = await findApprovedPartnerByCode(submittedReferralCode);
       }
+      if (!referredPartner && !referredAffiliate) {
+        return res.status(400).json({ error: 'The referral code was not found or is inactive.' });
+      }
+    } else if (referralCode) {
+      const validReferralCode = isValidReferralCode(referralCode);
       if (validReferralCode) {
         referredAffiliate = await findByReferralCode(referralCode);
-      }
-      if (submittedReferralCode && !referredAffiliate) {
-        return res.status(400).json({ error: 'The referral code was not found or is inactive.' });
       }
     }
     const partnerCookie = String(req.headers.cookie || '')
@@ -135,12 +142,10 @@ router.post('/register', async (req, res, next) => {
     } catch {
       partnerReferralCode = '';
     }
-    // A submitted affiliate code takes precedence over a partner cookie. This
-    // prevents one store from being attributed as both a direct merchant and an
-    // affiliate referral.
-    const referredPartner = !referredAffiliate && partnerReferralCode
-      ? await findApprovedPartnerByCode(partnerReferralCode)
-      : null;
+    // An explicitly submitted code takes precedence over cookies.
+    if (!submittedReferralCode && !referredAffiliate && partnerReferralCode) {
+      referredPartner = await findApprovedPartnerByCode(partnerReferralCode);
+    }
 
     /* The seller's CHOSEN address, when the signup form supplied one. Taken
        verbatim - never silently substituted with a generated one, because the

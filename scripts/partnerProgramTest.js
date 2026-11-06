@@ -14,6 +14,7 @@ const slug = read('../services/subdomainSlug.js');
 const hostApi = read('../routes/domainRoutes.js');
 const app = read('../src/App.jsx');
 const portal = read('../src/pages/partner/PartnerPortalPage.jsx');
+const partnerAccess = read('../src/pages/partner/PartnerAccessPage.jsx');
 const adminUi = read('../src/pages/admin/AdminPartners.jsx');
 const routes = read('../src/routes.js');
 const server = read('../server.js');
@@ -47,6 +48,7 @@ const checks = [
   ['partners can request validated custom referral codes with collision checks',
     /preferredReferralCode/.test(api)
       && /\^\[A-Z0-9\]\{3,20\}\$/.test(api)
+      && /!\/\^\[A-Z0-9\]\{3,20\}\$\/\.test\(preferredReferralCode\)/.test(api)
       && /preferredCode \|\| generatePartnerCode\(\)/.test(partnerModel)
       && /PARTNER_CODE_EXISTS/.test(partnerModel)
       && /partners_partner_code_case_insensitive_unique/.test(customCodeMigration)
@@ -63,11 +65,11 @@ const checks = [
       && /router\.get\('\/partners\/:id\/network'/.test(adminApi)
       && /recordAdminAction/.test(adminApi)
       && /router\.patch\('\/partner-payouts\/:id'/.test(adminApi)],
-  ['merchant attribution is written in the store transaction with affiliate precedence',
+  ['merchant attribution is written in the store transaction with submitted code precedence',
     /findApprovedPartnerByCode/.test(billing)
       && /referred_by_partner_id/.test(billing)
       && /INSERT INTO partner_network \(partner_id, relationship, merchant_id\)/.test(billing)
-      && /A submitted affiliate code takes precedence/.test(billing)],
+      && /An explicitly submitted code takes precedence/.test(billing)],
   ['affiliate recruitment from partner links sets parent and network row transactionally',
     /partnerCode/.test(affiliateApi)
       && /parentPartnerId: partner\?\.id/.test(affiliateApi)
@@ -81,6 +83,15 @@ const checks = [
       && /PartnerPortalPage/.test(app)
       && /route\.startsWith\('\/p\/'\)/.test(app)
       && /'\/p\/'/.test(routes)],
+  ['referral query codes are retained for form prefill and resolved to partner or affiliate attribution',
+    /\/api\/partners\/attribution\?code=/.test(read('../src/App.jsx'))
+      && /params\.get\('source'\) !== 'partner'/.test(read('../src/App.jsx'))
+      && /source=partner/.test(api)
+      && !/params\.delete\('ref'\)/.test(read('../src/App.jsx'))
+      && /findApprovedPartnerByCode\(submittedReferralCode\)/.test(billing)
+      && /referralSource/.test(billing)
+      && /partnerCode: partner\.partner_code/.test(api)
+      && /navigate\(`\/login\?ref=\$\{encodeURIComponent\(partner\.partnerCode\)\}&source=partner`\)/.test(read('../src/pages/PartnerLandingPage.jsx'))],
   ['partner dashboard and admin UI provide referral, network, rate, and payout workflows',
     /Merchant onboarding link/.test(portal)
       && /Affiliate recruitment link/.test(portal)
@@ -88,9 +99,16 @@ const checks = [
       && /RateSlider/.test(adminUi)
       && /Mark paid/.test(adminUi)],
   ['partner access uses DiDwa branding and the shared accessible password reveal',
-    /LogoLockup onLight subtitle="Strategic partner program"/.test(portal)
-      && /PasswordInput/.test(portal)
+    /PartnerAccessPage/.test(portal)
+      && /LogoLockup onLight subtitle="Strategic partner program"/.test(partnerAccess)
+      && /PasswordInput/.test(partnerAccess)
       && /aria-label=\{label\}/.test(passwordInput)],
+  ['partner signup requires a unique referral code and merchant links prefill it',
+    /Preferred referral code/.test(partnerAccess)
+      && /required maxLength=\{20\} minLength=\{3\}/.test(partnerAccess)
+      && /\/p\/\$\{encodeURIComponent\(req\.partner\.partner_slug\)\}\?ref=\$\{encodeURIComponent\(req\.partner\.partner_code\)\}/.test(api)
+      && /partnerCode: partner\.partner_code/.test(api)
+      && /partnerCode\)/.test(read('../src/pages/PartnerLandingPage.jsx'))],
   ['outreach templates avoid promises of fixed commission or guaranteed earnings',
     /PARTNER_OUTREACH_TEMPLATES/.test(prompts)
       && /Never promise a specific rate, guaranteed earnings/.test(prompts)],

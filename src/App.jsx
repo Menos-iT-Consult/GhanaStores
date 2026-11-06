@@ -176,16 +176,31 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const ref = params.get('ref');
+    const ref = String(params.get('ref') || '').trim();
     if (!ref) return;
-    if (/^[A-HJ-NP-Z2-9]{8}$/i.test(ref)
-        || /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)) {
-      api.get(`/api/affiliate/attribution?ref=${encodeURIComponent(ref)}`)
-        .catch((error) => console.warn('[affiliate] Referral attribution could not be saved:', error.message));
-    }
-    params.delete('ref');
-    const search = params.toString();
-    window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`);
+    const saveAttribution = async () => {
+      const partnerUrl = `/api/partners/attribution?code=${encodeURIComponent(ref)}`;
+      const affiliateUrl = `/api/affiliate/attribution?ref=${encodeURIComponent(ref)}`;
+      const affiliateCode = /^[A-HJ-NP-Z2-9]{8}$/i.test(ref)
+        || /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref);
+      if (params.get('source') !== 'partner' && affiliateCode) {
+        try {
+          await api.get(affiliateUrl);
+          return;
+        } catch (affiliateError) {
+          if (affiliateError.status !== 404) {
+            console.warn('[affiliate] Referral attribution could not be saved:', affiliateError.message);
+            return;
+          }
+        }
+      }
+      try {
+        await api.get(partnerUrl);
+      } catch (partnerError) {
+        console.warn('[partner] Referral attribution could not be saved:', partnerError.message);
+      }
+    };
+    void saveAttribution();
   }, []);
 
   /* Derived from the server answer so the apex can never be treated as a

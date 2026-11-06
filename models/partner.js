@@ -21,7 +21,7 @@ export async function findApprovedPartnerByCode(code) {
 
 export async function findApprovedPartnerBySlug(slug) {
   const { rows } = await query(
-    `SELECT partner_slug, full_name, organization_name
+    `SELECT partner_slug, partner_code, full_name, organization_name
        FROM partners
       WHERE partner_slug = LOWER($1) AND status = 'approved'
       LIMIT 1`,

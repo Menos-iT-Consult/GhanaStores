@@ -155,7 +155,12 @@ export default function AuthScreen({ onAuthed, initialMode = 'register' }) {
       /* Consent flags ride along on registration (server stores them with
          the merchant record once its schema gains consent columns). */
       const payload = mode === 'register'
-        ? { ...form, accepts_terms: true, accepted_at: new Date().toISOString() }
+        ? {
+          ...form,
+          referralSource: new URLSearchParams(window.location.search).get('source') || '',
+          accepts_terms: true,
+          accepted_at: new Date().toISOString(),
+        }
         : form;
       const data = await api.post(path, payload);
 

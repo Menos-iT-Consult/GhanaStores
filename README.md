@@ -152,9 +152,10 @@ npm run db:partners
 ```
 
 `npm run db:partners` checks that the base and affiliate tables exist before
-applying migration 004, then verifies all four partner tables. If the partner
-application endpoint returns `relation "partners" does not exist`, apply this
-migration to the API's configured production database and retry the request.
+applying migrations 004 and 005, then verifies all four partner tables. If the
+partner application endpoint returns `relation "partners" does not exist`,
+apply these migrations to the API's configured production database and retry
+the request.
 
 Tier 1 accrues on each paid order's `orders.total` (gross order GMV) for a
 merchant directly attributed to an approved partner. Tier 2 accrues on the
@@ -168,11 +169,11 @@ The payout is a manual admin release; no MoMo transfer is sent automatically.
 Applications start pending and partner login becomes available only after
 Central Admin approval.
 
-Partner applicants may request a 3-20 character alphanumeric referral code;
-codes are normalized to uppercase and must be unique. Leaving the field blank
-keeps the existing generated-code behavior. The affiliate recruitment link
-uses the partner's code as `?ref=...`, and the affiliate signup form displays
-that code for confirmation/editing before submitting partner attribution.
+Partner applicants must choose a unique 3-20 character alphanumeric referral
+code; codes are normalized to uppercase. Merchant and affiliate referral links
+carry the partner's code as `?ref=...&source=partner`. Both signup forms prefill
+a referral-code field, and merchant signup uses the source marker to apply the
+correct partner or affiliate attribution when referral codes overlap.
 
 Partner codes and landing-page slugs are created at application time. Direct
 merchant links use `https://<PLATFORM_DOMAIN>/p/<partner-slug>`; affiliate

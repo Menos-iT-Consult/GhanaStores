@@ -42,6 +42,7 @@ router.get('/public/:slug', async (req, res, next) => {
         fullName: partner.full_name,
         organizationName: partner.organization_name,
         partnerSlug: partner.partner_slug,
+        partnerCode: partner.partner_code,
       },
     });
   } catch (err) {
@@ -83,9 +84,9 @@ router.post('/apply', async (req, res, next) => {
         || email.length > 254
         || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone
         || password.length < 8 || password.length > 128
-        || (preferredReferralCode && !/^[A-Z0-9]{3,20}$/.test(preferredReferralCode))) {
+        || !/^[A-Z0-9]{3,20}$/.test(preferredReferralCode)) {
       return res.status(400).json({
-        error: 'Enter valid application details and a password of at least 8 characters. Referral codes must be 3-20 letters or numbers.',
+        error: 'Enter valid application details, a password of at least 8 characters, and a referral code with 3-20 letters or numbers.',
       });
     }
     const passwordHash = await bcrypt.hash(password, 12);
@@ -180,8 +181,8 @@ router.get('/dashboard', requirePartner, async (req, res, next) => {
     res.json({
       stats,
       links: {
-        merchant: `https://${apex}/p/${encodeURIComponent(req.partner.partner_slug)}`,
-        affiliate: `https://affiliate.${apex}/affiliate/signup?ref=${encodeURIComponent(req.partner.partner_code)}`,
+        merchant: `https://${apex}/p/${encodeURIComponent(req.partner.partner_slug)}?ref=${encodeURIComponent(req.partner.partner_code)}&source=partner`,
+        affiliate: `https://affiliate.${apex}/affiliate/signup?ref=${encodeURIComponent(req.partner.partner_code)}&source=partner`,
       },
       payoutMinimumGhs: Number(setting.rows[0]?.setting_value || 50),
     });
