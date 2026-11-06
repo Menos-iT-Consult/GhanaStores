@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const read = (file) => fs.readFileSync(new URL(file, import.meta.url), 'utf8');
 const migration = read('../db/migrations/004_partner_program.sql');
+const customCodeMigration = read('../db/migrations/005_custom_partner_referral_codes.sql');
 const api = read('../routes/partnerApiRoutes.js');
 const adminApi = read('../routes/admin/partners.js');
 const auth = read('../middleware/authMiddleware.js');
@@ -19,6 +20,7 @@ const server = read('../server.js');
 const prompts = read('../config/partnerPrompts.js');
 const runner = read('../scripts/applyAffiliateMigration.js');
 const partnerRunner = read('../scripts/applyPartnerMigration.js');
+const partnerModel = read('../models/partner.js');
 const packageJson = JSON.parse(read('../package.json'));
 const webhooks = read('../services/paymentWebhooks.js');
 const passwordInput = read('../src/components/PasswordInput.jsx');
@@ -42,6 +44,13 @@ const checks = [
     /bcrypt\.hash\(password, 12\)/.test(api)
       && /account\.status !== 'approved'/.test(api)
       && /issuePartnerToken\(partner\)/.test(api)],
+  ['partners can request validated custom referral codes with collision checks',
+    /preferredReferralCode/.test(api)
+      && /\^\[A-Z0-9\]\{3,20\}\$/.test(api)
+      && /preferredCode \|\| generatePartnerCode\(\)/.test(partnerModel)
+      && /PARTNER_CODE_EXISTS/.test(partnerModel)
+      && /partners_partner_code_case_insensitive_unique/.test(customCodeMigration)
+      && /partners_partner_code_format_check/.test(customCodeMigration)],
   ['partner protected endpoints validate PARTNER role and approved status',
     /req\.auth\?\.role !== 'PARTNER'/.test(api)
       && /findPartnerById\(req\.auth\.sub\)/.test(api)],
@@ -86,11 +95,13 @@ const checks = [
     /PARTNER_OUTREACH_TEMPLATES/.test(prompts)
       && /Never promise a specific rate, guaranteed earnings/.test(prompts)],
   ['partner migration is included in the documented affiliate migration runner',
-    /004_partner_program\.sql/.test(runner)],
+    /004_partner_program\.sql/.test(runner)
+      && /005_custom_partner_referral_codes\.sql/.test(runner)],
   ['standalone partner migration checks prerequisites and verifies created tables',
     packageJson.scripts['db:partners'] === 'node scripts/applyPartnerMigration.js'
       && /to_regclass\(relation_name\)/.test(partnerRunner)
       && /004_partner_program\.sql/.test(partnerRunner)
+      && /005_custom_partner_referral_codes\.sql/.test(partnerRunner)
       && /partners, partner_network, partner_ledgers, partner_payouts/.test(partnerRunner)],
   ['partner sign-in and payout routes have dedicated rate limits',
     /\/api\/partners\/login', authLimiter/.test(server)

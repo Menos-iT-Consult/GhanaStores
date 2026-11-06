@@ -55,8 +55,11 @@ export async function findPartnerByEmailForAuth(email) {
 }
 
 export async function createPartnerApplication({
-  fullName, email, phone, organizationName, passwordHash,
+  fullName, email, phone, organizationName, passwordHash, preferredReferralCode,
 }) {
+  const preferredCode = preferredReferralCode
+    ? String(preferredReferralCode).trim().toUpperCase()
+    : '';
   const slugBase = String(organizationName || fullName)
     .toLowerCase()
     .normalize('NFKD')
@@ -69,13 +72,14 @@ export async function createPartnerApplication({
     const slug = attempt === 0
       ? slugBase
       : `${slugBase.slice(0, 32)}-${randomInt(1000, 10000)}`;
+    const partnerCode = preferredCode || generatePartnerCode();
     try {
       const { rows } = await query(
         `INSERT INTO partners
            (full_name, email, phone, organization_name, partner_code, partner_slug, password_hash)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, full_name, email, organization_name, status, created_at`,
-        [fullName, email, phone, organizationName, generatePartnerCode(), slug, passwordHash],
+         RETURNING id, full_name, email, organization_name, partner_code, status, created_at`,
+        [fullName, email, phone, organizationName, partnerCode, slug, passwordHash],
       );
       return rows[0];
     } catch (err) {
@@ -88,6 +92,17 @@ export async function createPartnerApplication({
         const conflict = new Error('A partner application already uses this email.');
         conflict.code = 'PARTNER_EMAIL_EXISTS';
         throw conflict;
+      }
+      if (preferredCode) {
+        const { rows: codeRows } = await query(
+          'SELECT 1 FROM partners WHERE UPPER(partner_code) = $1 LIMIT 1',
+          [preferredCode],
+        );
+        if (codeRows.length) {
+          const conflict = new Error('That partner referral code is already in use.');
+          conflict.code = 'PARTNER_CODE_EXISTS';
+          throw conflict;
+        }
       }
       if (attempt === 7) throw err;
     }

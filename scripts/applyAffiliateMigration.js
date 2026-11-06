@@ -46,6 +46,7 @@ const migrationPaths = [
   path.join(__dirname, '..', 'db', 'migrations', '002_short_affiliate_referral_codes.sql'),
   path.join(__dirname, '..', 'db', 'migrations', '003_affiliate_payout_account_verification.sql'),
   path.join(__dirname, '..', 'db', 'migrations', '004_partner_program.sql'),
+  path.join(__dirname, '..', 'db', 'migrations', '005_custom_partner_referral_codes.sql'),
 ];
 for (const migrationPath of migrationPaths) {
   if (!fs.existsSync(migrationPath)) {

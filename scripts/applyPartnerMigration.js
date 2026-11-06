@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const migrationPath = path.join(scriptDir, '..', 'db', 'migrations', '004_partner_program.sql');
+const migrationPaths = [
+  path.join(scriptDir, '..', 'db', 'migrations', '004_partner_program.sql'),
+  path.join(scriptDir, '..', 'db', 'migrations', '005_custom_partner_referral_codes.sql'),
+];
 const connectionString = String(process.env.DATABASE_URL || '').trim();
 
 if (!connectionString) {
@@ -32,7 +35,9 @@ try {
       );
     }
 
-    await client.query(await fs.readFile(migrationPath, 'utf8'));
+    for (const migrationPath of migrationPaths) {
+      await client.query(await fs.readFile(migrationPath, 'utf8'));
+    }
 
     const result = await client.query(
       `SELECT name

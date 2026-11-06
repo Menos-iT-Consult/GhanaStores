@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, ArrowUpRight, BadgePercent, Building2, Copy, Handshake, LockKeyhole, LogIn, LogOut, Mail, Phone, RefreshCw, UserPlus, UserRound, Users, Wallet,
+  ArrowLeft, ArrowRight, ArrowUpRight, BadgePercent, Building2, Copy, Handshake, LockKeyhole, LogIn, LogOut, Mail, Phone, RefreshCw, Tag, UserPlus, UserRound, Users, Wallet,
 } from 'lucide-react';
 import {
   clearPartnerSession, getPartnerToken, ghs, partnerApi, setPartnerSession,
@@ -14,7 +14,7 @@ const inputLabelClass = 'block space-y-1.5 text-xs font-semibold uppercase track
 
 function PartnerAccess({ initialMode, initialError = '', onLogin }) {
   const [mode, setMode] = useState(initialMode);
-  const [form, setForm] = useState({ fullName: '', organizationName: '', email: '', phone: '', password: '' });
+  const [form, setForm] = useState({ fullName: '', organizationName: '', preferredReferralCode: '', email: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError);
   const [notice, setNotice] = useState('');
@@ -87,6 +87,11 @@ function PartnerAccess({ initialMode, initialError = '', onLogin }) {
               <label className={inputLabelClass}>Organization or community
                 <span className="relative block"><Building2 size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                 <input className={fieldClass} value={form.organizationName} onChange={update('organizationName')} autoComplete="organization" required maxLength={160} /></span>
+              </label>
+              <label className={inputLabelClass}>Preferred referral code <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span>
+                <span className="relative block"><Tag size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input className={`${fieldClass} uppercase`} value={form.preferredReferralCode} onChange={(event) => setForm((value) => ({ ...value, preferredReferralCode: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20) }))} placeholder="E.G. KOFI2026" autoComplete="off" maxLength={20} minLength={3} pattern="[A-Za-z0-9]{3,20}" aria-describedby="partner-code-help" /></span>
+                <span id="partner-code-help" className="block text-[11px] font-normal normal-case tracking-normal text-slate-400">Use 3-20 letters or numbers. Leave blank for an automatically generated code.</span>
               </label>
               <label className={inputLabelClass}>Phone number
                 <span className="relative block"><Phone size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />

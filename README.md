@@ -168,6 +168,12 @@ The payout is a manual admin release; no MoMo transfer is sent automatically.
 Applications start pending and partner login becomes available only after
 Central Admin approval.
 
+Partner applicants may request a 3-20 character alphanumeric referral code;
+codes are normalized to uppercase and must be unique. Leaving the field blank
+keeps the existing generated-code behavior. The affiliate recruitment link
+uses the partner's code as `?ref=...`, and the affiliate signup form displays
+that code for confirmation/editing before submitting partner attribution.
+
 Partner codes and landing-page slugs are created at application time. Direct
 merchant links use `https://<PLATFORM_DOMAIN>/p/<partner-slug>`; affiliate
 recruitment links use `https://affiliate.<PLATFORM_DOMAIN>/affiliate/signup?ref=<partner-code>`.

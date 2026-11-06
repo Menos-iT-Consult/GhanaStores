@@ -77,11 +77,16 @@ router.post('/apply', async (req, res, next) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const phone = normalizeGhPhone(req.body?.phone);
     const password = String(req.body?.password || '');
+    const rawReferralCode = String(req.body?.preferredReferralCode || '').trim();
+    const preferredReferralCode = rawReferralCode ? rawReferralCode.toUpperCase() : '';
     if (!fullName || fullName.length > 120 || !organizationName || organizationName.length > 160
         || email.length > 254
         || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone
-        || password.length < 8 || password.length > 128) {
-      return res.status(400).json({ error: 'Enter a valid name, organization, Ghana phone number, email, and password (at least 8 characters).' });
+        || password.length < 8 || password.length > 128
+        || (preferredReferralCode && !/^[A-Z0-9]{3,20}$/.test(preferredReferralCode))) {
+      return res.status(400).json({
+        error: 'Enter valid application details and a password of at least 8 characters. Referral codes must be 3-20 letters or numbers.',
+      });
     }
     const passwordHash = await bcrypt.hash(password, 12);
     const application = await createPartnerApplication({
@@ -90,12 +95,16 @@ router.post('/apply', async (req, res, next) => {
       email,
       phone,
       passwordHash,
+      preferredReferralCode,
     });
     return res.status(201).json({
       application,
-      message: 'Your application has been received. You can sign in after Central Admin approves it.',
+      message: `Your application has been received${application.partner_code ? ` with referral code ${application.partner_code}` : ''}. You can sign in after Central Admin approves it.`,
     });
   } catch (err) {
+    if (err.code === 'PARTNER_CODE_EXISTS') {
+      return res.status(409).json({ error: 'That referral code is already in use. Choose another code.' });
+    }
     if (err.code === 'PARTNER_EMAIL_EXISTS' || err.code === '23505') {
       return res.status(409).json({ error: 'A partner application already uses this email.' });
     }

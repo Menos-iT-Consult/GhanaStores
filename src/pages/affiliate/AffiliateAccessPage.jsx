@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, LockKeyhole, LogIn, Mail, Phone, UserPlus, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole, LogIn, Mail, Phone, Tag, UserPlus, UserRound } from 'lucide-react';
 import { affiliateApi, setAffiliateSession } from '../../api.js';
 import { navigate } from '../../router.js';
 import { LogoLockup } from '../../components/icons.jsx';
@@ -16,6 +16,7 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
     email: '',
     phone: '',
     password: '',
+    partnerCode: new URLSearchParams(window.location.search).get('ref') || '',
   });
 
   function update(key) {
@@ -31,11 +32,7 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
         mode === 'signup' ? '/api/affiliate/signup' : '/api/affiliate/login',
         {
           ...form,
-          partnerCode: mode === 'signup'
-            ? (/^P[A-HJ-NP-Z2-9]{9}$/i.test(new URLSearchParams(window.location.search).get('ref') || '')
-              ? new URLSearchParams(window.location.search).get('ref')
-              : undefined)
-            : undefined,
+          partnerCode: mode === 'signup' ? form.partnerCode.trim().toUpperCase() || undefined : undefined,
         },
       );
       setAffiliateSession(result.token);
@@ -85,6 +82,14 @@ export default function AffiliateAccessPage({ initialMode = 'login' }) {
         <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="on">
           {signingUp && (
             <>
+              <label className="block space-y-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Partner referral code <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span>
+                <span className="relative block">
+                  <Tag size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <input value={form.partnerCode} onChange={update('partnerCode')} className={`${fieldClass} uppercase`} autoComplete="off" maxLength={20} minLength={form.partnerCode ? 3 : undefined} pattern={form.partnerCode ? '[A-Za-z0-9]{3,20}' : undefined} aria-describedby="affiliate-partner-code-help" />
+                </span>
+                <span id="affiliate-partner-code-help" className="block text-[11px] font-normal normal-case tracking-normal text-slate-400">Prefilled when you join through a partner's invite link.</span>
+              </label>
               <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
                 Full name
                 <span className="relative block">

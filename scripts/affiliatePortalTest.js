@@ -50,6 +50,11 @@ const checks = [
     /LogoLockup onLight subtitle="Affiliate program"/.test(accessPage)
       && /PasswordInput/.test(accessPage)
       && /aria-label=\{label\}/.test(read('../src/components/PasswordInput.jsx'))],
+  ['affiliate signup shows the partner code from an invite link and submits it for attribution',
+    /partnerCode: new URLSearchParams\(window\.location\.search\)\.get\('ref'\)/.test(accessPage)
+      && /Partner referral code/.test(accessPage)
+      && /form\.partnerCode\.trim\(\)\.toUpperCase\(\)/.test(accessPage)
+      && /findApprovedPartnerByCode\(partnerCode\)/.test(routes)],
   ['affiliate dashboard loads referrals, payout history, and program terms', ['/api/affiliate/referrals', '/api/affiliate/payouts', '/api/affiliate/program'].every((path) => dashboardPage.includes(path))],
   ['seller referral links open registration with the code prefilled', /platformOrigin\}\/login\?ref=\$\{encodeURIComponent\(profile\.referral_code\)\}/.test(dashboardPage) && /referralCode:\s*new URLSearchParams\(window\.location\.search\)\.get\('ref'\)/.test(read('../src/pages/AuthScreen.jsx'))],
   ['short referral codes are saved as attribution and accepted for signup', /A-HJ-NP-Z2-9/.test(app) && /isValidReferralCode/.test(routes) && /isValidReferralCode/.test(billingRoutes)],
