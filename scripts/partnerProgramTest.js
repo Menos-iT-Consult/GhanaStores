@@ -83,6 +83,9 @@ const checks = [
       && /PartnerPortalPage/.test(app)
       && /route\.startsWith\('\/p\/'\)/.test(app)
       && /'\/p\/'/.test(routes)],
+  ['merchant landing resolves the partner by slug without treating the slug as a referral code',
+    /api\.get\(`\/api\/partners\/public\/\$\{encodeURIComponent\(slug\)\}`\)/.test(read('../src/pages/PartnerLandingPage.jsx'))
+      && !/partners\/attribution\?code=\$\{encodeURIComponent\(slug\)\}/.test(read('../src/pages/PartnerLandingPage.jsx'))],
   ['referral query codes are retained for form prefill and resolved to partner or affiliate attribution',
     /\/api\/partners\/attribution\?code=/.test(read('../src/App.jsx'))
       && /params\.get\('source'\) !== 'partner'/.test(read('../src/App.jsx'))
@@ -93,9 +96,14 @@ const checks = [
       && /partnerCode: partner\.partner_code/.test(api)
       && /navigate\(`\/login\?ref=\$\{encodeURIComponent\(partner\.partnerCode\)\}&source=partner`\)/.test(read('../src/pages/PartnerLandingPage.jsx'))],
   ['partner dashboard and admin UI provide referral, network, rate, and payout workflows',
-    /Merchant onboarding link/.test(portal)
-      && /Affiliate recruitment link/.test(portal)
-      && /Request MoMo payout/.test(portal)
+    /PartnerOverviewPage/.test(portal)
+      && /PartnerReferralsPage/.test(portal)
+      && /PartnerPayoutsPage/.test(portal)
+      && /Merchant onboarding link/.test(read('../src/pages/partner/PartnerReferralsPage.jsx'))
+      && /Affiliate recruitment link/.test(read('../src/pages/partner/PartnerReferralsPage.jsx'))
+      && /Request MoMo payout/.test(read('../src/pages/partner/PartnerPayoutsPage.jsx'))
+      && /\/dashboard\/referrals/.test(portal)
+      && /\/dashboard\/payouts/.test(portal)
       && /RateSlider/.test(adminUi)
       && /Mark paid/.test(adminUi)],
   ['partner access uses DiDwa branding and the shared accessible password reveal',

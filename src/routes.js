@@ -17,6 +17,7 @@ export const PUBLIC_ROUTES = [
   '/affiliate-program',
   '/affiliate/login', '/affiliate/signup', '/affiliate/dashboard',
   '/affiliate/dashboard/referrals', '/affiliate/dashboard/payouts',
+  '/dashboard/referrals', '/dashboard/payouts',
   // Reached from the forgot-password email while signed out - must be public.
   '/reset-password',
 ];

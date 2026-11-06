@@ -72,6 +72,10 @@ for (const path of PUBLIC_LINKS) {
 }
 log('partner merchant landing route is public and not PWA-gated',
   isKnownRoute('/p/partner-name') === true && isPwaRoute('/p/partner-name') === false);
+for (const path of ['/dashboard/referrals', '/dashboard/payouts']) {
+  log(`partner dashboard route ${path} is routable`, isKnownRoute(path) === true);
+  log(`partner dashboard route ${path} is not seller PWA-gated`, isPwaRoute(path) === false);
+}
 
 /* ---------- Defensive: a malformed path must not throw ---------- */
 log("empty path treated as '/'", isKnownRoute('') === true);

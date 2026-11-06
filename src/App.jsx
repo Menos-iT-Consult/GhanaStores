@@ -345,6 +345,9 @@ case '/messages': return <SellerMessages />;
     if (hostState.status === 'pending') {
       return <div className="min-h-screen bg-slate-950" aria-hidden="true" />;
     }
+    if (!['/', '/login', '/apply', '/dashboard', '/dashboard/referrals', '/dashboard/payouts'].includes(route)) {
+      return <NotFoundPage authed={authed} path={route} />;
+    }
     return <PartnerPortalPage />;
   }
 

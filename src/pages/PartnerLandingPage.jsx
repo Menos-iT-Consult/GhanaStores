@@ -12,11 +12,8 @@ export default function PartnerLandingPage({ slug }) {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      api.get(`/api/partners/public/${encodeURIComponent(slug)}`),
-      api.get(`/api/partners/attribution?code=${encodeURIComponent(slug)}`),
-    ])
-      .then(([result]) => { if (active) setPartner(result.partner); })
+    api.get(`/api/partners/public/${encodeURIComponent(slug)}`)
+      .then((result) => { if (active) setPartner(result.partner); })
       .catch((err) => { if (active) setError(err.message || 'This partner page is unavailable.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
