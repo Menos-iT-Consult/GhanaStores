@@ -287,6 +287,7 @@ POST   /api/orders/storefront/checkout Buyer cart -> order + WhatsApp deep link
 PATCH  /api/orders/:id/status         PAID (wallet+loyalty) / CANCELLED (restock)
 GET    /api/orders/:id/receipt        PDF receipt (seller JWT or ?token= HMAC share link)
 GET    /api/inventory/products        Catalog with variants
+POST   /api/inventory/products        Create product; every variant requires a whole-number stockQuantity (0 is valid)
 GET    /api/ai/products               Active products for a seller's copy action
 POST   /api/ai/gateway                Allowlisted system-generated seller actions only
 PATCH  /api/inventory/variants/:id/stock  Adjust stock (delta or absolute)

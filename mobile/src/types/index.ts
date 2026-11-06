@@ -395,7 +395,7 @@ export interface ProductVariantInput {
   optionValue?: string;
   sku?: string;
   priceOverride?: number | null;
-  stockQuantity?: number;
+  stockQuantity: number;
   lowStockThreshold?: number;
 }
 

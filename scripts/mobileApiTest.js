@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 
 import { orderFilterToStatuses } from '../routes/mobileRoutes.js';
+import { parseRequiredStockQuantity } from '../routes/inventoryRoutes.js';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   isExpoPushToken,
@@ -55,6 +56,20 @@ test('order filters map to canonical statuses (case-insensitive)', () => {
   assert.deepEqual(orderFilterToStatuses('PENDING'), ['PENDING']);
   assert.equal(orderFilterToStatuses(undefined), null);
   assert.equal(orderFilterToStatuses('bogus'), null);
+});
+
+test('product stock quantity is required and must be a non-negative whole number', () => {
+  assert.equal(parseRequiredStockQuantity(0), 0);
+  assert.equal(parseRequiredStockQuantity('12'), 12);
+  for (const value of [undefined, null, '', '  ']) {
+    assert.throws(() => parseRequiredStockQuantity(value), { status: 400, message: 'Stock quantity is required.' });
+  }
+  for (const value of [-1, 1.5, '2.5', 'not-a-number', false, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parseRequiredStockQuantity(value), {
+      status: 400,
+      message: 'Stock quantity must be a whole number greater than or equal to zero.',
+    });
+  }
 });
 
 test('expo push token validation accepts only Expo tokens', () => {
@@ -305,6 +320,14 @@ test('v1.1 wraps the shared engines instead of duplicating logic', () => {
   assert.ok(inventory.includes('export async function createProductForStore'));
   assert.ok(inventory.includes("Product category is required."));
   assert.ok(inventory.includes('const category = String(b.category || \'\').trim()'));
+  assert.ok(inventory.includes('parseRequiredStockQuantity(variant?.stockQuantity'));
+  assert.ok(inventory.includes('const stockQuantity = parseRequiredStockQuantity(v.stockQuantity)'));
+  const inventoryUi = read('src/pages/SellerInventory.jsx');
+  assert.ok(/required type="number" min="0" step="1" value=\{v\.stockQuantity\}/.test(inventoryUi));
+  assert.ok(inventoryUi.includes('stockQuantity: \'\''));
+  const mobileProductEditor = read('mobile/app/(tabs)/products/[id].tsx');
+  assert.ok(mobileProductEditor.includes("if (openingStock.trim() === '')"));
+  assert.ok(mobileProductEditor.includes("label=\"Opening stock *\""));
   assert.ok(inventory.includes('export async function updateProductForStore'));
   assert.ok(inventory.includes('export async function adjustVariantStockHandler'));
   // PWA keeps its own thin wrapper over the extracted handler.

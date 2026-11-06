@@ -44,7 +44,7 @@ export default function ProductEditorScreen() {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [openingStock, setOpeningStock] = useState('0');
+  const [openingStock, setOpeningStock] = useState('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageKey, setImageKey] = useState<string | null>(null);
   const [savingImage, setSavingImage] = useState(false);
@@ -111,7 +111,9 @@ export default function ProductEditorScreen() {
       if (!category.trim()) throw new Error('Product category is required.');
       if (!Number.isFinite(priceNum) || priceNum < 0) throw new Error('Enter a valid price.');
       if (isNew) {
-        const stock = Math.max(0, parseInt(openingStock, 10) || 0);
+        if (openingStock.trim() === '') throw new Error('Opening stock is required. Enter 0 if the item is out of stock.');
+        const stock = Number(openingStock);
+        if (!Number.isInteger(stock) || stock < 0) throw new Error('Opening stock must be a whole number greater than or equal to zero.');
         return endpoints.createProduct({
           name: name.trim(),
           category: category.trim(),
@@ -188,8 +190,9 @@ export default function ProductEditorScreen() {
             <TextInput mode="outlined" label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={3} style={styles.input} />
             <TextInput mode="outlined" label="Price (GHS) *" value={price} onChangeText={setPrice} keyboardType="decimal-pad" style={styles.input} />
             {isNew ? (
-              <TextInput mode="outlined" label="Opening stock" value={openingStock} onChangeText={setOpeningStock} keyboardType="number-pad" style={styles.input} />
+              <TextInput mode="outlined" label="Opening stock *" value={openingStock} onChangeText={setOpeningStock} keyboardType="number-pad" style={styles.input} />
             ) : null}
+            {isNew ? <Text variant="bodySmall" style={[styles.muted, { color: colors.onSurfaceVariant }]}>Enter the available units. Use 0 if the item is out of stock.</Text> : null}
             <View style={styles.activeRow}>
               <View style={{ flex: 1 }}>
                 <Text variant="bodyLarge" style={[styles.label, { color: colors.onSurface }]}>Available for sale</Text>

@@ -12,6 +12,19 @@ import { money, toIntOr } from '../utils/helpers.js';
 
 const router = Router();
 
+export function parseRequiredStockQuantity(value, label = 'Stock quantity') {
+  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
+    throw Object.assign(new Error(`${label} is required.`), { status: 400 });
+  }
+  const isNumericValue = typeof value === 'number'
+    || (typeof value === 'string' && /^\d+$/.test(value.trim()));
+  const quantity = isNumericValue ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(quantity) || quantity < 0) {
+    throw Object.assign(new Error(`${label} must be a whole number greater than or equal to zero.`), { status: 400 });
+  }
+  return quantity;
+}
+
 /**
  * Shared low-stock evaluation used by BOTH inventory adjustments and POS sales.
  * Runs inside an open transaction `t`. After decrementing a variant:
@@ -171,6 +184,13 @@ export async function createProductForStore(storeId, b = {}) {
     const variants = Array.isArray(b.variants) && b.variants.length > 0
       ? b.variants
       : [{ optionName: 'Default', optionValue: 'Standard' }];
+    const variantsWithStock = variants.map((variant, index) => ({
+      ...variant,
+      stockQuantity: parseRequiredStockQuantity(
+        variant?.stockQuantity,
+        `Stock quantity for variant ${index + 1}`,
+      ),
+    }));
 
     const alertCandidates = [];
     const result = await withTransaction(async (t) => {
@@ -181,8 +201,8 @@ export async function createProductForStore(storeId, b = {}) {
           b.imageUrl || null, b.imageKey || null, price],
       );
       const productId = prod.rows[0].id;
-      for (const v of variants) {
-        const qty = Math.max(0, parseInt(v.stockQuantity ?? 0, 10) || 0);
+      for (const v of variantsWithStock) {
+        const qty = v.stockQuantity;
         const threshold = Math.max(0, parseInt(v.lowStockThreshold ?? 5, 10) || 0);
         // A variant created already at/below its threshold arms the alert latch.
         const ins = await t.query(
@@ -280,6 +300,7 @@ router.put('/products/:id', requireSeller, async (req, res, next) => {
 router.post('/products/:id/variants', requireSeller, async (req, res, next) => {
   try {
     const v = req.body || {};
+    const stockQuantity = parseRequiredStockQuantity(v.stockQuantity);
     const owner = await query(
       'SELECT 1 FROM products WHERE id = $1 AND store_id = $2',
       [req.params.id, req.auth.sub],
@@ -297,7 +318,7 @@ router.post('/products/:id/variants', requireSeller, async (req, res, next) => {
         String(v.optionValue || 'Standard').trim(),
         v.sku || null,
         v.priceOverride != null ? money(v.priceOverride) : null,
-        Math.max(0, parseInt(v.stockQuantity ?? 0, 10) || 0),
+        stockQuantity,
         Math.max(0, parseInt(v.lowStockThreshold ?? 5, 10) || 0)],
     );
     // A freshly stocked variant above threshold resets any stale alert flag.

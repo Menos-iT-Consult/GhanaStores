@@ -11,7 +11,7 @@ import {
   IconSearch, IconTrash, IconCoins,
 } from '../components/icons.jsx';
 
-const EMPTY_VARIANT = { optionName: 'Size', optionValue: '', sku: '', priceOverride: '', stockQuantity: 0, lowStockThreshold: 5 };
+const EMPTY_VARIANT = { optionName: 'Size', optionValue: '', sku: '', priceOverride: '', stockQuantity: '', lowStockThreshold: 5 };
 
 export default function SellerInventory() {
   const [products, setProducts] = useState([]);
@@ -60,20 +60,23 @@ export default function SellerInventory() {
     setBusy(true);
     setFeedback(null);
     try {
+      const selectedVariants = variants.filter((v) => v.optionValue.trim() !== '');
+      if (selectedVariants.some((v) => String(v.stockQuantity).trim() === ''
+          || !Number.isInteger(Number(v.stockQuantity)) || Number(v.stockQuantity) < 0)) {
+        throw new Error('Enter a whole-number stock quantity for every product variant. Use 0 if it is out of stock.');
+      }
       await api.post('/api/inventory/products', {
         ...form,
         category: form.category.trim(),
         imageKey: pendingImage?.key || undefined,
         imageUrl: pendingImage?.rawUrl || undefined,
         price: Number(form.price),
-        variants: variants
-          .filter((v) => v.optionValue.trim() !== '')
-          .map((v) => ({
+        variants: selectedVariants.map((v) => ({
             optionName: v.optionName || 'Default',
             optionValue: v.optionValue,
             sku: v.sku || undefined,
             priceOverride: v.priceOverride === '' ? undefined : Number(v.priceOverride),
-            stockQuantity: Number(v.stockQuantity) || 0,
+            stockQuantity: Number(v.stockQuantity),
             lowStockThreshold: Number(v.lowStockThreshold) || 0,
           })),
       });
@@ -181,6 +184,7 @@ export default function SellerInventory() {
           <p className="mt-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
             <IconCoins size={14} className="text-blue-600" /> Variants (size, colour, SKU, re-order alert)
           </p>
+          <p className="mt-1 text-xs text-slate-500">Stock quantity is required for every variant. Enter 0 only when the item is out of stock.</p>
           <div className="mt-2 space-y-2">
             {variants.map((v, i) => (
               <div key={i} className="grid grid-cols-2 gap-2 md:grid-cols-6">
@@ -193,8 +197,8 @@ export default function SellerInventory() {
                 <input type="number" min="0" step="0.01" value={v.priceOverride}
                   onChange={(e) => setVariant(i, { priceOverride: e.target.value })}
                   placeholder="Price override" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                <input type="number" min="0" value={v.stockQuantity} onChange={(e) => setVariant(i, { stockQuantity: e.target.value })}
-                  placeholder="Stock" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <input required type="number" min="0" step="1" value={v.stockQuantity} onChange={(e) => setVariant(i, { stockQuantity: e.target.value })}
+                  placeholder="Stock *" aria-label={`Stock quantity for ${v.optionValue || `variant ${i + 1}`}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                 <div className="flex gap-2">
                   <input type="number" min="0" value={v.lowStockThreshold} onChange={(e) => setVariant(i, { lowStockThreshold: e.target.value })}
                     placeholder="Alert at" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
